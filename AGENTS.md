@@ -38,6 +38,30 @@ community plugin review. Beyond what the linter catches:
 - Sentence case in user-facing text.
 - Do not detach leaves in `onunload()`; that belongs in `onDisable()`.
 
+## Obsidian internals
+
+`src/core/obsidian-internals.ts` is the only file allowed to touch `app.plugins`.
+That API is undocumented and absent from `obsidian.d.ts`; keeping it in one place
+means a future Obsidian release breaks one file, and the wrapper can disable the
+feature instead of crashing. Do not reach for `app.plugins` anywhere else.
+
+`app.vault.configDir` is the config folder — never write `.obsidian` literally.
+Hidden folders are reachable only through the adapter API, visible vault files
+through the vault API.
+
+## Plugin ring
+
+The ring applies changes another device published, which means running code from
+elsewhere. Three rules are not negotiable:
+
+- Toolbox never appears in a diff or an operation. Disabling the plugin that is
+  running the apply loop would cut the loop off silently, so it is filtered when
+  collecting, again in `planApply`, and once more in `applyPlans`.
+- Changes are applied one plugin at a time as `disable -> write -> enable`, never
+  as a batch of disables followed by a batch of enables.
+- A snapshot only counts as applied when every item succeeded, and a plugin the
+  host does not have is left alone rather than removed.
+
 ## Privacy
 
 The plugin works offline and stays that way: no network calls, no telemetry, no

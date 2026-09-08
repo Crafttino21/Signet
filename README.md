@@ -4,8 +4,59 @@ An Obsidian plugin that collects several small quality-of-life tools in one plac
 each one switchable on its own.
 
 Every feature is a **module**: a self-contained unit with its own settings that can
-be turned on and off at runtime without restarting Obsidian. The plugin ships with
-three example modules that exist purely as templates to copy.
+be turned on and off at runtime without restarting Obsidian.
+
+## Plugin ring
+
+Keeps the plugins and their settings in step across your devices, so setting up a
+new one does not mean reinstalling and reconfiguring everything by hand.
+
+One device is the **host**. It publishes a snapshot of which plugins it has, which
+are switched on, and their settings. The other devices join with a code and pull
+that snapshot in — after being shown exactly what would change.
+
+Because every device opens the same synced vault, the ring needs no server and no
+account: the snapshot is an ordinary file inside the vault. That is deliberate —
+config folders often do not sync to mobile, ordinary vault files do.
+
+**How it is kept safe.** Applying a ring update means running code from another
+machine, and that exact pattern has been attacked in the wild ([PHANTOMPULSE][],
+April 2026: a shared vault was used to pull in plugins that then executed shell
+commands). So:
+
+- Joining takes the code. A device never joins a ring on its own.
+- The snapshot is encrypted with AES-GCM using a key derived from that code. Since
+  AES-GCM is authenticated, write access to the vault is not enough to push a
+  snapshot at the ring — only someone holding the code can.
+- Nothing is applied without showing you the changes first.
+- Toolbox never acts on itself, and a plugin the host does not have is left alone
+  rather than removed.
+
+The settings of other plugins routinely contain API keys in plain text, which is
+why the snapshot is encrypted rather than merely signed. You can also list plugins
+whose settings should never leave this device.
+
+[PHANTOMPULSE]: https://thehackernews.com/2026/04/obsidian-plugin-abuse-delivers.html
+
+### What it currently does and does not do
+
+Switching plugins on and off and syncing their settings works. **Installing a
+plugin the device does not have yet is not implemented** — those show up in the
+diff as "not installed here" so you know what to add by hand. When that lands, it
+will install only from Obsidian's curated community list.
+
+### Disclosure
+
+The ring reads and writes other plugins' `data.json` and switches plugins on and
+off. It does that through `app.plugins`, which is an internal Obsidian API that is
+not part of the public typings — `src/core/obsidian-internals.ts` isolates it and
+disables the feature if a future Obsidian release changes it. The ring itself makes
+no network requests.
+
+## Example modules
+
+Three example modules ship alongside it as templates to copy: a command, a sidebar
+panel and a pair of event listeners.
 
 ## Installing for development
 
@@ -114,14 +165,20 @@ src/
     settings.ts            settings shape + migration
     settings-tab.ts        one section per module
     view.ts                registerViewOnce()
+    obsidian-internals.ts  the one file that touches Obsidian's internal API
   modules/
     index.ts               the module list — the only file a new feature touches
+    plugin-ring/           keeps plugins in step across devices
     example-command/       a command, a ribbon icon, one setting
     example-view/          a sidebar panel
     example-events/        vault and workspace listeners
   test/
     obsidian.stub.ts       stand-in for the `obsidian` module
+    fake-app.ts            in-memory vault and plugin manager for tests
 ```
+
+Inside `plugin-ring/`, the files without an Obsidian import — `code.ts`, `crypto.ts`
+and `diff.ts` — hold the logic worth testing, and that is where the tests are.
 
 ## Before a public release
 

@@ -1,0 +1,106 @@
+import { normalizePath } from 'obsidian';
+import type { App } from 'obsidian';
+import { isRingEnvelope } from './crypto';
+import type { RingEnvelope } from './crypto';
+
+export type RingFileState =
+	| { status: 'absent' }
+	/**
+	 * The file is there but cannot be understood right now. That is an expected,
+	 * temporary condition — a sync client replacing the file can easily be caught
+	 * mid-write — so this is deliberately distinct from "wrong secret", and the
+	 * right response is to try again later rather than to warn about tampering.
+	 */
+	| { status: 'unreadable'; message: string }
+	| { status: 'ok'; envelope: RingEnvelope };
+
+/**
+ * The ring file itself.
+ *
+ * It is an ordinary, visible vault file rather than something under the config
+ * directory — that is the whole point. Config folders do not travel to mobile in
+ * this setup, ordinary vault files do, so the ring rides along on whatever sync
+ * the user already runs. Being visible, it is reached through the vault API.
+ */
+export class RingFile {
+	readonly path: string;
+
+	constructor(
+		private readonly app: App,
+		path: string
+	) {
+		this.path = normalizePath(path);
+	}
+
+	async read(): Promise<RingFileState> {
+		const file = this.app.vault.getFileByPath(this.path);
+		if (!file) {
+			return { status: 'absent' };
+		}
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(await this.app.vault.read(file));
+		} catch {
+			return { status: 'unreadable', message: 'The ring file is not valid JSON right now.' };
+		}
+
+		if (!isRingEnvelope(parsed)) {
+			return {
+				status: 'unreadable',
+				message: 'The ring file does not look like a ring snapshot.',
+			};
+		}
+		return { status: 'ok', envelope: parsed };
+	}
+
+	async write(envelope: RingEnvelope): Promise<void> {
+		const contents = JSON.stringify(envelope, null, 2);
+		const existing = this.app.vault.getFileByPath(this.path);
+
+		if (existing) {
+			await this.app.vault.modify(existing, contents);
+			return;
+		}
+
+		await this.ensureParentFolder();
+		await this.app.vault.create(this.path, contents);
+	}
+
+	/**
+	 * Sync clients rename rather than merge when two devices write at once, leaving
+	 * copies like `plugin-ring (conflicted copy).json` next to the real file. They
+	 * are worth surfacing: they mean two devices were both publishing.
+	 */
+	findConflictCopies(): string[] {
+		const lastSlash = this.path.lastIndexOf('/');
+		const folder = lastSlash < 0 ? '' : this.path.slice(0, lastSlash);
+		const fileName = this.path.slice(lastSlash + 1);
+		const stem = fileName.replace(/\.json$/, '');
+
+		return this.app.vault
+			.getFiles()
+			.filter((file) => {
+				if (file.path === this.path) {
+					return false;
+				}
+				const parent = file.parent?.path === '/' ? '' : (file.parent?.path ?? '');
+				return (
+					parent === folder && file.name.startsWith(stem) && file.name.endsWith('.json')
+				);
+			})
+			.map((file) => file.path);
+	}
+
+	private async ensureParentFolder(): Promise<void> {
+		const lastSlash = this.path.lastIndexOf('/');
+		if (lastSlash < 0) {
+			return;
+		}
+
+		const folder = this.path.slice(0, lastSlash);
+		if (!this.app.vault.getFolderByPath(folder)) {
+			await this.app.vault.createFolder(folder);
+		}
+	}
+}

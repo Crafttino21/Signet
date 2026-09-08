@@ -11,3 +11,71 @@
 	padding: var(--size-4-3);
 	margin: 0;
 }
+
+/* Plugin ring */
+
+.toolbox-ring__hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin: 0 0 var(--size-4-3);
+}
+
+.toolbox-ring__warning {
+	color: var(--text-error);
+	background-color: var(--background-modifier-error);
+	border-radius: var(--radius-s);
+	padding: var(--size-4-2) var(--size-4-3);
+	margin: 0 0 var(--size-4-3);
+}
+
+.toolbox-ring__code {
+	font-family: var(--font-monospace);
+	font-size: var(--font-ui-large);
+	text-align: center;
+	user-select: all;
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: var(--size-4-3);
+	margin-bottom: var(--size-4-3);
+	word-break: break-all;
+}
+
+.toolbox-ring__list {
+	list-style: none;
+	margin: 0 0 var(--size-4-3);
+	padding: 0;
+	max-height: 40vh;
+	overflow-y: auto;
+}
+
+.toolbox-ring__row {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
+	gap: 0 var(--size-4-2);
+	align-items: baseline;
+	padding: var(--size-4-1) 0;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.toolbox-ring__name {
+	font-weight: var(--font-medium);
+	overflow-wrap: anywhere;
+}
+
+.toolbox-ring__kind {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	text-align: right;
+}
+
+.toolbox-ring__detail,
+.toolbox-ring__reason {
+	grid-column: 1 / -1;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+}
+
+.toolbox-ring__detail {
+	font-family: var(--font-monospace);
+}

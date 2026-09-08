@@ -1,7 +1,7 @@
+import { defineConfig } from 'eslint/config';
 import obsidianmd from 'eslint-plugin-obsidianmd';
-import tseslint from 'typescript-eslint';
 
-export default tseslint.config(
+export default defineConfig(
 	{
 		// Build output and dependencies are never linted.
 		ignores: ['main.js', 'node_modules/**', 'coverage/**'],
@@ -46,6 +46,27 @@ export default tseslint.config(
 		rules: {
 			'obsidianmd/settings-tab/prefer-setting-definitions': 'off',
 			'@typescript-eslint/no-deprecated': 'off',
+		},
+	},
+
+	{
+		// Crypto lives on `globalThis` rather than `window` on purpose: this code
+		// also runs under Node in the tests, where `window` does not exist. The rule
+		// guards against per-popout-window state, which the crypto namespace is not.
+		files: ['src/modules/plugin-ring/code.ts', 'src/modules/plugin-ring/crypto.ts'],
+		rules: {
+			'obsidianmd/no-global-this': 'off',
+		},
+	},
+
+	{
+		// Tests build fake vaults, so a literal '.obsidian' is the thing under test
+		// rather than a hardcoded assumption. Matchers like expect.objectContaining
+		// are typed as `any`, which is the assertion library's business, not ours.
+		files: ['**/*.test.ts', 'src/test/**/*.ts'],
+		rules: {
+			'obsidianmd/hardcoded-config-path': 'off',
+			'@typescript-eslint/no-unsafe-assignment': 'off',
 		},
 	},
 

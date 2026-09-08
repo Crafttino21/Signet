@@ -1,0 +1,36 @@
+{
+	"name": "toolbox",
+	"version": "0.1.0",
+	"description": "A modular Obsidian plugin that bundles several small quality-of-life tools.",
+	"type": "module",
+	"private": true,
+	"license": "MIT",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "npm run typecheck && node esbuild.config.mjs production",
+		"typecheck": "tsc --noEmit",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"check": "npm run typecheck && npm run lint && npm run test"
+	},
+	"keywords": [
+		"obsidian",
+		"obsidian-plugin"
+	],
+	"devDependencies": {
+		"@types/node": "^26.5.0",
+		"esbuild": "0.28.2",
+		"eslint": "^9.39.5",
+		"eslint-plugin-obsidianmd": "^0.4.2",
+		"jsdom": "^30.0.1",
+		"obsidian": "^1.13.1",
+		"prettier": "^3.9.6",
+		"typescript": "^5.9.3",
+		"typescript-eslint": "^8.70.0",
+		"vitest": "^5.0.0"
+	}
+}

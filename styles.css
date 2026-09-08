@@ -1,0 +1,13 @@
+/*
+ * Styles for the Toolbox plugin.
+ *
+ * Always use Obsidian's CSS variables rather than fixed colours, so the plugin
+ * follows whatever theme the user has. Never set styles inline from TypeScript —
+ * add a class here instead.
+ */
+
+.toolbox-example-view__hint {
+	color: var(--text-muted);
+	padding: var(--size-4-3);
+	margin: 0;
+}

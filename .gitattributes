@@ -1,0 +1,3 @@
+# Keep LF in the repository and in working copies on every platform, so that
+# Prettier and .editorconfig do not fight Git's line-ending conversion.
+* text=auto eol=lf

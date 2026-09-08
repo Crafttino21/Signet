@@ -1,0 +1,109 @@
+import { Component } from 'obsidian';
+import type { App, Command, IconName } from 'obsidian';
+import type ToolboxPlugin from '../main';
+
+/**
+ * The static half of a module: everything the settings tab needs in order to list
+ * a module that is switched off, without having to construct it.
+ */
+export interface ModuleDescriptor<S = unknown> {
+	/**
+	 * Stable identifier, also used as the key under which this module's settings
+	 * are stored. Never change it after a release — doing so silently orphans
+	 * every user's configuration for this module.
+	 */
+	readonly id: string;
+	/** Shown as the section heading in settings. Sentence case. */
+	readonly name: string;
+	/** One line explaining what switching this on does. */
+	readonly description: string;
+	readonly defaultSettings: S;
+	/** Defaults to false — a fresh install should stay quiet until asked. */
+	readonly enabledByDefault?: boolean;
+	create(plugin: ToolboxPlugin): ToolboxModule<S>;
+}
+
+/**
+ * Base class for a feature.
+ *
+ * A module is an Obsidian `Component`, which is what makes runtime toggling work:
+ * `registerEvent()`, `registerDomEvent()`, `registerInterval()` and `register()`
+ * clean up when *the component they were called on* unloads — not when the plugin
+ * unloads. So a module that registers everything through `this.*` is fully torn
+ * down by `plugin.removeChild(module)`, while the rest of the plugin keeps running.
+ *
+ * Put setup in `onload()` and use the `this.register*` helpers for anything that
+ * needs undoing. Anything registered directly on the plugin instead leaks until
+ * the whole plugin unloads.
+ */
+export abstract class ToolboxModule<S = unknown> extends Component {
+	constructor(
+		protected readonly plugin: ToolboxPlugin,
+		readonly descriptor: ModuleDescriptor<S>
+	) {
+		super();
+	}
+
+	protected get app(): App {
+		return this.plugin.app;
+	}
+
+	protected get settings(): S {
+		return this.plugin.settings.moduleSettings[this.descriptor.id] as S;
+	}
+
+	/**
+	 * Adds a command that disappears again when this module is switched off.
+	 *
+	 * `Plugin.addCommand()` binds the command to the plugin's lifetime, so a module
+	 * must undo it explicitly. Use this instead of `this.plugin.addCommand()`.
+	 */
+	protected addCommand(command: Command): Command {
+		const registered = this.plugin.addCommand(command);
+		// Obsidian prefixes the id with the plugin id, so remove by the returned one.
+		this.register(() => this.plugin.removeCommand(registered.id));
+		return registered;
+	}
+
+	/**
+	 * Adds a ribbon icon that is removed again when this module is switched off.
+	 * Same reasoning as {@link addCommand}.
+	 */
+	protected addRibbonIcon(
+		icon: IconName,
+		title: string,
+		callback: (evt: MouseEvent) => void
+	): HTMLElement {
+		const element = this.plugin.addRibbonIcon(icon, title, callback);
+		this.register(() => element.remove());
+		return element;
+	}
+
+	/** Merges a partial update into this module's settings and persists them. */
+	protected async patchSettings(patch: Partial<S>): Promise<void> {
+		const current = this.settings;
+		const base = typeof current === 'object' && current !== null ? current : {};
+		this.plugin.settings.moduleSettings[this.descriptor.id] = { ...base, ...patch };
+		await this.plugin.saveSettings();
+	}
+
+	/**
+	 * Called only when the user switches this module off — not when the plugin
+	 * unloads because Obsidian is closing or updating.
+	 *
+	 * That distinction matters: `onunload()` runs in both cases, so cleanup that
+	 * should not happen on shutdown belongs here. Detaching leaves is the usual
+	 * example — doing it on plugin unload breaks their restoration after an update.
+	 */
+	onDisable(): void {
+		// Nothing by default.
+	}
+
+	/**
+	 * Optional: render this module's own controls into its settings section.
+	 * Only called while the module is enabled.
+	 */
+	displaySettings(_containerEl: HTMLElement): void {
+		// Nothing by default.
+	}
+}

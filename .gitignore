@@ -1,0 +1,21 @@
+# Dependencies
+node_modules
+
+# Build output — the compiled bundle is a release artifact, not source.
+main.js
+*.map
+
+# Obsidian writes plugin settings here at runtime.
+data.json
+
+# Test output
+coverage
+
+# Editors
+.vscode
+.idea
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

@@ -16,9 +16,18 @@ A module is an Obsidian `Component`, which is what makes runtime toggling work.
   versions cannot be undone per module.
 - `onload()` sets up, `onunload()` runs on both switch-off and plugin unload,
   `onDisable()` runs only on a deliberate switch-off.
-- Views go through `registerViewOnce()` in `src/core/view.ts`.
+- A view type cannot be unregistered, so register it at most once and let it
+  outlive the module; the module owns its commands and leaves instead.
 
 Module ids are the keys settings are stored under. They are permanent once released.
+
+## Text shown to users
+
+Every user-facing string goes through `t()` from `src/i18n`, never inline. Add the
+key to `src/i18n/locales/en.ts` first — it is the base locale and defines the type
+— then translate it in `de.ts`, which is typed as complete and will fail to compile
+until you do. Keep display text out of the logic: `diff.ts` emits reason codes and
+the modal translates them.
 
 ## Obsidian plugin rules
 

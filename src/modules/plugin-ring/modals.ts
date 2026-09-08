@@ -1,6 +1,7 @@
 import { Modal, Notice, Setting } from 'obsidian';
 import type { App } from 'obsidian';
-import { describeResult } from './apply';
+import { t } from '../../i18n';
+import type { TranslationKey } from '../../i18n';
 import type { ApplyResult } from './apply';
 import type { DiffItem } from './types';
 
@@ -16,22 +17,18 @@ export class JoinRingModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.setTitle('Join a plugin ring');
+		this.setTitle(t('ring.join.title'));
+		this.contentEl.createEl('p', { cls: 'toolbox-ring__hint', text: t('ring.join.hint') });
 
-		this.contentEl.createEl('p', {
-			cls: 'toolbox-ring__hint',
-			text: 'Enter the code shown on the device that hosts the ring. Nothing is changed until you have seen what would happen.',
-		});
-
-		new Setting(this.contentEl).setName('Ring code').addText((text) =>
-			text.setPlaceholder('Paste your ring code').onChange((value) => {
+		new Setting(this.contentEl).setName(t('ring.join.label')).addText((text) =>
+			text.setPlaceholder(t('ring.join.placeholder')).onChange((value) => {
 				this.code = value;
 			})
 		);
 
 		new Setting(this.contentEl).addButton((button) =>
 			button
-				.setButtonText('Join')
+				.setButtonText(t('ring.join.submit'))
 				.setCta()
 				.onClick(() => {
 					const code = this.code;
@@ -56,22 +53,18 @@ export class ShowCodeModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.setTitle('Your ring code');
-
-		this.contentEl.createEl('p', {
-			cls: 'toolbox-ring__hint',
-			text: 'Enter this on another device to add it to the ring. Anyone who has it can read and publish to the ring, so treat it like a password.',
-		});
+		this.setTitle(t('ring.code.title'));
+		this.contentEl.createEl('p', { cls: 'toolbox-ring__hint', text: t('ring.code.hint') });
 		this.contentEl.createDiv({ cls: 'toolbox-ring__code', text: this.code });
 
 		new Setting(this.contentEl).addButton((button) =>
 			button
-				.setButtonText('Copy')
+				.setButtonText(t('common.copy'))
 				.setCta()
 				.onClick(() => {
 					void navigator.clipboard.writeText(this.code).then(
-						() => new Notice('Ring code copied.'),
-						() => new Notice('Could not copy the code — select it by hand.')
+						() => new Notice(t('ring.notice.codeCopied')),
+						() => new Notice(t('ring.notice.codeCopyFailed'))
 					);
 				})
 		);
@@ -82,14 +75,37 @@ export class ShowCodeModal extends Modal {
 	}
 }
 
-const KIND_LABEL: Record<DiffItem['kind'], string> = {
-	missing: 'Not installed here',
-	enable: 'Switch on',
-	disable: 'Switch off',
-	version: 'Different version',
-	settings: 'Settings differ',
-	extra: 'Only on this device',
+const KIND_KEY: Record<DiffItem['kind'], TranslationKey> = {
+	missing: 'ring.kind.missing',
+	enable: 'ring.kind.enable',
+	disable: 'ring.kind.disable',
+	version: 'ring.kind.version',
+	settings: 'ring.kind.settings',
+	extra: 'ring.kind.extra',
 };
+
+const REASON_KEY: Record<NonNullable<DiffItem['reason']>, TranslationKey> = {
+	desktopOnly: 'ring.reason.desktopOnly',
+	notInstalled: 'ring.reason.notInstalled',
+	noUpdate: 'ring.reason.noUpdate',
+	hostLacks: 'ring.reason.hostLacks',
+};
+
+/** Turns an apply run into the sentence shown afterwards. */
+export function describeResult(result: ApplyResult): string {
+	const total = result.applied.length + result.failed.length;
+	if (result.complete) {
+		return total === 1
+			? t('ring.result.appliedOne')
+			: t('ring.result.appliedMany', { count: total });
+	}
+
+	return t('ring.result.partial', {
+		applied: result.applied.length,
+		total,
+		names: result.failed.map((failure) => failure.plan.name).join(', '),
+	});
+}
 
 /**
  * Shows what would change and asks before doing any of it.
@@ -112,36 +128,34 @@ export class RingDiffModal extends Modal {
 		const actionable = this.items.filter((item) => item.actionable);
 		const rest = this.items.filter((item) => !item.actionable);
 
-		this.setTitle(`Ring update from "${this.context.hostName}"`);
+		this.setTitle(t('ring.diff.title', { host: this.context.hostName }));
 
 		if (this.context.hostChanged) {
 			this.contentEl.createEl('p', {
 				cls: 'toolbox-ring__warning',
-				text: 'This snapshot was published by a different device than before. If you did not hand the host role over yourself, do not apply it.',
+				text: t('ring.diff.hostChanged'),
 			});
 		}
 
 		if (this.items.length === 0) {
-			this.contentEl.createEl('p', { text: 'This device already matches the host.' });
+			this.contentEl.createEl('p', { text: t('ring.diff.upToDate') });
 			return;
 		}
 
 		if (actionable.length > 0) {
-			this.renderSection('Will be applied', actionable);
+			this.renderSection(t('ring.diff.willApply'), actionable);
 		}
 		if (rest.length > 0) {
-			this.renderSection('Left alone', rest);
+			this.renderSection(t('ring.diff.leftAlone'), rest);
 		}
 
 		new Setting(this.contentEl)
-			.addButton((button) => button.setButtonText('Cancel').onClick(() => this.close()))
+			.addButton((button) =>
+				button.setButtonText(t('common.cancel')).onClick(() => this.close())
+			)
 			.addButton((button) =>
 				button
-					.setButtonText(
-						actionable.length === 0
-							? 'Nothing to apply'
-							: `Apply ${actionable.length} change${actionable.length === 1 ? '' : 's'}`
-					)
+					.setButtonText(this.applyLabel(actionable.length))
 					.setCta()
 					.setDisabled(actionable.length === 0)
 					.onClick(() => {
@@ -155,6 +169,13 @@ export class RingDiffModal extends Modal {
 		this.contentEl.empty();
 	}
 
+	private applyLabel(count: number): string {
+		if (count === 0) {
+			return t('ring.diff.nothingToApply');
+		}
+		return count === 1 ? t('ring.diff.applyOne') : t('ring.diff.applyMany', { count });
+	}
+
 	private renderSection(title: string, items: readonly DiffItem[]): void {
 		new Setting(this.contentEl).setName(title).setHeading();
 
@@ -162,14 +183,14 @@ export class RingDiffModal extends Modal {
 		for (const item of items) {
 			const row = list.createEl('li', { cls: 'toolbox-ring__row' });
 			row.createSpan({ cls: 'toolbox-ring__name', text: item.name });
-			row.createSpan({ cls: 'toolbox-ring__kind', text: KIND_LABEL[item.kind] });
+			row.createSpan({ cls: 'toolbox-ring__kind', text: t(KIND_KEY[item.kind]) });
 
 			const detail = this.describeVersions(item);
 			if (detail) {
 				row.createSpan({ cls: 'toolbox-ring__detail', text: detail });
 			}
 			if (item.reason) {
-				row.createSpan({ cls: 'toolbox-ring__reason', text: item.reason });
+				row.createSpan({ cls: 'toolbox-ring__reason', text: t(REASON_KEY[item.reason]) });
 			}
 		}
 	}

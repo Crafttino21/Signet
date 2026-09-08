@@ -1,6 +1,7 @@
 import { Notice } from 'obsidian';
 import type { ModuleDescriptor, ToolboxModule } from './module';
 import type ToolboxPlugin from '../main';
+import { t } from '../i18n';
 
 /**
  * Owns every module: which ones exist, which are switched on, and the live
@@ -93,7 +94,7 @@ export class ModuleRegistry {
 			this.active.delete(descriptor.id);
 			this.plugin.settings.enabledModules[descriptor.id] = false;
 			void this.plugin.saveSettings();
-			new Notice(`Toolbox: "${descriptor.name}" failed to load and was switched off.`);
+			new Notice(t('module.loadFailed', { name: descriptor.name }));
 		}
 	}
 

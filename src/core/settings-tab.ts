@@ -1,11 +1,12 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import type { App } from 'obsidian';
 import type ToolboxPlugin from '../main';
+import { t } from '../i18n';
 
 /**
  * Obsidian 1.13 introduced a declarative settings API (`getSettingDefinitions()`)
  * that also feeds the settings search, and deprecated `display()` in its favour.
- * We stay on `display()` for now: adopting it would raise minAppVersion from 1.7.2
+ * We stay on `display()` for now: adopting it would raise minAppVersion from 1.8.7
  * to 1.13.0, and `display()` remains supported as the fallback for exactly that
  * reason. Worth revisiting once 1.13 is a safe baseline — the two lint rules that
  * ask for the new API are switched off for this file in eslint.config.js.
@@ -29,7 +30,7 @@ export class ToolboxSettingTab extends PluginSettingTab {
 			new Setting(containerEl).setName(descriptor.name).setHeading();
 
 			new Setting(containerEl)
-				.setName('Enable')
+				.setName(t('common.enable'))
 				.setDesc(descriptor.description)
 				.addToggle((toggle) =>
 					toggle

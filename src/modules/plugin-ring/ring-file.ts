@@ -1,5 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
+import { t } from '../../i18n';
 import { isRingEnvelope } from './crypto';
 import type { RingEnvelope } from './crypto';
 
@@ -42,14 +43,11 @@ export class RingFile {
 		try {
 			parsed = JSON.parse(await this.app.vault.read(file));
 		} catch {
-			return { status: 'unreadable', message: 'The ring file is not valid JSON right now.' };
+			return { status: 'unreadable', message: t('ring.file.notJson') };
 		}
 
 		if (!isRingEnvelope(parsed)) {
-			return {
-				status: 'unreadable',
-				message: 'The ring file does not look like a ring snapshot.',
-			};
+			return { status: 'unreadable', message: t('ring.file.notSnapshot') };
 		}
 		return { status: 'ok', envelope: parsed };
 	}

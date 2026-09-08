@@ -1,4 +1,5 @@
 import { Plugin } from 'obsidian';
+import { initI18n } from './i18n';
 import { ModuleRegistry } from './core/registry';
 import { migrateSettings } from './core/settings';
 import type { ToolboxSettings } from './core/settings';
@@ -15,6 +16,9 @@ export default class ToolboxPlugin extends Plugin {
 	registry!: ModuleRegistry;
 
 	override async onload(): Promise<void> {
+		// Before anything renders a label.
+		initI18n();
+
 		this.settings = migrateSettings(await this.loadData(), TOOLBOX_MODULES);
 		this.registry = new ModuleRegistry(this, TOOLBOX_MODULES);
 

@@ -42,6 +42,12 @@ export type DiffKind =
 	| 'settings'
 	| 'extra'; // This device has it, the host does not.
 
+/**
+ * Why an item is not actionable. A code rather than a sentence, so that the diff
+ * logic stays free of display text and the wording lives with the translations.
+ */
+export type DiffReason = 'desktopOnly' | 'notInstalled' | 'noUpdate' | 'hostLacks';
+
 export interface DiffItem {
 	kind: DiffKind;
 	id: string;
@@ -50,8 +56,7 @@ export interface DiffItem {
 	localVersion?: string;
 	/** False when this device cannot carry the change out — see {@link reason}. */
 	actionable: boolean;
-	/** Why an item is not actionable, shown next to it in the diff. */
-	reason?: string;
+	reason?: DiffReason;
 }
 
 /** What the client will actually do to one plugin, applied as a single unit. */

@@ -3,9 +3,10 @@ import { PluginApi } from '../../core/obsidian-internals';
 import { ToolboxModule } from '../../core/module';
 import type { ModuleDescriptor } from '../../core/module';
 import type ToolboxPlugin from '../../main';
+import { t } from '../../i18n';
 import { applyPlans } from './apply';
 import type { ApplyResult } from './apply';
-import { formatRingCode, generateRingSecret, InvalidRingCodeError, parseRingCode } from './code';
+import { formatRingCode, generateRingSecret, parseRingCode } from './code';
 import type { Bytes } from './code';
 import { deriveRingId, openSnapshot, RingDecryptionError, sealSnapshot } from './crypto';
 import { computeDiff, planApply } from './diff';
@@ -81,7 +82,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				'Toolbox: the plugin ring needs Obsidian internals that are not available here:',
 				PluginApi.missing(this.app).join(', ')
 			);
-			new Notice('Toolbox: the plugin ring is not supported by this Obsidian version.');
+			new Notice(t('ring.unsupported.notice'));
 			return;
 		}
 
@@ -89,32 +90,32 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		this.addCommand({
 			id: 'ring-create',
-			name: 'Create a plugin ring',
+			name: t('ring.command.create'),
 			callback: () => void this.createRing(),
 		});
 		this.addCommand({
 			id: 'ring-join',
-			name: 'Join a plugin ring',
+			name: t('ring.command.join'),
 			callback: () => this.promptJoin(),
 		});
 		this.addCommand({
 			id: 'ring-show-code',
-			name: 'Show the ring code',
+			name: t('ring.command.showCode'),
 			callback: () => this.showCode(),
 		});
 		this.addCommand({
 			id: 'ring-publish',
-			name: 'Publish plugins to the ring',
+			name: t('ring.command.publish'),
 			callback: () => void this.publish(),
 		});
 		this.addCommand({
 			id: 'ring-check',
-			name: 'Check the ring for changes',
+			name: t('ring.command.check'),
 			callback: () => void this.check(),
 		});
 		this.addCommand({
 			id: 'ring-leave',
-			name: 'Leave the plugin ring',
+			name: t('ring.command.leave'),
 			callback: () => void this.leave(),
 		});
 
@@ -140,61 +141,63 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		if (!this.api) {
 			containerEl.createEl('p', {
 				cls: 'toolbox-ring__warning',
-				text: 'This Obsidian version does not expose the plugin manager this feature needs.',
+				text: t('ring.unsupported.settings'),
 			});
 			return;
 		}
 
 		const { role, code } = this.settings;
 		new Setting(containerEl)
-			.setName('Status')
+			.setName(t('ring.settings.status'))
 			.setDesc(
 				role === null
-					? 'Not in a ring. Create one here, or join with a code from another device.'
+					? t('ring.settings.statusNone')
 					: role === 'host'
-						? `Host of this ring. Published up to change ${this.settings.lastPublishedSeq}.`
-						: `Following the ring. Applied up to change ${this.settings.lastAppliedSeq}.`
+						? t('ring.settings.statusHost', { seq: this.settings.lastPublishedSeq })
+						: t('ring.settings.statusClient', { seq: this.settings.lastAppliedSeq })
 			);
 
 		if (role === null) {
 			new Setting(containerEl)
-				.setName('Start or join')
+				.setName(t('ring.settings.startOrJoin'))
 				.addButton((button) =>
 					button
-						.setButtonText('Create ring')
+						.setButtonText(t('ring.settings.createRing'))
 						.setCta()
 						.onClick(() => void this.createRing())
 				)
 				.addButton((button) =>
-					button.setButtonText('Join with a code').onClick(() => this.promptJoin())
+					button
+						.setButtonText(t('ring.settings.joinWithCode'))
+						.onClick(() => this.promptJoin())
 				);
 		} else {
 			new Setting(containerEl)
-				.setName('Ring')
+				.setName(t('ring.settings.ring'))
 				.addButton((button) =>
-					button.setButtonText('Show code').onClick(() => this.showCode())
+					button.setButtonText(t('ring.settings.showCode')).onClick(() => this.showCode())
 				)
 				.addButton((button) =>
 					role === 'host'
 						? button
-								.setButtonText('Publish now')
+								.setButtonText(t('ring.settings.publishNow'))
 								.setCta()
 								.onClick(() => void this.publish())
 						: button
-								.setButtonText('Check for changes')
+								.setButtonText(t('ring.settings.checkNow'))
 								.setCta()
 								.onClick(() => void this.check())
 				)
 				// No destructive styling: setDestructive() needs Obsidian 1.13, and
 				// leaving a ring changes nothing that is installed anyway.
 				.addButton((button) =>
-					button.setButtonText('Leave').onClick(() => void this.leave())
+					button.setButtonText(t('ring.settings.leave')).onClick(() => void this.leave())
 				);
 		}
 
 		new Setting(containerEl)
-			.setName('This device')
-			.setDesc('Shown to the other devices in the ring.')
+			.setName(t('ring.settings.device'))
+			.setDesc(t('ring.settings.deviceDesc'))
 			.addText((text) =>
 				text.setValue(this.settings.deviceName).onChange(async (value) => {
 					await this.patchSettings({ deviceName: value });
@@ -202,8 +205,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			);
 
 		new Setting(containerEl)
-			.setName('Ring file')
-			.setDesc('An ordinary vault file, so that it travels with your normal sync.')
+			.setName(t('ring.settings.file'))
+			.setDesc(t('ring.settings.fileDesc'))
 			.addText((text) =>
 				text.setValue(this.settings.ringFilePath).onChange(async (value) => {
 					await this.patchSettings({
@@ -213,10 +216,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			);
 
 		new Setting(containerEl)
-			.setName("Do not share these plugins' settings")
-			.setDesc(
-				'Plugin ids, separated by spaces. Their settings stay on this device when publishing.'
-			)
+			.setName(t('ring.settings.excluded'))
+			.setDesc(t('ring.settings.excludedDesc'))
 			.addTextArea((text) =>
 				text.setValue(this.settings.excludedIds.join(' ')).onChange(async (value) => {
 					await this.patchSettings({ excludedIds: parseIdList(value) });
@@ -224,8 +225,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			);
 
 		new Setting(containerEl)
-			.setName('Ignore these plugins on this device')
-			.setDesc('Plugin ids, separated by spaces. They never show up in a diff here.')
+			.setName(t('ring.settings.ignored'))
+			.setDesc(t('ring.settings.ignoredDesc'))
 			.addTextArea((text) =>
 				text.setValue(this.settings.ignoredIds.join(' ')).onChange(async (value) => {
 					await this.patchSettings({ ignoredIds: parseIdList(value) });
@@ -235,7 +236,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		if (code) {
 			containerEl.createEl('p', {
 				cls: 'toolbox-ring__hint',
-				text: 'Anyone with the ring code can publish to this ring. Treat it like a password.',
+				text: t('ring.settings.codeWarning'),
 			});
 		}
 	}
@@ -244,7 +245,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 	private async createRing(): Promise<void> {
 		if (this.settings.role !== null) {
-			new Notice('This device is already in a ring. Leave it first.');
+			new Notice(t('ring.notice.alreadyInRing'));
 			return;
 		}
 
@@ -269,25 +270,19 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		let secret: Bytes;
 		try {
 			secret = parseRingCode(rawCode);
-		} catch (error) {
-			new Notice(
-				error instanceof InvalidRingCodeError ? error.message : 'That is not a ring code.'
-			);
+		} catch {
+			new Notice(t('ring.notice.invalidCode'));
 			return;
 		}
 
 		const state = await this.ringFile().read();
 		if (state.status !== 'ok') {
-			new Notice(
-				state.status === 'absent'
-					? 'No ring file found in this vault yet. Publish from the host device first.'
-					: state.message
-			);
+			new Notice(state.status === 'absent' ? t('ring.notice.noRingFileYet') : state.message);
 			return;
 		}
 
 		if ((await deriveRingId(secret)) !== state.envelope.ring) {
-			new Notice('That code does not match the ring in this vault.');
+			new Notice(t('ring.notice.codeMismatch'));
 			return;
 		}
 
@@ -303,7 +298,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			lastAppliedSeq: 0,
 		});
 
-		new Notice(`Joined the ring hosted by "${snapshot.host.name}".`);
+		new Notice(t('ring.notice.joined', { host: snapshot.host.name }));
 		await this.check();
 	}
 
@@ -315,12 +310,12 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			lastAppliedSeq: 0,
 			lastPublishedSeq: 0,
 		});
-		new Notice('Left the ring. Nothing installed was changed.');
+		new Notice(t('ring.notice.left'));
 	}
 
 	private showCode(): void {
 		if (!this.settings.code) {
-			new Notice('This device is not in a ring yet.');
+			new Notice(t('ring.notice.notInRing'));
 			return;
 		}
 		new ShowCodeModal(this.app, this.settings.code).open();
@@ -331,11 +326,11 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	private async publish(): Promise<void> {
 		const secret = this.secret();
 		if (!secret || !this.api) {
-			new Notice('This device is not in a ring yet.');
+			new Notice(t('ring.notice.notInRing'));
 			return;
 		}
 		if (this.settings.role !== 'host') {
-			new Notice('Only the host publishes to the ring.');
+			new Notice(t('ring.notice.notHost'));
 			return;
 		}
 
@@ -343,7 +338,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		const state = await file.read();
 
 		if (state.status === 'unreadable') {
-			new Notice(`${state.message} Try again in a moment.`);
+			new Notice(t('ring.notice.retryLater', { message: state.message }));
 			return;
 		}
 
@@ -355,9 +350,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			// Optimistic concurrency: if the file moved on since we last wrote it,
 			// another device has been publishing. Stop rather than overwrite it.
 			if (current.seq !== this.settings.lastPublishedSeq) {
-				new Notice(
-					`The ring was changed by "${current.host.name}" since this device last published. Nothing was overwritten.`
-				);
+				new Notice(t('ring.notice.raced', { host: current.host.name }));
 				return;
 			}
 		}
@@ -372,7 +365,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		await file.write(await sealSnapshot(secret, snapshot));
 		await this.patchSettings({ lastPublishedSeq: seq });
-		new Notice(`Published ${snapshot.plugins.length} plugins to the ring.`);
+		new Notice(t('ring.notice.published', { count: snapshot.plugins.length }));
 	}
 
 	// --- client -------------------------------------------------------------
@@ -380,7 +373,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	private async notifyIfNewer(): Promise<void> {
 		const snapshot = await this.loadSnapshot({ quiet: true });
 		if (snapshot && snapshot.seq > this.settings.lastAppliedSeq) {
-			new Notice('Toolbox: the plugin ring has changes on another device.');
+			new Notice(t('ring.notice.hasChanges'));
 		}
 	}
 
@@ -432,7 +425,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		const secret = this.secret();
 		if (!secret) {
 			if (!options.quiet) {
-				new Notice('This device is not in a ring yet.');
+				new Notice(t('ring.notice.notInRing'));
 			}
 			return undefined;
 		}
@@ -440,11 +433,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		const state = await this.ringFile().read();
 		if (state.status !== 'ok') {
 			if (!options.quiet) {
-				new Notice(
-					state.status === 'absent'
-						? 'There is no ring file in this vault.'
-						: state.message
-				);
+				new Notice(state.status === 'absent' ? t('ring.notice.noRingFile') : state.message);
 			}
 			return undefined;
 		}
@@ -461,7 +450,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			const snapshot = await openSnapshot(secret, envelope);
 			if (!isRingSnapshot(snapshot)) {
 				if (!quiet) {
-					new Notice('The ring snapshot is not in a format this version understands.');
+					new Notice(t('ring.notice.unknownFormat'));
 				}
 				return undefined;
 			}
@@ -470,8 +459,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			if (!quiet) {
 				new Notice(
 					error instanceof RingDecryptionError
-						? error.message
-						: 'The ring snapshot could not be read.'
+						? t('ring.notice.wrongRing')
+						: t('ring.notice.unreadable')
 				);
 			}
 			return undefined;
@@ -494,7 +483,10 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	}
 
 	private deviceName(): string {
-		return this.settings.deviceName.trim() || (Platform.isMobile ? 'Mobile device' : 'Desktop');
+		return (
+			this.settings.deviceName.trim() ||
+			(Platform.isMobile ? t('ring.device.mobile') : t('ring.device.desktop'))
+		);
 	}
 
 	private async ensureDeviceIdentity(): Promise<void> {
@@ -509,18 +501,21 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		}
 		const copies = this.ringFile().findConflictCopies();
 		if (copies.length > 0) {
-			new Notice(
-				`Toolbox: found ${copies.length} conflicting copy of the ring file. Two devices may both be publishing.`
-			);
+			new Notice(t('ring.notice.conflictCopies', { count: copies.length }));
 		}
 	}
 }
 
 export const pluginRingModule: ModuleDescriptor<PluginRingSettings> = {
 	id: 'plugin-ring',
-	name: 'Plugin ring',
-	description:
-		'Keeps the plugins and their settings in step across your devices. One device hosts, the others follow after showing you what would change.',
+	// Getters, because the descriptor is built at import time while the locale is
+	// only chosen once the plugin loads.
+	get name() {
+		return t('ring.name');
+	},
+	get description() {
+		return t('ring.description');
+	},
 	defaultSettings: DEFAULT_SETTINGS,
 	create: (plugin: ToolboxPlugin) => new PluginRingModule(plugin, pluginRingModule),
 };

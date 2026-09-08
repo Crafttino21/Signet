@@ -6,14 +6,6 @@
  * add a class here instead.
  */
 
-.toolbox-example-view__hint {
-	color: var(--text-muted);
-	padding: var(--size-4-3);
-	margin: 0;
-}
-
-/* Plugin ring */
-
 .toolbox-ring__hint {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);

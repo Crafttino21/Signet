@@ -73,12 +73,3 @@ export async function applyPlans(
 
 	return { applied, failed, complete: failed.length === 0 };
 }
-
-export function describeResult(result: ApplyResult): string {
-	const total = result.applied.length + result.failed.length;
-	if (result.complete) {
-		return `Applied ${total} change${total === 1 ? '' : 's'}.`;
-	}
-	const names = result.failed.map((failure) => failure.plan.name).join(', ');
-	return `Applied ${result.applied.length} of ${total}. Failed: ${names}.`;
-}

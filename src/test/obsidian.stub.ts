@@ -101,9 +101,6 @@ export class Plugin extends Component {
 	readonly commands = new Map<string, Command>();
 	/** Ribbon icons currently in the DOM. */
 	readonly ribbonIcons: HTMLElement[] = [];
-	/** View types registered so far. */
-	readonly views = new Map<string, unknown>();
-
 	constructor(
 		public app: unknown = {},
 		public manifest: { id: string } = { id: 'toolbox' }
@@ -135,13 +132,6 @@ export class Plugin extends Component {
 	}
 
 	addSettingTab(_tab: unknown): void {}
-
-	registerView(type: string, viewCreator: unknown): void {
-		if (this.views.has(type)) {
-			throw new Error(`View type already registered: ${type}`);
-		}
-		this.views.set(type, viewCreator);
-	}
 
 	loadData(): Promise<unknown> {
 		return Promise.resolve(null);
@@ -196,6 +186,10 @@ export class Setting {
 		cb(new ValueComponent());
 		return this;
 	}
+	addTextArea(cb: (component: ValueComponent) => unknown): this {
+		cb(new ValueComponent());
+		return this;
+	}
 }
 
 export class Notice {
@@ -203,15 +197,9 @@ export class Notice {
 	hide(): void {}
 }
 
-export class View extends Component {
-	containerEl: HTMLElement = document.createElement('div');
-	constructor(public leaf: unknown) {
-		super();
-	}
-}
-
-export class ItemView extends View {
-	contentEl: HTMLElement = document.createElement('div');
+/** Obsidian's UI language. Tests drive the locale through initI18n() instead. */
+export function getLanguage(): string {
+	return 'en';
 }
 
 export function normalizePath(path: string): string {

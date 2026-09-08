@@ -137,11 +137,7 @@ describe('computeDiff', () => {
 		);
 
 		expect(diff).toEqual([
-			expect.objectContaining({
-				kind: 'enable',
-				actionable: false,
-				reason: expect.stringContaining('Desktop only'),
-			}),
+			expect.objectContaining({ kind: 'enable', actionable: false, reason: 'desktopOnly' }),
 		]);
 	});
 

@@ -1,4 +1,4 @@
-import type { DiffItem, LocalPlugin, PluginPlan, RingSnapshot } from './types';
+import type { DiffItem, DiffReason, LocalPlugin, PluginPlan, RingSnapshot } from './types';
 
 export interface DiffOptions {
 	/** Toolbox's own plugin id. Never appears in a diff — see the note below. */
@@ -67,7 +67,7 @@ export function computeDiff(
 
 		const mine = localById.get(entry.id);
 		const blockedOnMobile = options.isMobile && entry.isDesktopOnly;
-		const reason = blockedOnMobile ? 'Desktop only, cannot run on this device' : undefined;
+		const reason: DiffReason | undefined = blockedOnMobile ? 'desktopOnly' : undefined;
 
 		if (!mine) {
 			items.push({
@@ -76,7 +76,7 @@ export function computeDiff(
 				name: entry.name,
 				hostVersion: entry.version,
 				actionable: false,
-				reason: reason ?? 'Not installed yet — installing is not supported yet',
+				reason: reason ?? 'notInstalled',
 			});
 			continue;
 		}
@@ -89,7 +89,7 @@ export function computeDiff(
 				hostVersion: entry.version,
 				localVersion: mine.version,
 				actionable: false,
-				reason: 'Updating is not supported yet',
+				reason: 'noUpdate',
 			});
 		}
 
@@ -125,7 +125,7 @@ export function computeDiff(
 				name: mine.name,
 				localVersion: mine.version,
 				actionable: false,
-				reason: 'The host does not have this one — left untouched',
+				reason: 'hostLacks',
 			});
 		}
 	}

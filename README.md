@@ -53,10 +53,30 @@ not part of the public typings — `src/core/obsidian-internals.ts` isolates it 
 disables the feature if a future Obsidian release changes it. The ring itself makes
 no network requests.
 
-## Example modules
+## Languages
 
-Three example modules ship alongside it as templates to copy: a command, a sidebar
-panel and a pair of event listeners.
+The interface follows Obsidian's own language setting. English and German are
+translated in full; anything else falls back to English.
+
+**Contributing a language** is one file. Copy `src/i18n/locales/en.ts`, translate
+the values, and add a line to `LOCALES` in `src/i18n/index.ts`:
+
+```ts
+// src/i18n/locales/fr.ts
+import type { Translations } from './en';
+
+export const fr: Partial<Translations> = {
+	'common.enable': 'Activer',
+	// ...
+};
+```
+
+Type it `Partial<Translations>` and translate as much or as little as you like —
+untranslated keys fall back to English, so a half-finished language still helps.
+Use the locale codes from [Obsidian's translation repository][translations]. Keep
+the `{placeholders}` intact; a test checks that they match the English text.
+
+[translations]: https://github.com/obsidianmd/obsidian-translations#existing-languages
 
 ## Installing for development
 
@@ -86,6 +106,7 @@ Three steps, no changes to the plugin core:
 import { ToolboxModule } from '../../core/module';
 import type { ModuleDescriptor } from '../../core/module';
 import type ToolboxPlugin from '../../main';
+import { t } from '../../i18n';
 
 type MySettings = { threshold: number };
 
@@ -93,7 +114,7 @@ const DEFAULT_SETTINGS: MySettings = { threshold: 5 };
 
 class MyModule extends ToolboxModule<MySettings> {
 	override onload(): void {
-		this.addCommand({ id: 'do-it', name: 'Do it', callback: () => this.run() });
+		this.addCommand({ id: 'do-it', name: t('mine.command'), callback: () => this.run() });
 	}
 
 	private run(): void {
@@ -103,14 +124,20 @@ class MyModule extends ToolboxModule<MySettings> {
 
 export const myModule: ModuleDescriptor<MySettings> = {
 	id: 'my-module',
-	name: 'My module',
-	description: 'What switching this on does.',
+	// Getters, because the locale is only known once the plugin loads.
+	get name() {
+		return t('mine.name');
+	},
+	get description() {
+		return t('mine.description');
+	},
 	defaultSettings: DEFAULT_SETTINGS,
 	create: (plugin: ToolboxPlugin) => new MyModule(plugin, myModule),
 };
 ```
 
-Settings, the enable toggle and the settings section come for free.
+Settings, the enable toggle and the settings section come for free. Text the user
+sees goes through `t()` — add the keys to `src/i18n/locales/en.ts` and `de.ts`.
 
 ### The one rule
 
@@ -125,8 +152,9 @@ means a switched-off module would leave its commands and listeners behind.
 Two things need care:
 
 - **Views.** `Plugin.registerView()` cannot be undone and throws on a second
-  registration, so use `registerViewOnce()` from `src/core/view.ts`. The view type
-  stays registered for the plugin's lifetime; the module owns the leaves instead.
+  registration, so a module that can be switched off and on again must register the
+  view type at most once and let it outlive the module, owning only its commands
+  and open leaves.
 - **Cleanup that must not happen on shutdown.** `onunload()` runs both when the user
   switches a module off _and_ when Obsidian closes or updates the plugin. Put anything
   that should only happen on a deliberate switch-off — detaching leaves above all — in
@@ -164,14 +192,13 @@ src/
     registry.ts            which modules exist, which are running
     settings.ts            settings shape + migration
     settings-tab.ts        one section per module
-    view.ts                registerViewOnce()
     obsidian-internals.ts  the one file that touches Obsidian's internal API
   modules/
     index.ts               the module list — the only file a new feature touches
     plugin-ring/           keeps plugins in step across devices
-    example-command/       a command, a ribbon icon, one setting
-    example-view/          a sidebar panel
-    example-events/        vault and workspace listeners
+  i18n/
+    index.ts               t() and locale selection
+    locales/               en.ts is the base, one file per language
   test/
     obsidian.stub.ts       stand-in for the `obsidian` module
     fake-app.ts            in-memory vault and plugin manager for tests
@@ -185,9 +212,8 @@ and `diff.ts` — hold the logic worth testing, and that is where the tests are.
 - Decide on the final `id` and `name` in `manifest.json` (the `id` is permanent) and
   update `name` in `package.json` to match.
 - Set `author` and optionally `authorUrl` / `fundingUrl` in `manifest.json`.
-- Remove the `example-*` modules once real ones exist.
 - Check `minAppVersion` against the newest API you actually use. It is currently
-  `1.7.2`, set by `Plugin.removeCommand()`.
+  `1.8.7`, set by `getLanguage()`.
 
 ## License
 

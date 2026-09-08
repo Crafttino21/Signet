@@ -71,6 +71,20 @@ elsewhere. Three rules are not negotiable:
 - A snapshot only counts as applied when every item succeeded, and a plugin the
   host does not have is left alone rather than removed.
 
+## Sync guardian
+
+It watches the user's sync; it never syncs anything itself. Three rules:
+
+- Never resolve a conflict without showing the two versions first.
+- Removing a file means `fileManager.trashFile()`, never a delete — the sync
+  problems this module reports have already cost users content.
+- Never merge conflict markers automatically. Open the note at the marker and let
+  the user decide.
+
+The double-sync check reads folder names above the vault. That is access outside
+the vault, so it stays desktop-only, reads listings only, is switchable off, and is
+disclosed in the README — the developer policy requires that disclosure.
+
 ## Privacy
 
 The plugin works offline and stays that way: no network calls, no telemetry, no

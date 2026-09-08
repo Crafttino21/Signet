@@ -60,6 +60,20 @@ export default defineConfig(
 	},
 
 	{
+		// The double-sync check has to look at folders above the vault, which needs
+		// Node. It uses exactly the guarded `require` the rule's own message asks
+		// for — the call sites sit behind Platform.isDesktopApp and an adapter check.
+		files: ['src/modules/sync-health/double-sync.ts'],
+		languageOptions: {
+			globals: { require: 'readonly' },
+		},
+		rules: {
+			'obsidianmd/no-nodejs-modules': 'off',
+			'@typescript-eslint/no-require-imports': 'off',
+		},
+	},
+
+	{
 		// Tests build fake vaults, so a literal '.obsidian' is the thing under test
 		// rather than a hardcoded assumption. Matchers like expect.objectContaining
 		// are typed as `any`, which is the assertion library's business, not ours.

@@ -29,7 +29,10 @@ const context = await esbuild.context({
 		'@lezer/common',
 		'@lezer/highlight',
 		'@lezer/lr',
+		// Both spellings: esbuild treats "node:fs" as a different specifier from
+		// "fs", and builtinModules only lists the bare names.
 		...builtinModules,
+		...builtinModules.map((name) => `node:${name}`),
 	],
 	format: 'cjs',
 	target: 'es2021',

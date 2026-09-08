@@ -121,4 +121,75 @@ export const de: Translations = {
 	'ring.result.appliedOne': 'Eine Änderung angewendet.',
 	'ring.result.appliedMany': '{count} Änderungen angewendet.',
 	'ring.result.partial': '{applied} von {total} angewendet. Fehlgeschlagen: {names}.',
+
+	'sync.name': 'Sync-Wächter',
+	'sync.description':
+		'Beobachtet die Synchronisierung, die du ohnehin nutzt: findet Konfliktkopien und Notizen mit Konfliktmarkern und meldet, wenn ein Gerät nicht mehr synchronisiert.',
+
+	'sync.command.report': 'Sync-Bericht anzeigen',
+	'sync.command.deepScan': 'Alle Notizen nach Konfliktmarkern durchsuchen',
+	'sync.ribbon': 'Sync-Bericht',
+
+	'sync.notice.clean': 'Keine Sync-Konflikte gefunden.',
+	'sync.notice.foundOne': 'Toolbox: 1 Sync-Konflikt gefunden.',
+	'sync.notice.foundMany': 'Toolbox: {count} Sync-Konflikte gefunden.',
+	'sync.notice.scanning': 'Alle Notizen werden gelesen, das dauert einen Moment …',
+	'sync.notice.trashed':
+		'„{name}“ in den Papierkorb verschoben. Endgültig gelöscht wurde nichts.',
+	'sync.notice.trashFailed': '„{name}“ konnte nicht in den Papierkorb verschoben werden: {error}',
+	'sync.notice.doubleSync': 'Toolbox: Zwei Sync-Programme verwalten diesen Vault.',
+
+	'sync.report.title': 'Sync-Bericht',
+	'sync.report.copies': 'Konfliktkopien',
+	'sync.report.markers': 'Notizen mit Konfliktmarkern',
+	'sync.report.devices': 'Geräte',
+	'sync.report.clean': 'Alles unauffällig. Keine Konfliktkopien und keine Konfliktmarker.',
+	'sync.report.deepHint':
+		'Gelesen wurden nur Notizen mit dem Tag #conflict. Für eine gründliche Suche „Alle Notizen nach Konfliktmarkern durchsuchen“ verwenden.',
+	'sync.report.originalMissing': 'Das Original fehlt — es gibt nur noch diese Kopie',
+	'sync.report.markerOne': '1 Konfliktblock',
+	'sync.report.markerMany': '{count} Konfliktblöcke',
+	'sync.report.markerLines': 'ab Zeile {line}',
+	'sync.report.compare': 'Vergleichen',
+	'sync.report.open': 'Öffnen',
+	'sync.report.noDevices': 'Bisher hat sich kein anderes Gerät gemeldet.',
+
+	'sync.device.self': 'dieses Gerät',
+	'sync.device.justNow': 'gerade eben gesehen',
+	'sync.device.hours': 'vor {hours} Std. gesehen',
+	'sync.device.days': 'vor {days} Tagen gesehen',
+	'sync.device.unknown': 'Zeitstempel unlesbar',
+
+	'sync.compare.title': 'Konfliktkopie von „{name}“',
+	'sync.compare.original': 'Original',
+	'sync.compare.copy': 'Konfliktkopie',
+	'sync.compare.identical':
+		'Beide Dateien haben exakt denselben Inhalt, die Kopie ist überflüssig.',
+	'sync.compare.hint':
+		'Was du nicht behältst, wandert in den Papierkorb und lässt sich zurückholen.',
+	'sync.compare.keepOriginal': 'Original behalten',
+	'sync.compare.keepCopy': 'Diese Kopie behalten',
+	'sync.compare.openBoth': 'Beide öffnen',
+
+	'sync.double.title': 'Zwei Sync-Programme auf denselben Dateien',
+	'sync.double.body':
+		'{tool} synchronisiert einen Ordner oberhalb deines Vaults, und in Obsidian läuft {plugins}. Beide schreiben dieselben Dateien, und jedes hält die Schreibvorgänge des anderen für eine fremde Änderung — die übliche Ursache für Konfliktkopien, die niemand verursacht hat.',
+	'sync.double.advice':
+		'Obsidian empfiehlt genau einen Sync-Dienst pro Vault. Auf diesem Rechner entweder den Desktop-Client nutzen und das Plugin hier abschalten — oder umgekehrt.',
+	'sync.double.folder': 'Gefunden in: {folder}',
+	'sync.double.dismiss': 'Nicht mehr warnen',
+
+	'sync.settings.checkOnStart': 'Beim Start von Obsidian prüfen',
+	'sync.settings.checkOnStartDesc':
+		'Meldet Konflikte einmal nach dem Laden, ohne etwas zu öffnen.',
+	'sync.settings.staleAfter': 'Gerät gilt als abgemeldet nach',
+	'sync.settings.staleAfterDesc': 'Stunden ohne Lebenszeichen. 0 bedeutet: nie warnen.',
+	'sync.settings.heartbeatFolder': 'Ordner für Lebenszeichen',
+	'sync.settings.heartbeatFolderDesc':
+		'Jedes Gerät schreibt hier eine kleine Datei. Ein Schreiber pro Datei — damit können sie selbst keine Konflikte erzeugen.',
+	'sync.settings.excluded': 'Diese Ordner überspringen',
+	'sync.settings.excludedDesc': 'Ein Pfad pro Zeile. Praktisch für Archive voller alter Kopien.',
+	'sync.settings.doubleSyncCheck': 'Vor einem zweiten Sync-Programm warnen',
+	'sync.settings.doubleSyncCheckDesc':
+		'Sieht in den Ordnern oberhalb deines Vaults nach einem weiteren Sync-Client. Nur am Desktop, und es werden ausschließlich Ordnernamen gelesen.',
 };

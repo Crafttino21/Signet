@@ -53,6 +53,43 @@ not part of the public typings — `src/core/obsidian-internals.ts` isolates it 
 disables the feature if a future Obsidian release changes it. The ring itself makes
 no network requests.
 
+## Sync guardian
+
+Watches whatever sync you already use instead of replacing it. Three things go
+wrong with vault sync, and all three are invisible from inside Obsidian:
+
+- **Conflicting copies** pile up in folders nobody opens
+  (`Note (conflicted copy 2026-08-28 093612).md`, Syncthing's `.sync-conflict-…`).
+- **Conflict markers written into a note** — some tools do not create a second
+  file, they put both versions into the original between `<<<<<<<` and `>>>>>>>`.
+  The file count never changes and the note looks completely normal in the file
+  tree. This is the dangerous one.
+- **A device quietly stops syncing** and nothing says so.
+
+The report lists all of it. Every conflicting copy can be compared side by side
+with the file it came from before you decide which one to keep — and the one you
+drop goes to the **trash**, never straight to deletion. Notes with markers are only
+opened at the right line; merging is never done for you, because a merge can
+destroy text.
+
+Devices report in through one small file each under `Toolbox/health/`. One writer
+per file, so these can never conflict with each other — and because they travel
+through your normal sync, a heartbeat that stops arriving _is_ the symptom.
+
+### Two sync tools on one vault
+
+The single most common cause of conflicts nobody caused. Obsidian's own
+documentation is blunt: _"Avoid syncing the same vault across multiple services …
+to prevent data conflicts or corruption."_ If a desktop sync client manages a
+folder above your vault while a sync plugin runs inside Obsidian, both write the
+same files and each sees the other's writes as an outside change.
+
+The guardian detects this and says so. **Disclosure:** that check reads the names
+of entries in the folders _above_ your vault, looking for markers like
+`.nextcloudsync.log`, `.dropbox` or `.stfolder`. It reads directory listings only,
+never file contents, runs on desktop only, and can be switched off in the module's
+settings. Nothing leaves your machine — the plugin makes no network requests at all.
+
 ## Languages
 
 The interface follows Obsidian's own language setting. English and German are
@@ -196,6 +233,7 @@ src/
   modules/
     index.ts               the module list — the only file a new feature touches
     plugin-ring/           keeps plugins in step across devices
+    sync-health/           finds sync conflicts, watches device heartbeats
   i18n/
     index.ts               t() and locale selection
     locales/               en.ts is the base, one file per language
@@ -204,8 +242,9 @@ src/
     fake-app.ts            in-memory vault and plugin manager for tests
 ```
 
-Inside `plugin-ring/`, the files without an Obsidian import — `code.ts`, `crypto.ts`
-and `diff.ts` — hold the logic worth testing, and that is where the tests are.
+In both modules the files without an Obsidian import — `code.ts`, `crypto.ts`,
+`diff.ts`, `patterns.ts`, `health.ts` — hold the logic worth testing, and that is
+where the tests are.
 
 ## Before a public release
 

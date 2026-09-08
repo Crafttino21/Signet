@@ -124,6 +124,75 @@ export const en = {
 	'ring.result.appliedOne': 'Applied 1 change.',
 	'ring.result.appliedMany': 'Applied {count} changes.',
 	'ring.result.partial': 'Applied {applied} of {total}. Failed: {names}.',
+
+	'sync.name': 'Sync guardian',
+	'sync.description':
+		'Watches the sync you already use: finds conflicting copies and notes with conflict markers, and tells you when a device has stopped syncing.',
+
+	'sync.command.report': 'Show the sync report',
+	'sync.command.deepScan': 'Search every note for conflict markers',
+	'sync.ribbon': 'Sync report',
+
+	'sync.notice.clean': 'No sync conflicts found.',
+	'sync.notice.foundOne': 'Toolbox: found 1 sync conflict.',
+	'sync.notice.foundMany': 'Toolbox: found {count} sync conflicts.',
+	'sync.notice.scanning': 'Reading every note, this may take a moment…',
+	'sync.notice.trashed': 'Moved "{name}" to the trash. Nothing was deleted outright.',
+	'sync.notice.trashFailed': 'Could not move "{name}" to the trash: {error}',
+	'sync.notice.doubleSync': 'Toolbox: two sync engines are managing this vault.',
+
+	'sync.report.title': 'Sync report',
+	'sync.report.copies': 'Conflicting copies',
+	'sync.report.markers': 'Notes with conflict markers',
+	'sync.report.devices': 'Devices',
+	'sync.report.clean': 'Nothing looks wrong. No conflicting copies and no conflict markers.',
+	'sync.report.deepHint':
+		'Only notes tagged #conflict were read. Use "Search every note for conflict markers" for a thorough pass.',
+	'sync.report.originalMissing': 'The original is gone — only this copy is left',
+	'sync.report.markerOne': '1 conflict block',
+	'sync.report.markerMany': '{count} conflict blocks',
+	'sync.report.markerLines': 'from line {line}',
+	'sync.report.compare': 'Compare',
+	'sync.report.open': 'Open',
+	'sync.report.noDevices': 'No other device has reported in yet.',
+
+	'sync.device.self': 'this device',
+	'sync.device.justNow': 'seen just now',
+	'sync.device.hours': 'seen {hours} h ago',
+	'sync.device.days': 'seen {days} days ago',
+	'sync.device.unknown': 'its timestamp is unreadable',
+
+	'sync.compare.title': 'Conflicting copy of "{name}"',
+	'sync.compare.original': 'Original',
+	'sync.compare.copy': 'Conflicting copy',
+	'sync.compare.identical': 'Both files have exactly the same content, so the copy is redundant.',
+	'sync.compare.hint':
+		'Whichever you keep, the other one goes to the trash and can be brought back.',
+	'sync.compare.keepOriginal': 'Keep the original',
+	'sync.compare.keepCopy': 'Keep this copy',
+	'sync.compare.openBoth': 'Open both',
+
+	'sync.double.title': 'Two sync engines on the same files',
+	'sync.double.body':
+		"{tool} syncs a folder above your vault, and {plugins} runs inside Obsidian. Both write the same files, and each sees the other's writes as an outside change — the usual cause of conflicting copies that nobody made.",
+	'sync.double.advice':
+		'Obsidian recommends one sync service per vault. Use the desktop client on this computer and switch the plugin off here, or the other way round.',
+	'sync.double.folder': 'Found in: {folder}',
+	'sync.double.dismiss': 'Do not warn again',
+
+	'sync.settings.checkOnStart': 'Check when Obsidian starts',
+	'sync.settings.checkOnStartDesc':
+		'Report conflicts once after loading, without opening anything.',
+	'sync.settings.staleAfter': 'Treat a device as stale after',
+	'sync.settings.staleAfterDesc': 'Hours without a sign of life. Set to 0 to never warn.',
+	'sync.settings.heartbeatFolder': 'Heartbeat folder',
+	'sync.settings.heartbeatFolderDesc':
+		'Each device writes one small file here. One writer per file, so these can never conflict themselves.',
+	'sync.settings.excluded': 'Skip these folders',
+	'sync.settings.excludedDesc': 'One path per line. Useful for archives full of old copies.',
+	'sync.settings.doubleSyncCheck': 'Warn about a second sync tool',
+	'sync.settings.doubleSyncCheckDesc':
+		'Looks at the folders above your vault for another sync client. Desktop only, and it reads folder names only.',
 };
 
 export type TranslationKey = keyof typeof en;

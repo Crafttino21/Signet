@@ -62,6 +62,8 @@ export const de: Translations = {
 		'Unter „{path}“ liegt noch keine Ring-Datei. Erst auf dem Host veröffentlichen, dann dieses Gerät fertig synchronisieren lassen.',
 	'ring.notice.noRingFile': 'In diesem Vault gibt es unter „{path}“ keine Ring-Datei.',
 	'ring.notice.publishFailed': 'Ring-Datei „{path}“ konnte nicht geschrieben werden: {message}',
+	'ring.notice.foreignFileHost':
+		'Die Datei „{path}“ gehört zu einem anderen Ring. Drücke „Jetzt veröffentlichen“, um sie beiseitezulegen und diesen Ring zu schreiben.',
 	'ring.notice.codeMismatch': 'Dieser Code gehört nicht zum Ring in diesem Vault.',
 	'ring.notice.wrongRing':
 		'Dieser Snapshot gehört nicht zu deinem Ring oder wurde nachträglich verändert.',
@@ -323,6 +325,7 @@ export const de: Translations = {
 	'panel.title': 'Toolbox',
 	'panel.open': 'Toolbox-Leiste öffnen',
 	'panel.available': 'In den Einstellungen einschaltbar: {names}.',
+	'panel.version': 'Toolbox {version}',
 	'panel.nothing': 'Es ist kein Modul eingeschaltet. In den Einstellungen eines aktivieren.',
 
 	'ring.panel.title': 'Plugin-Ring',

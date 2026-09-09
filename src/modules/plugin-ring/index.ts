@@ -831,6 +831,20 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			return undefined;
 		}
 
+		// A file from a different ring is not a damaged file, and saying "altered"
+		// about it sends the reader looking for tampering instead of for the
+		// leftover it actually is. The ring id decides, and it is in the clear.
+		if (state.envelope.ring !== (await deriveRingId(secret))) {
+			if (!options.quiet) {
+				new Notice(
+					this.settings.role === 'host'
+						? t('ring.notice.foreignFileHost', { path: this.ringFile().path })
+						: t('ring.notice.codeMismatch')
+				);
+			}
+			return undefined;
+		}
+
 		const snapshot = await this.decrypt(secret, state.envelope, options.quiet);
 		if (snapshot) {
 			this.announce(snapshot);

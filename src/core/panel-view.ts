@@ -108,5 +108,13 @@ export class ToolboxPanelView extends ItemView {
 		if (!drew) {
 			contentEl.createEl('p', { cls: 'toolbox-panel__empty', text: t('panel.nothing') });
 		}
+
+		// Which build is actually running. Copying files into the plugin folder does
+		// not reload anything, so "it still does the old thing" and "it is broken"
+		// look identical from here — and only one of them is worth debugging.
+		contentEl.createEl('p', {
+			cls: 'toolbox-panel__version',
+			text: t('panel.version', { version: this.plugin.manifest.version }),
+		});
 	}
 }

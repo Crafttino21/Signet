@@ -67,6 +67,8 @@ export const en = {
 		'No ring file at "{path}" yet. Publish on the host device, then let this device finish syncing.',
 	'ring.notice.noRingFile': 'There is no ring file at "{path}" in this vault.',
 	'ring.notice.publishFailed': 'Could not write the ring file "{path}": {message}',
+	'ring.notice.foreignFileHost':
+		'The file at "{path}" belongs to a different ring. Press publish to move it aside and write this ring instead.',
 	'ring.notice.codeMismatch': 'That code does not match the ring in this vault.',
 	'ring.notice.wrongRing': 'This snapshot does not belong to your ring, or it was altered.',
 	'ring.notice.joined': 'Joined the ring hosted by "{host}".',
@@ -322,6 +324,7 @@ export const en = {
 	'panel.title': 'Toolbox',
 	'panel.open': 'Open the Toolbox panel',
 	'panel.available': 'Ready to switch on in the settings: {names}.',
+	'panel.version': 'Toolbox {version}',
 	'panel.nothing': 'No modules are switched on. Turn one on in the settings.',
 
 	'ring.panel.title': 'Plugin ring',

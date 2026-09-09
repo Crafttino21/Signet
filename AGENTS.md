@@ -114,6 +114,23 @@ The wire format and cryptography live in `packages/protocol` and are shared with
 the server. Never reimplement either on one side only; drift between the ends of
 a sync protocol is what loses data.
 
+## What the ring carries
+
+`src/core/ring-link.ts` is the seam between the ring and the sync, and exists so
+neither module imports the other: the sync module contributes its server address,
+the ring publishes it inside the encrypted snapshot, and every device that reads a
+snapshot announces what it found.
+
+- Only the host publishes. A request to publish from elsewhere is a no-op on every
+  other device, which is why the request is a broadcast rather than a call.
+- A client adopts an address only when it has none. Someone who typed one by hand
+  meant it, and on a home network the host's address can be the unreachable one.
+- An address out of a snapshot is checked for scheme before it is ever used.
+- A joining device registers nothing. Registration creates the vault and fixes
+  which token opens it; every later device derives that same token from the same
+  ring code, so it only asks whether the host has been there yet. The registration
+  secret is server-wide and must never travel to a second device.
+
 ## Live editing
 
 `src/modules/live-collab` puts an open note into a Yjs document and relays sealed

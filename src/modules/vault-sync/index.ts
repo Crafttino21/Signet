@@ -56,8 +56,23 @@ const RING_MODULE_ID = 'plugin-ring';
 
 interface RingSettings {
 	code?: unknown;
+	role?: unknown;
 	deviceId?: unknown;
 	deviceName?: unknown;
+}
+
+/**
+ * An address is about to be used for requests and sockets, and it arrived from a
+ * file. Only the two schemes this speaks are accepted — the check costs nothing
+ * and keeps anything else from ever reaching a request.
+ */
+function isUsableServerUrl(value: string): boolean {
+	try {
+		const url = new URL(value);
+		return url.protocol === 'http:' || url.protocol === 'https:';
+	} catch {
+		return false;
+	}
 }
 
 /** What the indicator in the status bar is currently saying. */
@@ -102,6 +117,18 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			);
 		}
 
+		// Whatever the host published about the server, this device adopts. This is
+		// what makes joining a ring the only thing anyone has to do: the address
+		// arrives with the snapshot, and the key was the ring code all along.
+		this.register(
+			this.plugin.ringLink.onAnnounce((info) => {
+				void this.adopt(info.serverUrl);
+			})
+		);
+		if (this.settings.serverUrl) {
+			this.plugin.ringLink.contribute({ serverUrl: this.settings.serverUrl });
+		}
+
 		this.status = this.addStatusBarItem();
 		this.status?.addClass('toolbox-status');
 		this.status?.addEventListener('click', () => void this.plugin.openPanel());
@@ -111,10 +138,14 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 		// The vault index is not ready during onload, so the first catch-up waits.
 		this.app.workspace.onLayoutReady(() => {
-			if (this.settings.syncOnStart) {
-				void this.autoSync();
-			}
-			this.live?.start();
+			// The host may have registered the vault after this device joined, so a
+			// device that is waiting asks again every time Obsidian starts.
+			void this.claim().then(() => {
+				if (this.settings.syncOnStart) {
+					void this.autoSync();
+				}
+				this.live?.start();
+			});
 		});
 	}
 
@@ -204,6 +235,26 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			// before the thing that encrypts what goes to it.
 			satisfied: () => this.ring() === undefined || this.settings.registered,
 			render: (containerEl, changed) => {
+				if (this.ring()?.role === 'client') {
+					// A client is not supposed to configure anything: the address comes
+					// from the host and the key is the ring code it already typed.
+					containerEl.createEl('p', {
+						cls: 'toolbox-setup__hint',
+						text: this.settings.serverUrl
+							? t('vaultSync.setup.waitingForServer', { url: this.settings.serverUrl })
+							: t('vaultSync.setup.waitingForHost'),
+					});
+					new Setting(containerEl).addButton((button) =>
+						button
+							.setButtonText(t('vaultSync.setup.checkAgain'))
+							.setCta()
+							.onClick(() => {
+								void this.claim(false).then(changed);
+							})
+					);
+					return;
+				}
+
 				new Setting(containerEl).setName(t('vaultSync.settings.server')).addText((text) =>
 					text
 						.setPlaceholder('https://sync.example.com')
@@ -314,7 +365,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					.setPlaceholder('https://sync.example.com')
 					.setValue(this.settings.serverUrl)
 					.onChange(async (value) => {
-						await this.patchSettings({ serverUrl: value.trim() });
+						const url = value.trim();
+						await this.patchSettings({ serverUrl: url });
+						this.plugin.ringLink.contribute({ serverUrl: url });
 					})
 			);
 
@@ -451,6 +504,10 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			// The registration secret is a one-off. Keeping it around would leave a
 			// server-wide credential sitting in a settings file for no reason.
 			await this.patchSettings({ registered: true, registrationSecret: '' });
+			// Hand the address to the ring and have the host publish it, so the other
+			// devices need nothing but the code they already have.
+			this.plugin.ringLink.contribute({ serverUrl: this.settings.serverUrl });
+			this.plugin.ringLink.requestPublish();
 			// The settings still show the registration field until they are redrawn,
 			// which reads as if the button had done nothing.
 			this.refreshUi();
@@ -459,6 +516,84 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			);
 		} catch (error) {
 			new Notice(this.explain(error));
+		}
+	}
+
+	/**
+	 * Takes the server address the host published.
+	 *
+	 * A device that already has an address keeps it — someone who typed one by hand
+	 * meant it, and on a home network the host's address may be the one that is
+	 * unreachable from here. What follows either way is the claim below, because
+	 * the reason to want the address is to find out whether the vault is there.
+	 */
+	private async adopt(serverUrl: string | undefined): Promise<void> {
+		const url = serverUrl?.trim().replace(/\/+$/, '');
+
+		if (url && !this.settings.serverUrl && isUsableServerUrl(url)) {
+			await this.patchSettings({ serverUrl: url });
+			new Notice(t('vaultSync.notice.serverFromRing', { url }));
+			this.refreshUi();
+		}
+
+		await this.claimAndCatchUp();
+	}
+
+	/**
+	 * Finds out whether this device can already use the vault.
+	 *
+	 * There is nothing to negotiate: every device in the ring derives the same
+	 * token from the same code, so the only question is whether the host has
+	 * created the vault on the server yet. Until it has, this stays quiet and is
+	 * asked again — at the next start, at the next snapshot, or by hand.
+	 */
+	private async claim(quiet = true): Promise<boolean> {
+		if (this.settings.registered || !this.settings.serverUrl) {
+			return false;
+		}
+
+		const client = await this.client(quiet);
+		if (!client) {
+			return false;
+		}
+
+		try {
+			if (!(await client.belongs())) {
+				if (!quiet) {
+					new Notice(t('vaultSync.notice.notOnServerYet'));
+				}
+				return false;
+			}
+		} catch (error) {
+			// Unreachable is not "not ours" — a phone off the home network gets here
+			// every time, and must not be told its ring is wrong.
+			if (!quiet) {
+				new Notice(this.explain(error));
+			}
+			return false;
+		}
+
+		await this.patchSettings({ registered: true });
+		this.setState('idle');
+		this.refreshUi();
+		new Notice(t('vaultSync.notice.readyFromRing'));
+		return true;
+	}
+
+	/**
+	 * Claims the vault and, if that just worked, fetches what is on it.
+	 *
+	 * Being set up and holding none of the notes is not what anyone means by set
+	 * up. It is the same catch-up that runs when Obsidian opens and follows the
+	 * same preference, rather than inventing one for this moment.
+	 */
+	private async claimAndCatchUp(quiet = true): Promise<void> {
+		if (!(await this.claim(quiet))) {
+			return;
+		}
+		if (this.settings.syncOnStart) {
+			await this.autoSync();
+			this.live?.start();
 		}
 	}
 
@@ -563,7 +698,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 	// --- wiring -------------------------------------------------------------
 
-	private ring(): { code: string; deviceId: string; deviceName: string } | undefined {
+	private ring():
+		| { code: string; role: 'host' | 'client' | null; deviceId: string; deviceName: string }
+		| undefined {
 		const ring = this.plugin.settings.moduleSettings[RING_MODULE_ID] as
 			RingSettings | undefined;
 		if (typeof ring?.code !== 'string' || !ring.code || typeof ring.deviceId !== 'string') {
@@ -572,6 +709,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 		return {
 			code: ring.code,
+			role: ring.role === 'host' || ring.role === 'client' ? ring.role : null,
 			deviceId: ring.deviceId,
 			deviceName:
 				typeof ring.deviceName === 'string' && ring.deviceName.trim()

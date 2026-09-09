@@ -218,3 +218,40 @@ describe('two devices', () => {
 		);
 	});
 });
+
+describe('a device that has only the ring code', () => {
+	/**
+	 * The whole point of deriving every key from the ring code: a second device has
+	 * nothing left to arrange. The registration secret creates the vault once, on
+	 * the host, and is a server-wide credential that has no business travelling to
+	 * a phone. What follows is the check that replaces it.
+	 */
+
+	it('is recognised by the server without a registration secret', async () => {
+		const joiner = new SyncClient(base, vaultId, await deriveAuthToken(secret));
+
+		await expect(joiner.belongs()).resolves.toBe(true);
+	});
+
+	it('is turned away when it holds a different ring code', async () => {
+		const stranger = generateRingSecret();
+		const client = new SyncClient(
+			base,
+			await deriveVaultId(stranger),
+			await deriveAuthToken(stranger)
+		);
+
+		// Not an error: the vault is simply not this one's, which is the same answer
+		// the server gives for a vault that does not exist. It must not be possible
+		// to tell those apart from outside.
+		await expect(client.belongs()).resolves.toBe(false);
+	});
+
+	it('can sync straight away, with no registration of its own', async () => {
+		const joiner = new Device('joined-with-code-only');
+		const report = await joiner.sync();
+
+		expect(report.downloaded.length).toBeGreaterThan(0);
+		expect(joiner.vault.text('Arbeit/Notiz.md')).toBe('Wichtige Ergaenzung.\n');
+	});
+});

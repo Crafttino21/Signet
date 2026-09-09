@@ -143,6 +143,17 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		this.registerEvent(this.app.vault.on('create', noticed));
 		this.registerEvent(this.app.vault.on('modify', noticed));
 
+		// Another module changed something the ring carries — the sync server's
+		// address. Only the host writes snapshots, so everywhere else this is a
+		// no-op rather than a decision anyone has to make.
+		this.register(
+			this.plugin.ringLink.onPublishRequest(() => {
+				if (this.settings.role === 'host') {
+					void this.publish();
+				}
+			})
+		);
+
 		// The file index is not populated yet during onload, so the scan has to wait
 		// for the layout to settle or it would always find nothing.
 		this.app.workspace.onLayoutReady(() => this.warnAboutConflictCopies());
@@ -429,6 +440,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			hostId: snapshot.host.id,
 			lastAppliedSeq: 0,
 		});
+		this.announce(snapshot);
 
 		this.refreshUi();
 		new Notice(t('ring.notice.joined', { host: snapshot.host.name }));
@@ -505,6 +517,9 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				excludedIds: this.settings.excludedIds,
 				host: { id: this.settings.deviceId, name: this.deviceName() },
 				seq,
+				// Whatever the sync module has put in — the ring itself knows nothing
+				// about servers, it only carries what it is given.
+				sync: this.plugin.ringLink.contribution(),
 			});
 			await file.write(await sealSnapshot(secret, snapshot));
 			count = snapshot.plugins.length;
@@ -623,7 +638,22 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			return undefined;
 		}
 
-		return this.decrypt(secret, state.envelope, options.quiet);
+		const snapshot = await this.decrypt(secret, state.envelope, options.quiet);
+		if (snapshot) {
+			this.announce(snapshot);
+		}
+		return snapshot;
+	}
+
+	/**
+	 * Passes on what the snapshot says about the shared server.
+	 *
+	 * Only from snapshots a client reads. The host's own publish path decrypts the
+	 * file too, to check nobody else has written it, and telling this device what
+	 * it just said itself would be a small loop with nothing at the end of it.
+	 */
+	private announce(snapshot: RingSnapshot): void {
+		this.plugin.ringLink.announce({ serverUrl: snapshot.sync?.serverUrl });
 	}
 
 	private async decrypt(

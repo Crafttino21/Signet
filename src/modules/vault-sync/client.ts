@@ -101,6 +101,29 @@ export class SyncClient {
 	}
 
 	/**
+	 * Whether the server already knows this vault and accepts this ring code.
+	 *
+	 * This is what lets a second device set itself up with nothing but the ring
+	 * code. Registration creates the vault and fixes which token opens it; every
+	 * later device derives that same token from the same code, so it has nothing
+	 * to register — it only has to find out whether the host has been here yet.
+	 *
+	 * The server answers 401 both for "no such vault" and "wrong token", on
+	 * purpose, so that a stranger cannot learn which vaults exist. Both mean the
+	 * same thing here: not yet usable from this device.
+	 */
+	async belongs(): Promise<boolean> {
+		const response = await this.call(routes.head(this.vaultId));
+		if (response.status === 200) {
+			return true;
+		}
+		if (response.status === 401) {
+			return false;
+		}
+		throw new SyncServerError(describe(response.status, response.text), response.status);
+	}
+
+	/**
 	 * The current commit number.
 	 *
 	 * With `waitFor`, the request parks on the server until the vault moves past

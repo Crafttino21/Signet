@@ -255,6 +255,11 @@ export const de: Translations = {
 
 	'vaultSync.notice.needsRing': 'Zuerst einen Plugin-Ring erstellen oder beitreten.',
 	'vaultSync.notice.needsServer': 'Zuerst die Serveradresse eintragen.',
+	'vaultSync.notice.serverFromRing': 'Sync-Server aus dem Ring übernommen: {url}',
+	'vaultSync.notice.readyFromRing':
+		'Dieses Gerät ist für den Sync eingerichtet. Mehr als der Ring-Code war nicht nötig.',
+	'vaultSync.notice.notOnServerYet':
+		'Der Server kennt diesen Ring noch nicht. Zuerst auf dem Host-Gerät einrichten.',
 	'vaultSync.notice.needsRegistrationSecret':
 		'Zuerst den Registrierungsschlüssel deines Servers eintragen.',
 	'vaultSync.notice.notSetUp': 'Diesen Vault zuerst auf dem Server einrichten.',
@@ -332,6 +337,11 @@ export const de: Translations = {
 	'vaultSync.setup.title': 'Mit deinem Server verbinden',
 	'vaultSync.setup.hint':
 		'Die Adresse deines Sync-Servers und der Registrierungsschlüssel aus seiner Konfiguration. Der Schlüssel wird einmal benutzt und danach vergessen.',
+	'vaultSync.setup.waitingForHost':
+		'Hier ist nichts zu tun. Der Host veröffentlicht die Server-Adresse im Ring, und dieses Gerät richtet sich damit selbst ein.',
+	'vaultSync.setup.waitingForServer':
+		'Server aus dem Ring: {url}. Warte darauf, dass der Host den Vault dort anlegt.',
+	'vaultSync.setup.checkAgain': 'Jetzt prüfen',
 	'vaultSync.setup.connect': 'Verbinden',
 	'collab.name': 'Gemeinsames Bearbeiten',
 	'collab.description':

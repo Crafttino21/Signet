@@ -11,6 +11,8 @@ export interface SnapshotOptions {
 	excludedIds: readonly string[];
 	host: { id: string; name: string };
 	seq: number;
+	/** What else the ring should carry, such as where the sync server is. */
+	sync?: { serverUrl?: string };
 }
 
 /**
@@ -55,6 +57,9 @@ export async function buildSnapshot(
 		seq: options.seq,
 		host: options.host,
 		updatedAt: new Date().toISOString(),
+		// Left out entirely rather than written as empty, so a ring without a server
+		// carries no field at all.
+		...(options.sync?.serverUrl ? { sync: { serverUrl: options.sync.serverUrl } } : {}),
 		plugins: local.map((plugin) => ({
 			id: plugin.id,
 			name: plugin.name,

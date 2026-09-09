@@ -256,6 +256,11 @@ export const en = {
 
 	'vaultSync.notice.needsRing': 'Create or join a plugin ring first.',
 	'vaultSync.notice.needsServer': 'Enter the server address first.',
+	'vaultSync.notice.serverFromRing': 'Sync server taken from the ring: {url}',
+	'vaultSync.notice.readyFromRing':
+		'This device is set up for sync. The ring code was all it needed.',
+	'vaultSync.notice.notOnServerYet':
+		'The server does not know this ring yet. Set it up on the host device first.',
 	'vaultSync.notice.needsRegistrationSecret':
 		'Enter the registration secret from your server first.',
 	'vaultSync.notice.notSetUp': 'Set this vault up on the server first.',
@@ -332,6 +337,11 @@ export const en = {
 	'vaultSync.setup.title': 'Connect to your server',
 	'vaultSync.setup.hint':
 		'The address of the sync server you run, and the registration secret from its configuration. The secret is used once and then forgotten.',
+	'vaultSync.setup.waitingForHost':
+		'Nothing to do here. The host publishes the server address to the ring, and this device sets itself up when it arrives.',
+	'vaultSync.setup.waitingForServer':
+		'Server from the ring: {url}. Waiting for the host to create the vault there.',
+	'vaultSync.setup.checkAgain': 'Check now',
 	'vaultSync.setup.connect': 'Connect',
 	'collab.name': 'Live editing',
 	'collab.description':

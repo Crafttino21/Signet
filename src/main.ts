@@ -2,6 +2,7 @@ import { Plugin } from 'obsidian';
 import { initI18n, t } from './i18n';
 import { LiveEditingRegistry } from './core/live-editing';
 import { ModuleRegistry } from './core/registry';
+import { RingLink } from './core/ring-link';
 import { TOOLBOX_PANEL_TYPE, ToolboxPanelView } from './core/panel-view';
 import { migrateSettings } from './core/settings';
 import type { ToolboxSettings } from './core/settings';
@@ -27,6 +28,11 @@ export default class ToolboxPlugin extends Plugin {
 	 * writing over somebody's typing.
 	 */
 	readonly liveEditing = new LiveEditingRegistry();
+	/**
+	 * What the ring says besides which plugins to have — the sync server's address.
+	 * Kept here so the two modules can agree without importing each other.
+	 */
+	readonly ringLink = new RingLink();
 	private settingTab!: ToolboxSettingTab;
 
 	override async onload(): Promise<void> {

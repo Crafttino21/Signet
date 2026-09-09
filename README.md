@@ -119,12 +119,29 @@ say yes. Uploading never asks — it cannot cost you anything.
 
 ### Setting it up
 
+**On one device**, once:
+
 1. Run the server: see [`packages/server/README.md`](packages/server/README.md).
-2. Create or join a plugin ring, if you have not already. The ring code is the key.
-3. In the module's settings, enter the server address and the registration secret
-   from the server, then press **Set up**. The registration secret is used once and
-   cleared afterwards; it is not a login.
+2. Create a ring. The ring code is the key to everything.
+3. Enter the server address and the registration secret, then press **Set up**. The
+   registration secret creates the vault and is cleared straight afterwards; it is
+   a server-wide credential, not a login, and it never travels to another device.
 4. Press **Show what a sync would do** before the first real run.
+
+**On every other device**: join the ring with the code. That is the whole setup.
+
+The address of the server is published into the ring — inside the same encrypted
+envelope as everything else, because where a machine on your home network lives is
+not something to write in clear text into a vault. A device that joins picks the
+address up with the snapshot and asks the server whether the vault is there yet. If
+it is, that device is set up.
+
+There is nothing to negotiate between the devices, and no key exchange to get
+wrong: **every key is derived from the ring code** — the vault id, the access
+token, the key that encrypts the notes, the one that hides the filenames, and the
+room id for live editing, each with a different label so no two uses share a key.
+A device that has the code can read what the ring holds; anything outside the ring
+sees ciphertext, the server included.
 
 The server cannot read your notes, which also means **it cannot help you if the
 ring code is lost**. Keep the code somewhere safe and separate from the server.

@@ -23,6 +23,12 @@ export interface RingSnapshot {
 	host: { id: string; name: string };
 	updatedAt: string;
 	plugins: RingPluginEntry[];
+	/**
+	 * What the host says about the shared infrastructure — currently the address of
+	 * the sync server. Optional: a ring that only keeps plugins in step has none,
+	 * and a snapshot written by an older version will not have the field at all.
+	 */
+	sync?: { serverUrl?: string };
 }
 
 export interface LocalPlugin {

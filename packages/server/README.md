@@ -52,6 +52,26 @@ curl http://127.0.0.1:8787/v1/health
 The container listens on `127.0.0.1` only, and the data lives in a Docker volume
 that survives rebuilds.
 
+### Reaching it from another machine
+
+The container binds to `127.0.0.1` on purpose, so nothing is exposed until you
+say so. To open it to a network, add a `docker-compose.override.yml` next to the
+compose file — it is ignored by git, so the safe default stays the default:
+
+```yaml
+services:
+    toolbox-sync:
+        ports: !override
+            - '0.0.0.0:8787:8787'
+```
+
+The `!override` tag matters: without it Compose _adds_ to the port list rather
+than replacing it, and the container fails to start because it tries to bind both.
+
+Do this only for testing on a network you trust. Your notes stay encrypted, but
+the bearer token does not, and anyone who can read it can read and write the
+vault.
+
 ### Put TLS in front of it
 
 Your notes are encrypted before they leave the device, but the bearer token is

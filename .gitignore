@@ -9,6 +9,9 @@ packages/*/dist
 # The sync server's secrets never belong in the repository.
 packages/server/.env
 
+# Per-machine deployment choices, such as opening the port to a network.
+packages/server/docker-compose.override.yml
+
 # Obsidian writes plugin settings here at runtime.
 data.json
 

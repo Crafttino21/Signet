@@ -270,4 +270,37 @@ export const de: Translations = {
 		'Läuft auch, wenn die App wieder in den Vordergrund kommt — so holt sich ein Handy, was es verpasst hat.',
 	'vaultSync.notice.restartNeeded':
 		'Wirkt, nachdem das Modul aus- und wieder eingeschaltet wurde.',
+
+	'common.advanced': 'Erweitert',
+
+	'panel.title': 'Toolbox',
+	'panel.open': 'Toolbox-Leiste öffnen',
+	'panel.nothing': 'Es ist kein Modul eingeschaltet. In den Einstellungen eines aktivieren.',
+
+	'ring.panel.title': 'Plugin-Ring',
+	'ring.panel.none': 'Noch in keinem Ring.',
+	'ring.panel.host': 'Host · veröffentlicht bis {seq}',
+	'ring.panel.client': 'Folgt · angewendet bis {seq}',
+
+	'vaultSync.panel.title': 'Vault-Sync',
+	'vaultSync.panel.notSetUp': 'Noch nicht eingerichtet.',
+	'vaultSync.panel.ready': 'Bereit · Stand {seq}',
+	'vaultSync.panel.live': 'Live',
+	'vaultSync.panel.liveOff': 'Manuell',
+	'vaultSync.panel.never': 'Auf diesem Gerät noch nicht synchronisiert.',
+	'vaultSync.panel.lastRun': 'Zuletzt: {summary}',
+
+	'vaultSync.status.idle': 'Sync: bereit',
+	'vaultSync.status.syncing': 'Sync: läuft',
+	'vaultSync.status.live': 'Sync: live',
+	'vaultSync.status.error': 'Sync: Problem',
+	'vaultSync.status.off': 'Sync: aus',
+	'vaultSync.status.tooltip': 'Toolbox Vault-Sync — klicken öffnet die Leiste',
+
+	'sync.panel.title': 'Sync-Gesundheit',
+	'sync.panel.clean': 'Keine Konflikte gefunden.',
+	'sync.panel.conflicts': '{count} Konflikte gefunden.',
+	'sync.panel.unchecked': 'Noch nicht geprüft.',
+	'sync.panel.check': 'Jetzt prüfen',
+	'sync.panel.report': 'Bericht öffnen',
 };

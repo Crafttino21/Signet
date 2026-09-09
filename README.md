@@ -6,6 +6,16 @@ each one switchable on its own.
 Every feature is a **module**: a self-contained unit with its own settings that can
 be turned on and off at runtime without restarting Obsidian.
 
+Everything is managed from one place. The wrench in the ribbon opens a side panel
+where each switched-on module draws its own state and its own buttons — the ring,
+the sync, the conflict report. On the desktop a small indicator in the status bar
+says whether sync is idle, working, live or in trouble, and clicking it opens the
+panel. Mobile has no status bar, so there the panel carries that on its own.
+
+Settings that exist for unusual setups rather than everyday use sit behind an
+**Advanced** fold that starts closed, so the two or three that matter are not
+buried among them.
+
 ## Plugin ring
 
 Keeps the plugins and their settings in step across your devices, so setting up a

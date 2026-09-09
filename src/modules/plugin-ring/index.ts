@@ -1,6 +1,7 @@
 import { Notice, Platform, Setting, TFile } from 'obsidian';
 import { PluginApi } from '../../core/obsidian-internals';
 import { ToolboxModule } from '../../core/module';
+import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
@@ -137,6 +138,47 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		this.app.workspace.onLayoutReady(() => this.warnAboutConflictCopies());
 	}
 
+	override displayPanel(containerEl: HTMLElement): void {
+		if (!this.api) {
+			return;
+		}
+
+		containerEl.createEl('h3', { text: t('ring.panel.title') });
+
+		const { role } = this.settings;
+		containerEl.createEl('p', {
+			cls: 'toolbox-panel__state',
+			text:
+				role === null
+					? t('ring.panel.none')
+					: role === 'host'
+						? t('ring.panel.host', { seq: this.settings.lastPublishedSeq })
+						: t('ring.panel.client', { seq: this.settings.lastAppliedSeq }),
+		});
+
+		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
+		const button = (label: string, onClick: () => void): void => {
+			buttons.createEl('button', { text: label }).addEventListener('click', onClick);
+		};
+
+		if (role === null) {
+			button(t('ring.settings.createRing'), () => void this.createRing());
+			button(t('ring.settings.joinWithCode'), () => {
+				this.promptJoin();
+			});
+			return;
+		}
+
+		button(t('ring.settings.showCode'), () => {
+			this.showCode();
+		});
+		if (role === 'host') {
+			button(t('ring.settings.publishNow'), () => void this.publish());
+		} else {
+			button(t('ring.settings.checkNow'), () => void this.check());
+		}
+	}
+
 	override displaySettings(containerEl: HTMLElement): void {
 		if (!this.api) {
 			containerEl.createEl('p', {
@@ -204,7 +246,9 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		const advanced = advancedSection(containerEl);
+
+		new Setting(advanced)
 			.setName(t('ring.settings.file'))
 			.setDesc(t('ring.settings.fileDesc'))
 			.addText((text) =>
@@ -215,7 +259,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		new Setting(advanced)
 			.setName(t('ring.settings.excluded'))
 			.setDesc(t('ring.settings.excludedDesc'))
 			.addTextArea((text) =>
@@ -224,7 +268,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		new Setting(advanced)
 			.setName(t('ring.settings.ignored'))
 			.setDesc(t('ring.settings.ignoredDesc'))
 			.addTextArea((text) =>
@@ -259,6 +303,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		});
 
 		await this.publish();
+		this.refreshPanel();
 		new ShowCodeModal(this.app, code).open();
 	}
 
@@ -365,6 +410,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		await file.write(await sealSnapshot(secret, snapshot));
 		await this.patchSettings({ lastPublishedSeq: seq });
+		this.refreshPanel();
 		new Notice(t('ring.notice.published', { count: snapshot.plugins.length }));
 	}
 

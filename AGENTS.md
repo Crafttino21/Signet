@@ -21,6 +21,15 @@ A module is an Obsidian `Component`, which is what makes runtime toggling work.
 
 Module ids are the keys settings are stored under. They are permanent once released.
 
+A module draws two surfaces: `displaySettings()` for its settings section, and
+`displayPanel()` for its part of the shared side panel. The panel knows nothing
+about any feature — it walks the switched-on modules and asks each to draw itself,
+so a new module appears there without `core/panel-view.ts` changing. Call
+`this.refreshPanel()` after changing something the panel shows; it never polls.
+
+Settings that exist for unusual setups go inside `advancedSection()`. What is left
+outside it should be what someone actually needs on the first day.
+
 ## Text shown to users
 
 Every user-facing string goes through `t()` from `src/i18n`, never inline. Add the

@@ -1,5 +1,6 @@
 import { Notice, Platform, Setting } from 'obsidian';
 import { ToolboxModule } from '../../core/module';
+import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
@@ -57,6 +58,9 @@ interface RingIdentity {
 }
 
 class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
+	/** Result of the last scan, so the panel can show it without rescanning. */
+	private lastCount: number | undefined;
+
 	override onload(): void {
 		void this.beat();
 
@@ -82,6 +86,39 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 		this.app.workspace.onLayoutReady(() => void this.startupCheck());
 	}
 
+	override displayPanel(containerEl: HTMLElement): void {
+		containerEl.createEl('h3', { text: t('sync.panel.title') });
+
+		const clean = this.lastCount === 0;
+		containerEl.createEl('p', {
+			cls: clean ? 'toolbox-panel__state' : 'toolbox-panel__state toolbox-panel__state--warn',
+			text:
+				this.lastCount === undefined
+					? t('sync.panel.unchecked')
+					: clean
+						? t('sync.panel.clean')
+						: t('sync.panel.conflicts', { count: this.lastCount }),
+		});
+
+		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
+		buttons
+			.createEl('button', { text: t('sync.panel.check') })
+			.addEventListener('click', () => {
+				void this.refreshCount();
+			});
+		buttons
+			.createEl('button', { text: t('sync.panel.report') })
+			.addEventListener('click', () => {
+				void this.openReport(false);
+			});
+	}
+
+	/** Rescans for the panel, without opening anything. */
+	private async refreshCount(): Promise<void> {
+		this.lastCount = (await this.scan(false)).length;
+		this.refreshPanel();
+	}
+
 	override displaySettings(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName(t('sync.settings.checkOnStart'))
@@ -92,7 +129,9 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		const advanced = advancedSection(containerEl);
+
+		new Setting(advanced)
 			.setName(t('sync.settings.staleAfter'))
 			.setDesc(t('sync.settings.staleAfterDesc'))
 			.addText((text) =>
@@ -104,7 +143,7 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		new Setting(advanced)
 			.setName(t('sync.settings.heartbeatFolder'))
 			.setDesc(t('sync.settings.heartbeatFolderDesc'))
 			.addText((text) =>
@@ -115,7 +154,7 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		new Setting(advanced)
 			.setName(t('sync.settings.excluded'))
 			.setDesc(t('sync.settings.excludedDesc'))
 			.addTextArea((text) =>
@@ -130,7 +169,7 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 			);
 
 		if (Platform.isDesktopApp) {
-			new Setting(containerEl)
+			new Setting(advanced)
 				.setName(t('sync.settings.doubleSyncCheck'))
 				.setDesc(t('sync.settings.doubleSyncCheckDesc'))
 				.addToggle((toggle) =>
@@ -156,6 +195,8 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 		}
 
 		const conflicts = await this.scan(false);
+		this.lastCount = conflicts.length;
+		this.refreshPanel();
 		if (conflicts.length === 1) {
 			new Notice(t('sync.notice.foundOne'));
 		} else if (conflicts.length > 1) {
@@ -176,6 +217,7 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 		}
 
 		const conflicts = await this.scan(deep);
+		this.lastCount = conflicts.length;
 		const devices = await this.deviceHealth();
 
 		if (conflicts.length === 0 && !deep) {

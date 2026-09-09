@@ -150,3 +150,73 @@
 	font-size: var(--font-ui-smaller);
 	white-space: pre-wrap;
 }
+
+/* Side panel */
+
+.toolbox-panel {
+	padding: var(--size-4-3);
+}
+
+.toolbox-panel__section + .toolbox-panel__section {
+	margin-top: var(--size-4-5);
+	padding-top: var(--size-4-4);
+	border-top: 1px solid var(--background-modifier-border);
+}
+
+.toolbox-panel__section h3 {
+	margin: 0 0 var(--size-4-1);
+	font-size: var(--font-ui-medium);
+}
+
+.toolbox-panel__state {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin: 0 0 var(--size-4-2);
+}
+
+.toolbox-panel__state--warn {
+	color: var(--text-warning);
+}
+
+.toolbox-panel__buttons {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+}
+
+.toolbox-panel__empty {
+	color: var(--text-muted);
+}
+
+/* Collapsed settings */
+
+.toolbox-advanced {
+	margin-top: var(--size-4-4);
+	border-top: 1px solid var(--background-modifier-border);
+	padding-top: var(--size-4-2);
+}
+
+.toolbox-advanced__summary {
+	cursor: pointer;
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	padding: var(--size-4-1) 0;
+}
+
+.toolbox-advanced[open] .toolbox-advanced__summary {
+	color: var(--text-normal);
+}
+
+/* Status bar */
+
+.toolbox-status {
+	cursor: pointer;
+}
+
+.toolbox-status--error {
+	color: var(--text-error);
+}
+
+.toolbox-status--live {
+	color: var(--text-accent);
+}

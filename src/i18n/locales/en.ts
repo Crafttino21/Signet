@@ -270,6 +270,39 @@ export const en = {
 	'vaultSync.settings.syncOnStartDesc':
 		'Also runs when the app comes back to the front, which is how a phone picks up what it missed.',
 	'vaultSync.notice.restartNeeded': 'Takes effect after the module is switched off and on again.',
+
+	'common.advanced': 'Advanced',
+
+	'panel.title': 'Toolbox',
+	'panel.open': 'Open the Toolbox panel',
+	'panel.nothing': 'No modules are switched on. Turn one on in the settings.',
+
+	'ring.panel.title': 'Plugin ring',
+	'ring.panel.none': 'Not in a ring yet.',
+	'ring.panel.host': 'Host · published up to {seq}',
+	'ring.panel.client': 'Following · applied up to {seq}',
+
+	'vaultSync.panel.title': 'Vault sync',
+	'vaultSync.panel.notSetUp': 'Not set up yet.',
+	'vaultSync.panel.ready': 'Ready · commit {seq}',
+	'vaultSync.panel.live': 'Live',
+	'vaultSync.panel.liveOff': 'Manual',
+	'vaultSync.panel.never': 'Not synced yet on this device.',
+	'vaultSync.panel.lastRun': 'Last run: {summary}',
+
+	'vaultSync.status.idle': 'Sync: idle',
+	'vaultSync.status.syncing': 'Sync: working',
+	'vaultSync.status.live': 'Sync: live',
+	'vaultSync.status.error': 'Sync: problem',
+	'vaultSync.status.off': 'Sync: off',
+	'vaultSync.status.tooltip': 'Toolbox vault sync — click to open the panel',
+
+	'sync.panel.title': 'Sync health',
+	'sync.panel.clean': 'No conflicts found.',
+	'sync.panel.conflicts': '{count} conflicts found.',
+	'sync.panel.unchecked': 'Not checked yet.',
+	'sync.panel.check': 'Check now',
+	'sync.panel.report': 'Open report',
 };
 
 export type TranslationKey = keyof typeof en;

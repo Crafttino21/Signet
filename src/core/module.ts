@@ -1,4 +1,4 @@
-import { Component } from 'obsidian';
+import { Component, Platform } from 'obsidian';
 import type { App, Command, IconName } from 'obsidian';
 import type ToolboxPlugin from '../main';
 
@@ -79,6 +79,23 @@ export abstract class ToolboxModule<S = unknown> extends Component {
 		return element;
 	}
 
+	/**
+	 * Adds a status bar item that disappears again when this module is switched
+	 * off. Returns undefined on mobile, where Obsidian has no status bar at all —
+	 * callers must cope rather than assume one exists.
+	 */
+	protected addStatusBarItem(): HTMLElement | undefined {
+		if (!Platform.isDesktopApp) {
+			return undefined;
+		}
+
+		const element = this.plugin.addStatusBarItem();
+		this.register(() => {
+			element.remove();
+		});
+		return element;
+	}
+
 	/** Merges a partial update into this module's settings and persists them. */
 	protected async patchSettings(patch: Partial<S>): Promise<void> {
 		const current = this.settings;
@@ -105,5 +122,24 @@ export abstract class ToolboxModule<S = unknown> extends Component {
 	 */
 	displaySettings(_containerEl: HTMLElement): void {
 		// Nothing by default.
+	}
+
+	/**
+	 * Optional: render this module's live state into the shared side panel.
+	 *
+	 * The panel is one surface for the user but stays assembled from the modules
+	 * themselves, so a feature keeps everything it owns in one folder rather than
+	 * a panel growing a branch per module.
+	 *
+	 * Called whenever the panel redraws, which can be often — keep it cheap and
+	 * read state rather than fetching it.
+	 */
+	displayPanel(_containerEl: HTMLElement): void {
+		// Nothing by default.
+	}
+
+	/** Asks the panel to redraw, after this module changed something worth showing. */
+	protected refreshPanel(): void {
+		this.plugin.refreshPanel();
 	}
 }

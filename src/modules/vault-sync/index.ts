@@ -2,6 +2,7 @@ import { Notice, Platform, Setting } from 'obsidian';
 import { deriveAuthToken, deriveVaultId, hashAuthToken, parseRingCode } from '@toolbox/protocol';
 import type { Bytes } from '@toolbox/protocol';
 import { ToolboxModule } from '../../core/module';
+import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
@@ -58,11 +59,17 @@ interface RingSettings {
 	deviceName?: unknown;
 }
 
+/** What the indicator in the status bar is currently saying. */
+type SyncState = 'off' | 'idle' | 'syncing' | 'live' | 'error';
+
 class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	private running = false;
 	private live?: LiveSession;
 	/** The commit this device is known to hold, so the live loop knows what to wait past. */
 	private seq = 0;
+	private state: SyncState = 'off';
+	private lastSummary: string | undefined;
+	private status?: HTMLElement;
 
 	override onload(): void {
 		this.addRibbonIcon('refresh-cw', t('vaultSync.ribbon'), () => void this.sync());
@@ -93,6 +100,11 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 				)
 			);
 		}
+
+		this.status = this.addStatusBarItem();
+		this.status?.addClass('toolbox-status');
+		this.status?.addEventListener('click', () => void this.plugin.openPanel());
+		this.setState(this.settings.registered ? 'idle' : 'off');
 
 		this.setUpLive();
 
@@ -159,6 +171,73 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		this.registerEvent(this.app.vault.on('modify', touched));
 		this.registerEvent(this.app.vault.on('delete', touched));
 		this.registerEvent(this.app.vault.on('rename', touched));
+	}
+
+	/**
+	 * Moves the indicator and redraws the panel.
+	 *
+	 * On mobile there is no status bar, so the element may be absent — the panel is
+	 * the surface that exists everywhere, and it carries the same information.
+	 */
+	private setState(state: SyncState, summary?: string): void {
+		this.state = state;
+		if (summary !== undefined) {
+			this.lastSummary = summary;
+		}
+
+		if (this.status) {
+			this.status.setText(t(`vaultSync.status.${state}`));
+			this.status.setAttribute('aria-label', t('vaultSync.status.tooltip'));
+			this.status.toggleClass('toolbox-status--error', state === 'error');
+			this.status.toggleClass('toolbox-status--live', state === 'live');
+		}
+		this.refreshPanel();
+	}
+
+	override displayPanel(containerEl: HTMLElement): void {
+		containerEl.createEl('h3', { text: t('vaultSync.panel.title') });
+
+		const ready = this.settings.registered;
+		containerEl.createEl('p', {
+			cls: 'toolbox-panel__state',
+			text: ready
+				? t('vaultSync.panel.ready', { seq: this.seq })
+				: t('vaultSync.panel.notSetUp'),
+		});
+		containerEl.createEl('p', {
+			cls:
+				this.state === 'error'
+					? 'toolbox-panel__state toolbox-panel__state--warn'
+					: 'toolbox-panel__state',
+			text:
+				this.lastSummary === undefined
+					? t('vaultSync.panel.never')
+					: t('vaultSync.panel.lastRun', { summary: this.lastSummary }),
+		});
+
+		if (!ready) {
+			return;
+		}
+
+		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
+		buttons
+			.createEl('button', { text: t('vaultSync.command.sync'), cls: 'mod-cta' })
+			.addEventListener('click', () => void this.sync());
+		buttons
+			.createEl('button', { text: t('vaultSync.command.preview') })
+			.addEventListener('click', () => void this.preview());
+		buttons
+			.createEl('button', {
+				text: this.settings.liveSync
+					? t('vaultSync.panel.live')
+					: t('vaultSync.panel.liveOff'),
+			})
+			.addEventListener('click', () => {
+				void this.patchSettings({ liveSync: !this.settings.liveSync }).then(() => {
+					new Notice(t('vaultSync.notice.restartNeeded'));
+					this.refreshPanel();
+				});
+			});
 	}
 
 	/** A sync nobody asked for: never prompts, and stays quiet when nothing happened. */
@@ -246,7 +325,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		const advanced = advancedSection(containerEl);
+
+		new Setting(advanced)
 			.setName(t('vaultSync.settings.interval'))
 			.setDesc(t('vaultSync.settings.intervalDesc'))
 			.addText((text) =>
@@ -258,7 +339,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 				})
 			);
 
-		new Setting(containerEl)
+		new Setting(advanced)
 			.setName(t('vaultSync.settings.excluded'))
 			.setDesc(t('vaultSync.settings.excludedDesc'))
 			.addTextArea((text) =>
@@ -396,18 +477,32 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 	private async execute(deps: SyncDeps, quiet = false): Promise<void> {
 		this.running = true;
+		this.setState('syncing');
 		try {
 			const { report, state } = await runSync(deps);
 			await this.stateStore().save(state);
 			this.seq = state.baseSeq;
 
+			const summary = describeReport(report);
 			if (!quiet || !isQuiet(report)) {
-				new Notice(describeReport(report));
+				new Notice(summary);
 			}
 			for (const failure of report.failed) {
 				console.error(`Toolbox: sync failed for ${failure.path}: ${failure.error}`);
 			}
+
+			// A run that could not finish everything is not a clean run, and the
+			// indicator should not pretend otherwise.
+			this.setState(
+				report.failed.length > 0
+					? 'error'
+					: this.settings.liveSync && this.live?.isRunning
+						? 'live'
+						: 'idle',
+				summary
+			);
 		} catch (error) {
+			this.setState('error', this.explain(error));
 			new Notice(this.explain(error));
 		} finally {
 			this.running = false;

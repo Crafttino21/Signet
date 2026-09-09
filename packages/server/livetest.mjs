@@ -55,7 +55,10 @@ async function main() {
 
 	const registered = await fetch(`${base}/v1/vaults/${vaultId}/register`, {
 		method: 'POST',
-		headers: { 'content-type': 'application/json', 'x-registration-secret': registrationSecret },
+		headers: {
+			'content-type': 'application/json',
+			'x-registration-secret': registrationSecret,
+		},
 		body: JSON.stringify({ tokenHash: await hashAuthToken(token) }),
 	});
 	check('vault registers', registered.status === 201, `status ${registered.status}`);

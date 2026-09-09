@@ -6,6 +6,11 @@ each one switchable on its own.
 Every feature is a **module**: a self-contained unit with its own settings that can
 be turned on and off at runtime without restarting Obsidian.
 
+**Getting started** takes one command: _Set up Toolbox_. It walks the handful of
+decisions in the order they depend on each other — a ring first, because its code
+is the key to everything else, then the server. The panel shows how many steps are
+left until it works, and the prompt disappears once none are.
+
 Everything is managed from one place. The wrench in the ribbon opens a side panel
 where each switched-on module draws its own state and its own buttons — the ring,
 the sync, the conflict report. On the desktop a small indicator in the status bar
@@ -66,8 +71,10 @@ so plainly, rather than quietly skipped.
 A freshly installed plugin gets its settings written before it is switched on,
 because it is not running yet and there is nothing to overwrite them.
 
-Updating a plugin that is already installed but at a different version is still
-only reported, not done.
+A plugin that is installed at a different version is updated the same way. An
+update inherits neither the host's enabled state nor its settings, though: a
+plugin switched off on this device stays off, because turning it back on was never
+what the update was for.
 
 ### Disclosure
 

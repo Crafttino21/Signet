@@ -80,9 +80,18 @@ export async function applyPlans(
 		}
 
 		try {
+			const alreadyRunning = deps.api.isEnabled(plan.id);
+			const target = plan.enabled ?? alreadyRunning;
+
 			if (plan.install !== undefined) {
 				if (!deps.install) {
 					throw new Error('Installing plugins is switched off.');
+				}
+
+				// Replacing the files under a plugin that is running would leave the
+				// old code in memory against the new files on disk.
+				if (alreadyRunning) {
+					await deps.api.disable(plan.id);
 				}
 
 				const outcome = await deps.install({ id: plan.id, version: plan.install });
@@ -92,14 +101,12 @@ export async function applyPlans(
 				installed.push(plan.id);
 			}
 
-			const alreadyRunning = deps.api.isEnabled(plan.id);
-			const target = plan.enabled ?? alreadyRunning;
-
 			if (plan.settings !== undefined) {
 				// A running plugin holds its settings in memory and would overwrite
-				// the file again, so it has to be off while we write. A freshly
-				// installed one is not running, and needs no such dance.
-				if (alreadyRunning) {
+				// the file again, so it has to be off while we write. The live state
+				// is what counts here: an install just above may already have
+				// switched it off, and a fresh install was never on.
+				if (deps.api.isEnabled(plan.id)) {
 					await deps.api.disable(plan.id);
 				}
 				await writePluginData(deps.app, plan.id, plan.settings);

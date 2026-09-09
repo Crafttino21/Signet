@@ -136,6 +136,53 @@ describe('applyPlans', () => {
 		expect(fake.calls).toEqual(['enable:gamma']);
 	});
 
+	it('switches a running plugin off before replacing its files', async () => {
+		const { fake, app, api } = setup({ manifests, enabled: ['alpha'] });
+
+		const result = await applyPlans(
+			{
+				app,
+				api,
+				selfId: SELF,
+				install: (request) =>
+					Promise.resolve({
+						ok: true,
+						repo: 'someone/' + request.id,
+						version: request.version,
+					} satisfies InstallOutcome),
+			},
+			[plan({ id: 'alpha', install: '2.0.0' })]
+		);
+
+		expect(result.installed).toEqual(['alpha']);
+		// Off, replaced, then back on — the old code must not keep running against
+		// the new files.
+		expect(fake.calls).toEqual(['disable:alpha', 'enable:alpha']);
+		expect(fake.plugins.enabledPlugins.has('alpha')).toBe(true);
+	});
+
+	it('leaves an update switched off if this device had switched it off', async () => {
+		const { fake, app, api } = setup({ manifests, enabled: [] });
+
+		await applyPlans(
+			{
+				app,
+				api,
+				selfId: SELF,
+				install: (request) =>
+					Promise.resolve({
+						ok: true,
+						repo: 'someone/' + request.id,
+						version: request.version,
+					} satisfies InstallOutcome),
+			},
+			[plan({ id: 'alpha', install: '2.0.0' })]
+		);
+
+		// An update is not a reason to re-enable something turned off on purpose.
+		expect(fake.plugins.enabledPlugins.has('alpha')).toBe(false);
+	});
+
 	it('reports a refusal instead of half-applying it', async () => {
 		const { fake, app, api } = setup({ manifests, enabled: [] });
 

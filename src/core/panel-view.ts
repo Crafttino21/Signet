@@ -48,6 +48,27 @@ export class ToolboxPanelView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('toolbox-panel');
 
+		// The shortest path from "installed" to "working" belongs at the top, and
+		// disappears once there is nothing left to set up.
+		const outstanding = this.plugin.registry
+			.list()
+			.flatMap(
+				(descriptor) => this.plugin.registry.getActive(descriptor.id)?.setupStep() ?? []
+			)
+			.filter((step) => !step.satisfied());
+
+		if (outstanding.length > 0) {
+			const banner = contentEl.createDiv({ cls: 'toolbox-panel__setup' });
+			banner.createEl('p', {
+				text: t('panel.setupNeeded', { count: outstanding.length }),
+			});
+			banner
+				.createEl('button', { text: t('setup.command'), cls: 'mod-cta' })
+				.addEventListener('click', () => {
+					this.plugin.openSetup();
+				});
+		}
+
 		let drew = false;
 		for (const descriptor of this.plugin.registry.list()) {
 			const module = this.plugin.registry.getActive(descriptor.id);

@@ -4,6 +4,7 @@ import type { Bytes } from '@toolbox/protocol';
 import { ToolboxModule } from '../../core/module';
 import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
+import type { SetupStep } from '../../core/setup';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
 import { SyncClient, SyncServerError } from './client';
@@ -192,6 +193,43 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			this.status.toggleClass('toolbox-status--live', state === 'live');
 		}
 		this.refreshPanel();
+	}
+
+	override setupStep(): SetupStep | undefined {
+		return {
+			title: t('vaultSync.setup.title'),
+			hint: t('vaultSync.setup.hint'),
+			// A ring has to exist first, so this step reports itself finished until
+			// there is one — otherwise the wizard would ask for a server address
+			// before the thing that encrypts what goes to it.
+			satisfied: () => this.ring() === undefined || this.settings.registered,
+			render: (containerEl, changed) => {
+				new Setting(containerEl).setName(t('vaultSync.settings.server')).addText((text) =>
+					text
+						.setPlaceholder('https://sync.example.com')
+						.setValue(this.settings.serverUrl)
+						.onChange(async (value) => {
+							await this.patchSettings({ serverUrl: value.trim() });
+						})
+				);
+
+				new Setting(containerEl)
+					.setName(t('vaultSync.settings.registration'))
+					.addText((text) =>
+						text.setValue(this.settings.registrationSecret).onChange(async (value) => {
+							await this.patchSettings({ registrationSecret: value.trim() });
+						})
+					)
+					.addButton((button) =>
+						button
+							.setButtonText(t('vaultSync.setup.connect'))
+							.setCta()
+							.onClick(() => {
+								void this.setUp().then(changed);
+							})
+					);
+			},
+		};
 	}
 
 	override displayPanel(containerEl: HTMLElement): void {

@@ -311,6 +311,22 @@ export const en = {
 	'ring.settings.installUnsupported':
 		'This Obsidian version does not expose the plugin installer, so missing plugins can only be listed.',
 	'ring.result.installed': 'Installed {count}.',
+	'setup.title': 'Set up Toolbox',
+	'setup.command': 'Set up Toolbox',
+	'setup.nothing': 'Nothing needs setting up. Switch a module on first.',
+	'setup.allDone': 'Everything is set up. You can close this.',
+	'setup.finish': 'Done',
+
+	'panel.setupNeeded': '{count} step(s) left before this works.',
+
+	'ring.setup.title': 'Create or join a ring',
+	'ring.setup.hint':
+		'The ring code is the key to everything else: it encrypts your notes and identifies your vault. Create one on your first device, then join with that code on the others.',
+
+	'vaultSync.setup.title': 'Connect to your server',
+	'vaultSync.setup.hint':
+		'The address of the sync server you run, and the registration secret from its configuration. The secret is used once and then forgotten.',
+	'vaultSync.setup.connect': 'Connect',
 };
 
 export type TranslationKey = keyof typeof en;

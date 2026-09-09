@@ -3,6 +3,7 @@ import { PluginApi } from '../../core/obsidian-internals';
 import { ToolboxModule } from '../../core/module';
 import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
+import type { SetupStep } from '../../core/setup';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
 import { applyPlans } from './apply';
@@ -142,6 +143,37 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		// The file index is not populated yet during onload, so the scan has to wait
 		// for the layout to settle or it would always find nothing.
 		this.app.workspace.onLayoutReady(() => this.warnAboutConflictCopies());
+	}
+
+	override setupStep(): SetupStep | undefined {
+		if (!this.api) {
+			return undefined;
+		}
+
+		return {
+			title: t('ring.setup.title'),
+			hint: t('ring.setup.hint'),
+			satisfied: () => this.settings.role !== null,
+			render: (containerEl, changed) => {
+				new Setting(containerEl)
+					.addButton((button) =>
+						button
+							.setButtonText(t('ring.settings.createRing'))
+							.setCta()
+							.onClick(() => {
+								void this.createRing().then(changed);
+							})
+					)
+					.addButton((button) =>
+						button.setButtonText(t('ring.settings.joinWithCode')).onClick(() => {
+							new JoinRingModal(this.app, async (code) => {
+								await this.join(code);
+								changed();
+							}).open();
+						})
+					);
+			},
+		};
 	}
 
 	override displayPanel(containerEl: HTMLElement): void {

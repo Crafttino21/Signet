@@ -311,4 +311,20 @@ export const de: Translations = {
 	'ring.settings.installUnsupported':
 		'Diese Obsidian-Version stellt den Plugin-Installer nicht bereit, fehlende Plugins können deshalb nur aufgelistet werden.',
 	'ring.result.installed': '{count} installiert.',
+	'setup.title': 'Toolbox einrichten',
+	'setup.command': 'Toolbox einrichten',
+	'setup.nothing': 'Es gibt nichts einzurichten. Zuerst ein Modul einschalten.',
+	'setup.allDone': 'Alles eingerichtet. Du kannst schließen.',
+	'setup.finish': 'Fertig',
+
+	'panel.setupNeeded': 'Noch {count} Schritt(e), bis das läuft.',
+
+	'ring.setup.title': 'Ring erstellen oder beitreten',
+	'ring.setup.hint':
+		'Der Ring-Code ist der Schlüssel zu allem Weiteren: Er verschlüsselt deine Notizen und weist deinen Vault aus. Auf dem ersten Gerät einen erstellen, auf den anderen mit diesem Code beitreten.',
+
+	'vaultSync.setup.title': 'Mit deinem Server verbinden',
+	'vaultSync.setup.hint':
+		'Die Adresse deines Sync-Servers und der Registrierungsschlüssel aus seiner Konfiguration. Der Schlüssel wird einmal benutzt und danach vergessen.',
+	'vaultSync.setup.connect': 'Verbinden',
 };

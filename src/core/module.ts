@@ -1,5 +1,6 @@
 import { Component, Platform } from 'obsidian';
 import type { App, Command, IconName } from 'obsidian';
+import type { SetupStep } from './setup';
 import type ToolboxPlugin from '../main';
 
 /**
@@ -136,6 +137,17 @@ export abstract class ToolboxModule<S = unknown> extends Component {
 	 */
 	displayPanel(_containerEl: HTMLElement): void {
 		// Nothing by default.
+	}
+
+	/**
+	 * Optional: the step this module contributes to the guided setup.
+	 *
+	 * Return undefined when there is nothing to set up. The wizard shows steps in
+	 * module order, so a module that others depend on should come first in the
+	 * module list.
+	 */
+	setupStep(): SetupStep | undefined {
+		return undefined;
 	}
 
 	/** Asks the panel to redraw, after this module changed something worth showing. */

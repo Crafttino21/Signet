@@ -5,6 +5,7 @@ import { TOOLBOX_PANEL_TYPE, ToolboxPanelView } from './core/panel-view';
 import { migrateSettings } from './core/settings';
 import type { ToolboxSettings } from './core/settings';
 import { ToolboxSettingTab } from './core/settings-tab';
+import { SetupModal } from './core/setup';
 import { registerViewOnce } from './core/view';
 import { TOOLBOX_MODULES } from './modules';
 
@@ -33,6 +34,13 @@ export default class ToolboxPlugin extends Plugin {
 			id: 'open-panel',
 			name: t('panel.open'),
 			callback: () => void this.openPanel(),
+		});
+		this.addCommand({
+			id: 'setup',
+			name: t('setup.command'),
+			callback: () => {
+				this.openSetup();
+			},
 		});
 
 		await this.registry.syncWithSettings();
@@ -64,6 +72,11 @@ export default class ToolboxPlugin extends Plugin {
 		}
 		await leaf.setViewState({ type: TOOLBOX_PANEL_TYPE, active: true });
 		await workspace.revealLeaf(leaf);
+	}
+
+	/** Opens the guided setup. */
+	openSetup(): void {
+		new SetupModal(this.app, this).open();
 	}
 
 	/**

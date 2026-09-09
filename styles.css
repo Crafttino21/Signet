@@ -220,3 +220,40 @@
 .toolbox-status--live {
 	color: var(--text-accent);
 }
+
+/* Guided setup */
+
+.toolbox-setup__step {
+	margin-bottom: var(--size-4-4);
+}
+
+.toolbox-setup__step h3 {
+	margin: 0 0 var(--size-4-1);
+	font-size: var(--font-ui-medium);
+}
+
+.toolbox-setup__step--done h3 {
+	color: var(--text-muted);
+	font-weight: var(--font-normal);
+}
+
+.toolbox-setup__hint {
+	color: var(--text-muted);
+	font-size: var(--font-ui-smaller);
+	margin: 0 0 var(--size-4-2);
+}
+
+.toolbox-setup__done {
+	color: var(--text-success);
+}
+
+.toolbox-panel__setup {
+	background-color: var(--background-modifier-border);
+	border-radius: var(--radius-s);
+	padding: var(--size-4-3);
+	margin-bottom: var(--size-4-4);
+}
+
+.toolbox-panel__setup p {
+	margin: 0 0 var(--size-4-2);
+}

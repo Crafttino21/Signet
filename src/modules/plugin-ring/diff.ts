@@ -167,13 +167,16 @@ export function planApply(
 		}
 
 		const plan = plans.get(item.id) ?? { id: item.id, name: item.name };
-		if (item.kind === 'missing') {
+		if (item.kind === 'missing' || item.kind === 'version') {
 			plan.install = entry.version;
-			// A plugin worth fetching is one the host is actually using, and its
-			// settings come along in the same unit of work.
-			plan.enabled = entry.enabled;
-			if (entry.settings !== undefined) {
-				plan.settings = entry.settings;
+			if (item.kind === 'missing') {
+				// A plugin worth fetching is one the host is actually using, and its
+				// settings come along in the same unit of work. An update inherits
+				// neither: this device may have switched it off on purpose.
+				plan.enabled = entry.enabled;
+				if (entry.settings !== undefined) {
+					plan.settings = entry.settings;
+				}
 			}
 		} else if (item.kind === 'settings') {
 			plan.settings = entry.settings;

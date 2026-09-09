@@ -6,8 +6,19 @@
  * or silently dropped data — so there is exactly one implementation.
  */
 
-export type { Bytes } from './code';
-export { InvalidRingCodeError, formatRingCode, generateRingSecret, parseRingCode } from './code';
+export type { Bytes, JoinAddress, JoinCode } from './code';
+export {
+	DEFAULT_SYNC_PORT,
+	InvalidRingCodeError,
+	UnsupportedJoinCodeError,
+	addressFromUrl,
+	addressToUrl,
+	formatJoinCode,
+	formatRingCode,
+	generateRingSecret,
+	parseJoinCode,
+	parseRingCode,
+} from './code';
 
 export type { RingEnvelope } from './crypto';
 export {

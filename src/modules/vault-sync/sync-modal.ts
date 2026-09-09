@@ -35,6 +35,7 @@ export class SyncPlanModal extends Modal {
 	}
 
 	override onOpen(): void {
+		this.contentEl.addClass('toolbox-modal');
 		this.setTitle(t('vaultSync.plan.title'));
 
 		if (this.context.firstRun) {

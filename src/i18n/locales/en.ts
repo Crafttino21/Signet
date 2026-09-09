@@ -70,6 +70,8 @@ export const en = {
 	'ring.notice.codeMismatch': 'That code does not match the ring in this vault.',
 	'ring.notice.wrongRing': 'This snapshot does not belong to your ring, or it was altered.',
 	'ring.notice.joined': 'Joined the ring hosted by "{host}".',
+	'ring.notice.joinedWithServer':
+		'Joined. The code carried the server address, so this device is contacting it now.',
 	'ring.notice.joinedWaiting':
 		'Code accepted. Waiting for the host\'s snapshot to arrive at "{path}" — this device will say so once it does.',
 	'ring.notice.left': 'Left the ring. Nothing installed was changed.',
@@ -84,6 +86,21 @@ export const en = {
 		'Toolbox: found {count} conflicting copies of the ring file. Two devices may both be publishing.',
 	'ring.notice.codeCopied': 'Ring code copied.',
 	'ring.notice.codeCopyFailed': 'Could not copy the code — select it by hand.',
+	'ring.notice.newerCode':
+		'That code was made by a newer version of Toolbox. Update the plugin on this device first.',
+	'ring.notice.replacedRingFile': 'Moved the old ring file at "{path}" to the trash.',
+	'ring.notice.ringFileBusy':
+		'Obsidian has not indexed the file at "{path}" yet, so it cannot be moved safely. Try again in a moment.',
+
+	'ring.conflict.title': 'There is already a ring file here',
+	'ring.conflict.foreign':
+		'The file at "{path}" belongs to a different ring. This device cannot read it, and cannot publish over it either.',
+	'ring.conflict.corrupt':
+		'The file at "{path}" belongs to this ring but will not open. It may have been damaged.',
+	'ring.conflict.trashHint':
+		'Replacing it moves it to the trash, so it can be recovered. Everything the other ring holds stays where it is — this only frees the path.',
+	'ring.conflict.keep': 'Leave it alone',
+	'ring.conflict.replace': 'Move it to the trash',
 
 	'ring.file.notJson': 'The ring file is not valid JSON right now.',
 	'ring.file.notSnapshot': 'The ring file does not look like a ring snapshot.',
@@ -99,6 +116,11 @@ export const en = {
 	'ring.join.submit': 'Join',
 
 	'ring.code.title': 'Your ring code',
+	'ring.code.includeServer': 'Include the server address',
+	'ring.code.includeServerDesc':
+		'Switch off if the other device reaches the server at a different address — over a VPN, or by a name this network does not know.',
+	'ring.code.hintWithServer':
+		'Enter this code on another device to take it into the ring. It carries the address of the sync server, so there is nothing else to type there. Anyone holding it can read the ring and publish to it — treat it like a password.',
 	'ring.code.hint':
 		'Enter this on another device to add it to the ring. Anyone who has it can read and publish to the ring, so treat it like a password.',
 
@@ -263,6 +285,8 @@ export const en = {
 		'{done} synced, {failed} failed. Nothing was lost, and the rest is tried again next time.',
 
 	'vaultSync.notice.needsRing': 'Create or join a plugin ring first.',
+	'vaultSync.notice.badServerUrl':
+		'That is not a complete address. It needs to start with http:// or https://, for example http://192.168.1.10:8787.',
 	'vaultSync.notice.needsServer': 'Enter the server address first.',
 	'vaultSync.notice.serverFromRing': 'Sync server taken from the ring: {url}',
 	'vaultSync.notice.readyFromRing':
@@ -297,7 +321,12 @@ export const en = {
 	'ring.panel.none': 'Not in a ring yet.',
 	'ring.panel.host': 'Host · published up to {seq}',
 	'ring.panel.client': 'Following · applied up to {seq}',
-	'ring.panel.waitingForHost': 'Waiting for the host\'s snapshot to sync to this device.',
+	'ring.panel.waitingForHost': "Waiting for the host's snapshot to sync to this device.",
+	'ring.panel.noFileHost':
+		'No ring file at "{path}". Publish, so the other devices have something to join.',
+	'ring.panel.foreignFile':
+		'The file at "{path}" belongs to a different ring. Publishing will offer to move it aside.',
+	'ring.panel.corruptFile': 'The ring file at "{path}" will not open. It may be damaged.',
 	'ring.panel.nothingPublished':
 		'Nothing published yet — the other devices have no ring file to join. Press "Publish now".',
 
@@ -307,6 +336,8 @@ export const en = {
 	'vaultSync.panel.ready': 'Ready · commit {seq}',
 	'vaultSync.panel.live': 'Live',
 	'vaultSync.panel.liveOff': 'Manual',
+	'vaultSync.panel.serverFromRing': 'Server: {url} · from the ring',
+	'vaultSync.panel.serverManual': 'Server: {url} · set on this device',
 	'vaultSync.panel.never': 'Not synced yet on this device.',
 	'vaultSync.panel.lastRun': 'Last run: {summary}',
 
@@ -315,12 +346,14 @@ export const en = {
 	'vaultSync.status.live': 'Sync: live',
 	'vaultSync.status.error': 'Sync: problem',
 	'vaultSync.status.off': 'Sync: off',
+	'vaultSync.indicator.liveNote': 'This note is being edited together right now',
 	'vaultSync.status.tooltip': 'Toolbox vault sync — click to open the panel',
 
 	'sync.panel.title': 'Sync health',
 	'sync.panel.clean': 'No conflicts found.',
 	'sync.panel.conflicts': '{count} conflicts found.',
 	'sync.panel.unchecked': 'Not checked yet.',
+	'sync.panel.devices': 'Devices',
 	'sync.panel.check': 'Check now',
 	'sync.panel.report': 'Open report',
 	'ring.reason.cannotInstall': 'Installing is not possible on this device',

@@ -17,15 +17,36 @@
  */
 export class LiveEditingRegistry {
 	private readonly paths = new Set<string>();
+	private readonly listeners = new Set<() => void>();
 
 	/** The session for this path is now the authority on its contents. */
 	claim(path: string): void {
 		this.paths.add(path);
+		this.changed();
 	}
 
 	/** Back to being an ordinary file. */
 	release(path: string): void {
 		this.paths.delete(path);
+		this.changed();
+	}
+
+	/**
+	 * Tells anything showing this state to redraw.
+	 *
+	 * The sync indicator in a note's header says whether that note is being edited
+	 * together, and a session starts and ends without the workspace changing in any
+	 * way the indicator would otherwise hear about.
+	 */
+	onChange(listener: () => void): () => void {
+		this.listeners.add(listener);
+		return () => this.listeners.delete(listener);
+	}
+
+	private changed(): void {
+		for (const listener of this.listeners) {
+			listener();
+		}
 	}
 
 	isLive(path: string): boolean {

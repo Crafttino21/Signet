@@ -1,8 +1,9 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
 import { t } from '../../i18n';
-import { isRingEnvelope } from '@toolbox/protocol';
-import type { RingEnvelope } from '@toolbox/protocol';
+import { deriveRingId, isRingEnvelope, openSnapshot } from '@toolbox/protocol';
+import type { Bytes, RingEnvelope } from '@toolbox/protocol';
+import { isRingSnapshot } from './types';
 
 export type RingFileState =
 	| { status: 'absent' }
@@ -74,6 +75,24 @@ export class RingFile {
 		return undefined;
 	}
 
+	/**
+	 * Moves the file aside so a fresh ring can be published over it.
+	 *
+	 * It goes to the trash, never to a delete: that file is another ring's only
+	 * state, and this plugin has one rule about other people's data it does not
+	 * bend. Returns false when the file exists on disk but Obsidian has not
+	 * indexed it — `trashFile` needs a `TFile`, and writing over it through the
+	 * adapter instead would be exactly the destruction being avoided.
+	 */
+	async trashExisting(): Promise<boolean> {
+		const file = this.app.vault.getFileByPath(this.path);
+		if (!file) {
+			return !(await this.app.vault.adapter.exists(this.path));
+		}
+		await this.app.fileManager.trashFile(file);
+		return true;
+	}
+
 	async write(envelope: RingEnvelope): Promise<void> {
 		const contents = JSON.stringify(envelope, null, 2);
 		const existing = this.app.vault.getFileByPath(this.path);
@@ -136,5 +155,46 @@ export class RingFile {
 			return;
 		}
 		await this.app.vault.createFolder(folder);
+	}
+}
+
+/**
+ * What the file lying at the ring's path actually is.
+ *
+ * Told apart before anything is overwritten, because the three cases want three
+ * different answers and only one of them is a race:
+ *
+ * - `free` — nothing there, publish away.
+ * - `ours` — our ring; the sequence number decides who is behind.
+ * - `foreign` — someone else's ring, or a leftover from a ring this device used
+ *   to be in. Decided from the ring id, which the envelope carries in the clear
+ *   for exactly this purpose, so no decryption is attempted or needed.
+ * - `corrupt` — our ring id, but the contents will not open. Usually a file
+ *   caught halfway through being written by a sync client.
+ *
+ * The distinction matters because `foreign` is recoverable and `corrupt` is not:
+ * overwriting a file that only looks broken would throw away the ring.
+ */
+export type RingFileVerdict = 'free' | 'ours' | 'foreign' | 'corrupt';
+
+export async function classifyRingFile(
+	state: RingFileState,
+	secret: Bytes
+): Promise<RingFileVerdict> {
+	if (state.status === 'absent') {
+		return 'free';
+	}
+	if (state.status === 'unreadable') {
+		return 'corrupt';
+	}
+
+	if (state.envelope.ring !== (await deriveRingId(secret))) {
+		return 'foreign';
+	}
+
+	try {
+		return isRingSnapshot(await openSnapshot(secret, state.envelope)) ? 'ours' : 'corrupt';
+	} catch {
+		return 'corrupt';
 	}
 }

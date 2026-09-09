@@ -10,12 +10,22 @@ import { applyPlans } from './apply';
 import { CommunityCatalog } from './catalog';
 import { installPlugin } from './installer';
 import type { ApplyResult } from './apply';
-import { formatRingCode, generateRingSecret, parseRingCode } from '@toolbox/protocol';
+import {
+	addressFromUrl,
+	addressToUrl,
+	formatJoinCode,
+	formatRingCode,
+	generateRingSecret,
+	parseJoinCode,
+	parseRingCode,
+	UnsupportedJoinCodeError,
+} from '@toolbox/protocol';
 import type { Bytes } from '@toolbox/protocol';
 import { deriveRingId, openSnapshot, RingDecryptionError, sealSnapshot } from '@toolbox/protocol';
 import { computeDiff, planApply } from './diff';
-import { JoinRingModal, RingDiffModal, ShowCodeModal } from './modals';
-import { RingFile } from './ring-file';
+import { JoinRingModal, RingDiffModal, RingFileConflictModal, ShowCodeModal } from './modals';
+import { classifyRingFile, RingFile } from './ring-file';
+import type { RingFileVerdict } from './ring-file';
 import { collectLocalPlugins, buildSnapshot } from './snapshot';
 import { isRingSnapshot } from './types';
 import type { DiffItem, RingSnapshot } from './types';
@@ -142,6 +152,13 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		};
 		this.registerEvent(this.app.vault.on('create', noticed));
 		this.registerEvent(this.app.vault.on('modify', noticed));
+		this.registerEvent(
+			this.app.vault.on('delete', (file) => {
+				if (file instanceof TFile && file.path === this.ringFile().path) {
+					void this.refreshFileVerdict();
+				}
+			})
+		);
 
 		// Another module changed something the ring carries — the sync server's
 		// address. Only the host writes snapshots, so everywhere else this is a
@@ -154,9 +171,20 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			})
 		);
 
-		// The file index is not populated yet during onload, so the scan has to wait
-		// for the layout to settle or it would always find nothing.
-		this.app.workspace.onLayoutReady(() => this.warnAboutConflictCopies());
+		// The file index is not populated yet during onload, so this has to wait for
+		// the layout to settle or it would always find nothing.
+		this.app.workspace.onLayoutReady(() => {
+			this.warnAboutConflictCopies();
+			void this.refreshFileVerdict();
+
+			// A snapshot that arrived while this device was closed raises no vault
+			// event: by the time Obsidian starts, the file is simply there and
+			// unchanged. Without this read a device that missed one publish waits for
+			// the next one — which, for a ring that rarely changes, can be days.
+			if (this.settings.role === 'client') {
+				void this.notifyIfNewer();
+			}
+		});
 	}
 
 	override setupStep(): SetupStep | undefined {
@@ -188,6 +216,28 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 					);
 			},
 		};
+	}
+
+	/**
+	 * Re-reads what lies at the ring path, for the panel to show.
+	 *
+	 * The panel is drawn synchronously and often, so it reads this rather than the
+	 * file. Every place that could change the answer calls it and then redraws:
+	 * publishing, checking, joining, and the file arriving through a sync.
+	 */
+	private async refreshFileVerdict(): Promise<void> {
+		const secret = this.secret();
+		if (!secret) {
+			this.fileVerdict = undefined;
+			return;
+		}
+
+		try {
+			this.fileVerdict = await classifyRingFile(await this.ringFile().read(), secret);
+		} catch {
+			this.fileVerdict = undefined;
+		}
+		this.refreshPanel();
 	}
 
 	override displayPanel(containerEl: HTMLElement): void {
@@ -222,6 +272,24 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			});
 		}
 
+		// What is actually lying at the ring path, said plainly and with the path in
+		// it. "There is no ring file" used to be reachable only by pressing a button
+		// and reading a notice that vanished.
+		if (role !== null && this.fileVerdict !== undefined && this.fileVerdict !== 'ours') {
+			const path = this.ringFile().path;
+			containerEl.createEl('p', {
+				cls: 'toolbox-panel__state toolbox-panel__state--warn',
+				text:
+					this.fileVerdict === 'free'
+						? role === 'host'
+							? t('ring.panel.noFileHost', { path })
+							: t('ring.notice.noRingFileYet', { path })
+						: this.fileVerdict === 'foreign'
+							? t('ring.panel.foreignFile', { path })
+							: t('ring.panel.corruptFile', { path }),
+			});
+		}
+
 		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
 		const button = (label: string, onClick: () => void): void => {
 			buttons.createEl('button', { text: label }).addEventListener('click', onClick);
@@ -243,6 +311,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		} else {
 			button(t('ring.settings.checkNow'), () => void this.check());
 		}
+		button(t('ring.settings.leave'), () => void this.leave());
 	}
 
 	override displaySettings(containerEl: HTMLElement): void {
@@ -373,6 +442,13 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			return;
 		}
 
+		// Whatever lies at the ring path cannot belong to a ring this device is not
+		// in yet, so it is a leftover. Asking now rather than at the first publish
+		// keeps a host from being created into a state it can never publish from.
+		if (!(await this.clearTheWay())) {
+			return;
+		}
+
 		const code = formatRingCode(generateRingSecret());
 		await this.patchSettings({
 			code,
@@ -384,7 +460,33 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		await this.publish();
 		this.refreshUi();
-		new ShowCodeModal(this.app, code).open();
+		this.showCode();
+	}
+
+	/**
+	 * Offers to move a ring file this device cannot use out of the way.
+	 *
+	 * Returns true when the path is clear afterwards. The file goes to the trash
+	 * rather than being overwritten: it is another ring's only copy of itself, and
+	 * a device that has never been in that ring has no business destroying it.
+	 */
+	private async clearTheWay(kind: 'foreign' | 'corrupt' = 'foreign'): Promise<boolean> {
+		const file = this.ringFile();
+		if ((await file.read()).status === 'absent') {
+			return true;
+		}
+
+		if (!(await RingFileConflictModal.ask(this.app, { path: file.path, kind }))) {
+			return false;
+		}
+
+		if (!(await file.trashExisting())) {
+			new Notice(t('ring.notice.ringFileBusy', { path: file.path }));
+			return false;
+		}
+
+		new Notice(t('ring.notice.replacedRingFile', { path: file.path }));
+		return true;
 	}
 
 	private promptJoin(): void {
@@ -393,12 +495,26 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 	private async join(rawCode: string): Promise<void> {
 		let secret: Bytes;
+		let address;
 		try {
-			secret = parseRingCode(rawCode);
-		} catch {
-			new Notice(t('ring.notice.invalidCode'));
+			({ secret, address } = parseJoinCode(rawCode));
+		} catch (error) {
+			new Notice(
+				error instanceof UnsupportedJoinCodeError
+					? t('ring.notice.newerCode')
+					: t('ring.notice.invalidCode')
+			);
 			return;
 		}
+
+		// Announced only once the code is stored, never before: the sync module
+		// answers an announcement by trying to reach the server, and the token it
+		// needs for that is derived from the code it would not have yet.
+		const announceAddress = (): void => {
+			if (address) {
+				this.plugin.ringLink.announce({ serverUrl: addressToUrl(address) });
+			}
+		};
 
 		const state = await this.ringFile().read();
 
@@ -419,8 +535,17 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				hostId: null,
 				lastAppliedSeq: 0,
 			});
+			// This is the whole point of the address travelling in the code: there is
+			// no snapshot here yet, and with the address there does not need to be.
+			// The device reaches the server and pulls the vault, ring file included.
+			announceAddress();
+			void this.refreshFileVerdict();
 			this.refreshUi();
-			new Notice(t('ring.notice.joinedWaiting', { path: this.ringFile().path }));
+			new Notice(
+				address
+					? t('ring.notice.joinedWithServer')
+					: t('ring.notice.joinedWaiting', { path: this.ringFile().path })
+			);
 			return;
 		}
 
@@ -440,7 +565,14 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			hostId: snapshot.host.id,
 			lastAppliedSeq: 0,
 		});
-		this.announce(snapshot);
+		// The snapshot wins when it has an address of its own; the code only fills
+		// the gap left by a host that had no server when it last published. One
+		// announcement either way, because each one sets a claim going.
+		if (snapshot.sync?.serverUrl) {
+			this.announce(snapshot);
+		} else {
+			announceAddress();
+		}
 
 		this.refreshUi();
 		new Notice(t('ring.notice.joined', { host: snapshot.host.name }));
@@ -455,16 +587,42 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			lastAppliedSeq: 0,
 			lastPublishedSeq: 0,
 		});
+		this.fileVerdict = undefined;
 		this.refreshUi();
 		new Notice(t('ring.notice.left'));
 	}
 
 	private showCode(): void {
-		if (!this.settings.code) {
+		const ringCode = this.settings.code;
+		if (!ringCode) {
 			new Notice(t('ring.notice.notInRing'));
 			return;
 		}
-		new ShowCodeModal(this.app, this.settings.code).open();
+		new ShowCodeModal(this.app, { ringCode, joinCode: this.joinCode(ringCode) }).open();
+	}
+
+	/**
+	 * The code to type on the next device: the ring code with the server address
+	 * packed onto the end, when there is one that fits.
+	 *
+	 * The address is the one thing a joining device cannot work out for itself.
+	 * Every key it needs comes from the secret, but where to send them lives in
+	 * the snapshot — and the snapshot only arrives once something has synced.
+	 * Carrying it here is what lets a phone reach the server before it holds a
+	 * single file of the vault.
+	 */
+	private joinCode(ringCode: string): string {
+		const url = this.plugin.ringLink.contribution().serverUrl;
+		const address = url ? addressFromUrl(url) : undefined;
+		if (!address) {
+			return ringCode;
+		}
+
+		try {
+			return formatJoinCode(parseRingCode(ringCode), address);
+		} catch {
+			return ringCode;
+		}
 	}
 
 	// --- host ---------------------------------------------------------------
@@ -478,6 +636,16 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	 * join — which is exactly how it looks from the phone.
 	 */
 	private async publish(): Promise<boolean> {
+		// Whatever happens below, the panel should end up describing the file as it
+		// is now rather than as it was before the button was pressed.
+		try {
+			return await this.publishOnce();
+		} finally {
+			void this.refreshFileVerdict();
+		}
+	}
+
+	private async publishOnce(): Promise<boolean> {
 		const secret = this.secret();
 		if (!secret || !this.api) {
 			new Notice(t('ring.notice.notInRing'));
@@ -492,24 +660,48 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		const state = await file.read();
 
 		if (state.status === 'unreadable') {
+			// Half-written files are ordinary: a sync client can easily be caught
+			// mid-write. Waiting is the right answer, not a dialog.
 			new Notice(t('ring.notice.retryLater', { message: state.message }));
 			return false;
 		}
 
+		let base = this.settings.lastPublishedSeq;
+
 		if (state.status === 'ok') {
-			const current = await this.decrypt(secret, state.envelope);
-			if (!current) {
-				return false;
-			}
-			// Optimistic concurrency: if the file moved on since we last wrote it,
-			// another device has been publishing. Stop rather than overwrite it.
-			if (current.seq !== this.settings.lastPublishedSeq) {
-				new Notice(t('ring.notice.raced', { host: current.host.name }));
-				return false;
+			const verdict = await classifyRingFile(state, secret);
+
+			// A file belonging to another ring, or one of ours that will not open, is
+			// not a race — nobody is going to resolve it by waiting. Without a way
+			// past it the host could never publish again, which is exactly how it
+			// looks from the other devices: a ring that exists and has no file.
+			if (verdict !== 'ours') {
+				if (!(await this.clearTheWay(verdict === 'foreign' ? 'foreign' : 'corrupt'))) {
+					return false;
+				}
+				base = 0;
+			} else {
+				const current = await this.decrypt(secret, state.envelope);
+				if (!current) {
+					return false;
+				}
+
+				// Optimistic concurrency: if the file moved on since we last wrote it,
+				// another device has been publishing. Stop rather than overwrite it —
+				// unless the snapshot names this device as the host, in which case the
+				// file is our own work and the settings are what fell behind, after a
+				// reinstall or a lost data.json.
+				if (current.seq !== base) {
+					if (current.host.id !== this.settings.deviceId) {
+						new Notice(t('ring.notice.raced', { host: current.host.name }));
+						return false;
+					}
+					base = current.seq;
+				}
 			}
 		}
 
-		const seq = this.settings.lastPublishedSeq + 1;
+		const seq = base + 1;
 		let count: number;
 		try {
 			const snapshot = await buildSnapshot(this.app, this.api, {
@@ -548,6 +740,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		// kept quiet the way a routine update is.
 		const waiting = this.settings.hostId === null;
 
+		void this.refreshFileVerdict();
 		const snapshot = await this.loadSnapshot({ quiet: !waiting });
 		if (snapshot && snapshot.seq > this.settings.lastAppliedSeq) {
 			new Notice(t('ring.notice.hasChanges'));
@@ -692,6 +885,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			return undefined;
 		}
 	}
+
+	private fileVerdict: RingFileVerdict | undefined;
 
 	private ringFile(): RingFile {
 		return new RingFile(this.app, this.settings.ringFilePath || DEFAULT_SETTINGS.ringFilePath);

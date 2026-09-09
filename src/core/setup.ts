@@ -39,6 +39,7 @@ export class SetupModal extends Modal {
 	}
 
 	override onOpen(): void {
+		this.contentEl.addClass('toolbox-modal');
 		this.setTitle(t('setup.title'));
 		this.render();
 	}

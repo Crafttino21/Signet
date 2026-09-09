@@ -9,7 +9,7 @@ import type { DoubleSyncFinding } from './double-sync';
 import { devicesNeedingAttention, evaluateHeartbeats } from './health';
 import type { DeviceHealth } from './health';
 import { HeartbeatStore } from './heartbeat';
-import { SyncReportModal } from './report-modal';
+import { describeDevice, SyncReportModal } from './report-modal';
 import { scanConflicts } from './scanner';
 import type { Conflict } from './scanner';
 
@@ -60,6 +60,8 @@ interface RingIdentity {
 class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 	/** Result of the last scan, so the panel can show it without rescanning. */
 	private lastCount: number | undefined;
+	/** The devices, for the panel. Read from files, so kept rather than fetched. */
+	private devices: DeviceHealth[] = [];
 
 	override onload(): void {
 		void this.beat();
@@ -83,7 +85,16 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 
 		// The vault index is not ready during onload, so anything that walks files
 		// waits for the layout.
-		this.app.workspace.onLayoutReady(() => void this.startupCheck());
+		this.app.workspace.onLayoutReady(() => {
+			void this.startupCheck();
+			void this.refreshDevices();
+		});
+	}
+
+	/** Re-reads the heartbeats and redraws. Cheap: a handful of small JSON files. */
+	private async refreshDevices(): Promise<void> {
+		this.devices = await this.deviceHealth();
+		this.refreshPanel();
 	}
 
 	override displayPanel(containerEl: HTMLElement): void {
@@ -99,6 +110,29 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 						? t('sync.panel.clean')
 						: t('sync.panel.conflicts', { count: this.lastCount }),
 		});
+
+		// Which devices are in this vault, and when each was last heard from. It is
+		// the question "is my phone actually syncing" in the place someone asks it.
+		containerEl.createEl('h4', { text: t('sync.panel.devices') });
+		if (this.devices.length === 0) {
+			containerEl.createEl('p', {
+				cls: 'toolbox-panel__state',
+				text: t('sync.report.noDevices'),
+			});
+		} else {
+			const list = containerEl.createEl('ul', { cls: 'toolbox-sync__list' });
+			for (const device of this.devices) {
+				const row = list.createEl('li', { cls: 'toolbox-sync__row' });
+				row.createSpan({ cls: 'toolbox-sync__name', text: device.deviceName });
+				row.createSpan({
+					cls:
+						device.isSelf || device.status === 'fresh'
+							? 'toolbox-sync__meta'
+							: 'toolbox-sync__warn',
+					text: device.isSelf ? t('sync.device.self') : describeDevice(device),
+				});
+			}
+		}
 
 		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
 		buttons
@@ -116,7 +150,7 @@ class SyncHealthModule extends ToolboxModule<SyncHealthSettings> {
 	/** Rescans for the panel, without opening anything. */
 	private async refreshCount(): Promise<void> {
 		this.lastCount = (await this.scan(false)).length;
-		this.refreshPanel();
+		await this.refreshDevices();
 	}
 
 	override displaySettings(containerEl: HTMLElement): void {

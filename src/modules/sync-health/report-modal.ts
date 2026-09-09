@@ -5,7 +5,8 @@ import type { DoubleSyncFinding } from './double-sync';
 import type { DeviceHealth } from './health';
 import type { Conflict, CopyConflict, MarkerConflict } from './scanner';
 
-function describeDevice(device: DeviceHealth): string {
+/** How long ago a device was last heard from, in words. Shared with the panel. */
+export function describeDevice(device: DeviceHealth): string {
 	if (device.status === 'unknown' || device.ageHours === undefined) {
 		return t('sync.device.unknown');
 	}
@@ -36,6 +37,7 @@ class CompareModal extends Modal {
 	}
 
 	override onOpen(): void {
+		this.contentEl.addClass('toolbox-modal');
 		this.setTitle(t('sync.compare.title', { name: this.conflict.originalPath }));
 		void this.render();
 	}
@@ -161,6 +163,7 @@ export class SyncReportModal extends Modal {
 	}
 
 	override onOpen(): void {
+		this.contentEl.addClass('toolbox-modal');
 		this.setTitle(t('sync.report.title'));
 		this.render();
 	}

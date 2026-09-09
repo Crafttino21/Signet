@@ -12,6 +12,10 @@ import { isQuiet, planSync, runSync } from './engine';
 import type { SyncDeps } from './engine';
 import { LiveSession } from './live';
 import { touchesLocalFiles } from './reconcile';
+import { SyncIndicator } from './indicator';
+import type { SyncState } from './indicator';
+import { isUsableServerUrl, normaliseServerUrl, shouldAdopt } from './server-url';
+import type { ServerUrlSource } from './server-url';
 import { SyncStateStore } from './state';
 import { describeReport, SyncPlanModal } from './sync-modal';
 
@@ -28,6 +32,8 @@ import { describeReport, SyncPlanModal } from './sync-modal';
 
 type VaultSyncSettings = {
 	serverUrl: string;
+	/** Who put {@link serverUrl} there. The ring never replaces a user's answer. */
+	serverUrlSource: ServerUrlSource;
 	/** Needed once to create the vault, then cleared — it is not a login. */
 	registrationSecret: string;
 	registered: boolean;
@@ -43,6 +49,10 @@ type VaultSyncSettings = {
 
 const DEFAULT_SETTINGS: VaultSyncSettings = {
 	serverUrl: '',
+	// 'user' is the safe reading of an address already in a settings file: there is
+	// no record of where it came from, and guessing 'ring' is the guess that throws
+	// away something somebody typed.
+	serverUrlSource: 'user',
 	registrationSecret: '',
 	registered: false,
 	excludedFolders: [],
@@ -63,23 +73,6 @@ interface RingSettings {
 	deviceName?: unknown;
 }
 
-/**
- * An address is about to be used for requests and sockets, and it arrived from a
- * file. Only the two schemes this speaks are accepted — the check costs nothing
- * and keeps anything else from ever reaching a request.
- */
-function isUsableServerUrl(value: string): boolean {
-	try {
-		const url = new URL(value);
-		return url.protocol === 'http:' || url.protocol === 'https:';
-	} catch {
-		return false;
-	}
-}
-
-/** What the indicator in the status bar is currently saying. */
-type SyncState = 'off' | 'idle' | 'syncing' | 'live' | 'error';
-
 class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	private running = false;
 	private live?: LiveSession;
@@ -88,6 +81,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	private state: SyncState = 'off';
 	private lastSummary: string | undefined;
 	private status?: HTMLElement;
+	private indicator?: SyncIndicator;
 
 	override onload(): void {
 		this.addRibbonIcon('refresh-cw', t('vaultSync.ribbon'), () => void this.sync());
@@ -134,6 +128,26 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		this.status = this.addStatusBarItem();
 		this.status?.addClass('toolbox-status');
 		this.status?.addEventListener('click', () => void this.plugin.openPanel());
+
+		// The status bar does not exist on mobile, so the note header carries the
+		// same answer on every platform. Notes open and close all the time, hence
+		// the two events rather than a one-off pass at startup.
+		const indicator = new SyncIndicator(this.app.workspace, {
+			isLive: (path) => this.plugin.liveEditing.isLive(path),
+			onClick: () => void this.plugin.openPanel(),
+		});
+		this.indicator = indicator;
+		this.register(() => {
+			indicator.dispose();
+		});
+		this.registerEvent(this.app.workspace.on('active-leaf-change', () => indicator.refresh()));
+		this.registerEvent(this.app.workspace.on('layout-change', () => indicator.refresh()));
+		this.register(
+			this.plugin.liveEditing.onChange(() => {
+				indicator.refresh();
+			})
+		);
+
 		this.setState(this.settings.registered ? 'idle' : 'off');
 
 		this.setUpLive();
@@ -208,10 +222,11 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	}
 
 	/**
-	 * Moves the indicator and redraws the panel.
+	 * Moves the indicators and redraws the panel.
 	 *
-	 * On mobile there is no status bar, so the element may be absent — the panel is
-	 * the surface that exists everywhere, and it carries the same information.
+	 * On mobile there is no status bar, so that element may be absent. The note
+	 * header and the panel are the surfaces that exist everywhere, and they carry
+	 * the same information.
 	 */
 	private setState(state: SyncState, summary?: string): void {
 		this.state = state;
@@ -225,6 +240,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			this.status.toggleClass('toolbox-status--error', state === 'error');
 			this.status.toggleClass('toolbox-status--live', state === 'live');
 		}
+		this.indicator?.setState(state);
 		this.refreshPanel();
 	}
 
@@ -243,7 +259,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					containerEl.createEl('p', {
 						cls: 'toolbox-setup__hint',
 						text: this.settings.serverUrl
-							? t('vaultSync.setup.waitingForServer', { url: this.settings.serverUrl })
+							? t('vaultSync.setup.waitingForServer', {
+									url: this.settings.serverUrl,
+								})
 							: t('vaultSync.setup.waitingForHost'),
 					});
 					new Setting(containerEl).addButton((button) =>
@@ -262,7 +280,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 						.setPlaceholder('https://sync.example.com')
 						.setValue(this.settings.serverUrl)
 						.onChange(async (value) => {
-							await this.patchSettings({ serverUrl: value.trim() });
+							await this.setServerUrl(value);
 						})
 				);
 
@@ -309,7 +327,29 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					: t('vaultSync.panel.lastRun', { summary: this.lastSummary }),
 		});
 
+		// Which server, and whether this device was told or chose. Without it the
+		// commonest failure — a device pointed at an address nothing answers on —
+		// looks exactly like a device that is simply idle.
+		if (this.settings.serverUrl) {
+			containerEl.createEl('p', {
+				cls: 'toolbox-panel__state',
+				text:
+					this.settings.serverUrlSource === 'ring'
+						? t('vaultSync.panel.serverFromRing', { url: this.settings.serverUrl })
+						: t('vaultSync.panel.serverManual', { url: this.settings.serverUrl }),
+			});
+		}
+
 		if (!ready) {
+			if (this.settings.serverUrl) {
+				const waiting = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
+				waiting
+					.createEl('button', { text: t('vaultSync.settings.test') })
+					.addEventListener('click', () => void this.testConnection());
+				waiting
+					.createEl('button', { text: t('vaultSync.setup.checkAgain') })
+					.addEventListener('click', () => void this.claim(false));
+			}
 			return;
 		}
 
@@ -375,9 +415,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					.setPlaceholder('https://sync.example.com')
 					.setValue(this.settings.serverUrl)
 					.onChange(async (value) => {
-						const url = value.trim();
-						await this.patchSettings({ serverUrl: url });
-						this.plugin.ringLink.contribute({ serverUrl: url });
+						await this.setServerUrl(value);
 					})
 			);
 
@@ -411,7 +449,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 		if (!ring) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-sync__warning',
+				cls: 'toolbox-ring__warning',
 				text: t('vaultSync.settings.needsRing'),
 			});
 			return;
@@ -475,9 +513,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					.setPlaceholder('https://sync.example.com')
 					.setValue(this.settings.serverUrl)
 					.onChange(async (value) => {
-						const url = value.trim();
-						await this.patchSettings({ serverUrl: url });
-						this.plugin.ringLink.contribute({ serverUrl: url });
+						await this.setServerUrl(value);
 					})
 			);
 
@@ -548,7 +584,28 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		}
 	}
 
+	/**
+	 * Records an address a person typed, and offers it to the ring.
+	 *
+	 * Marked as theirs, so a snapshot from the host will not replace it later. An
+	 * address that is still being typed is stored as it stands — half of a URL is
+	 * not an error yet — and only checked when it is about to be used.
+	 */
+	private async setServerUrl(value: string): Promise<void> {
+		const url = normaliseServerUrl(value);
+		await this.patchSettings({ serverUrl: url, serverUrlSource: 'user' });
+		this.plugin.ringLink.contribute({ serverUrl: url });
+	}
+
 	private async setUp(): Promise<void> {
+		// Checked here rather than at every keystroke: an address without a scheme
+		// reaches nothing, and published into the ring it is silently discarded by
+		// every other device — a failure with nowhere to see it.
+		if (!isUsableServerUrl(this.settings.serverUrl)) {
+			new Notice(t('vaultSync.notice.badServerUrl'));
+			return;
+		}
+
 		const client = await this.client();
 		const secret = this.secret();
 		if (!client || !secret) {
@@ -585,16 +642,25 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	/**
 	 * Takes the server address the host published.
 	 *
-	 * A device that already has an address keeps it — someone who typed one by hand
-	 * meant it, and on a home network the host's address may be the one that is
-	 * unreachable from here. What follows either way is the claim below, because
-	 * the reason to want the address is to find out whether the vault is there.
+	 * An address someone typed on this device is left alone — on a home network the
+	 * host's address can be the one that is unreachable from here. Anything this
+	 * device itself adopted from the ring is replaced, which is what lets the server
+	 * move without a visit to every device. {@link shouldAdopt} holds that rule.
+	 *
+	 * `registered` cannot survive a change of address: it means the vault exists on
+	 * *that* server, and the claim below establishes it again for the new one.
 	 */
 	private async adopt(serverUrl: string | undefined): Promise<void> {
-		const url = serverUrl?.trim().replace(/\/+$/, '');
+		const url = shouldAdopt(this.settings, serverUrl);
 
-		if (url && !this.settings.serverUrl && isUsableServerUrl(url)) {
-			await this.patchSettings({ serverUrl: url });
+		if (url) {
+			await this.patchSettings({
+				serverUrl: url,
+				serverUrlSource: 'ring',
+				registered: false,
+			});
+			// Passed on, so this device's own join code carries it to a third one.
+			this.plugin.ringLink.contribute({ serverUrl: url });
 			new Notice(t('vaultSync.notice.serverFromRing', { url }));
 			this.refreshUi();
 		}

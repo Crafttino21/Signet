@@ -39,11 +39,12 @@
 	padding: 0;
 	max-height: 40vh;
 	overflow-y: auto;
+	overflow-x: hidden;
 }
 
 .toolbox-ring__row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: minmax(0, 1fr) minmax(0, auto);
 	gap: 0 var(--size-4-2);
 	align-items: baseline;
 	padding: var(--size-4-1) 0;
@@ -59,6 +60,7 @@
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	text-align: right;
+	overflow-wrap: anywhere;
 }
 
 .toolbox-ring__detail,
@@ -97,11 +99,12 @@
 	padding: 0;
 	max-height: 40vh;
 	overflow-y: auto;
+	overflow-x: hidden;
 }
 
 .toolbox-sync__row {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto;
+	grid-template-columns: minmax(0, 1fr) minmax(0, auto);
 	gap: var(--size-2-1) var(--size-4-2);
 	align-items: baseline;
 	padding: var(--size-4-1) 0;
@@ -117,23 +120,26 @@
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	text-align: right;
+	overflow-wrap: anywhere;
 }
 
 .toolbox-sync__warn {
 	color: var(--text-warning);
 	font-size: var(--font-ui-smaller);
 	text-align: right;
+	overflow-wrap: anywhere;
 }
 
 .toolbox-sync__actions {
 	grid-column: 1 / -1;
 	display: flex;
+	flex-wrap: wrap;
 	gap: var(--size-4-2);
 }
 
 .toolbox-sync__compare {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 	gap: var(--size-4-3);
 }
 
@@ -149,6 +155,7 @@
 	padding: var(--size-4-2);
 	font-size: var(--font-ui-smaller);
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 
 /* Side panel */
@@ -166,6 +173,12 @@
 .toolbox-panel__section h3 {
 	margin: 0 0 var(--size-4-1);
 	font-size: var(--font-ui-medium);
+}
+
+.toolbox-panel__section h4 {
+	margin: var(--size-4-4) 0 var(--size-4-1);
+	font-size: var(--font-ui-small);
+	color: var(--text-muted);
 }
 
 .toolbox-panel__state {
@@ -320,12 +333,124 @@
 	line-height: 1.4;
 	white-space: nowrap;
 	user-select: none;
-	opacity: 0;
-	transition: opacity 0.2s ease-in-out;
-	transition-delay: 0.2s;
+	/* `display: none` rather than a transparent label: an absolutely positioned
+	 * element counts towards the scrollable area even at zero opacity, and a name
+	 * at the end of a long line was pushing the editor sideways. */
+	display: none;
 }
 
 .cm-ySelectionCaret:hover > .cm-ySelectionInfo {
-	opacity: 1;
-	transition-delay: 0s;
+	display: block;
+}
+
+/* Narrow screens
+ *
+ * Obsidian gives a raw `<button>` no mobile treatment: it stays `white-space:
+ * nowrap`, and a flex item will not shrink below its content unless it is told
+ * to. On a phone the side panel is as wide as the screen, and a label like
+ * "Anzeigen, was eine Synchronisierung täte" is wider than that — so without
+ * this the buttons stand outside their container and the panel scrolls sideways
+ * into nothing.
+ *
+ * The `overflow-x: hidden` on the containers is the second half: one child that
+ * still manages to be too wide opens a scrollable area rather than being clipped,
+ * and a sideways scroll with nothing in it is the bug being fixed here.
+ */
+
+.toolbox-panel,
+.toolbox-panel__section,
+.toolbox-panel__setup,
+.toolbox-setup__step,
+.toolbox-modal {
+	min-width: 0;
+	max-width: 100%;
+	overflow-x: hidden;
+}
+
+.toolbox-panel__buttons button,
+.toolbox-panel__setup button,
+.toolbox-sync__actions button {
+	min-width: 0;
+	max-width: 100%;
+	height: auto;
+	white-space: normal;
+	overflow-wrap: anywhere;
+}
+
+/* One action per line. Three buttons side by side fit no phone, and a row that
+ * wraps in the middle of a label reads worse than a column of whole ones.
+ *
+ * Both selectors, and not one of them: the media query catches a narrow window on
+ * any platform, and `body.is-mobile` catches a tablet, which is a phone as far as
+ * these controls are concerned while being nowhere near 600px wide.
+ */
+@media (max-width: 600px) {
+	.toolbox-panel__buttons,
+	.toolbox-sync__actions {
+		flex-direction: column;
+		align-items: stretch;
+	}
+
+	/* The footers built by Obsidian's Setting API, in this plugin's modals only. */
+	.toolbox-modal .setting-item-control {
+		flex-wrap: wrap;
+		justify-content: flex-start;
+	}
+
+	.toolbox-modal .setting-item-control button {
+		white-space: normal;
+		overflow-wrap: anywhere;
+		height: auto;
+	}
+
+	.toolbox-ring__code {
+		font-size: var(--font-ui-medium);
+	}
+}
+
+body.is-mobile .toolbox-panel__buttons,
+body.is-mobile .toolbox-sync__actions {
+	flex-direction: column;
+	align-items: stretch;
+}
+
+body.is-mobile .toolbox-modal .setting-item-control {
+	flex-wrap: wrap;
+	justify-content: flex-start;
+}
+
+body.is-mobile .toolbox-modal .setting-item-control button {
+	white-space: normal;
+	overflow-wrap: anywhere;
+	height: auto;
+}
+
+body.is-mobile .toolbox-ring__code {
+	font-size: var(--font-ui-medium);
+}
+
+/* A modal on a phone is the width of the screen; its own content must not be able
+ * to make it wider than that. */
+body.is-mobile .toolbox-modal {
+	max-width: 100%;
+}
+
+/* Sync indicator in the note header
+ *
+ * The status bar does not exist on mobile, so this is the only surface that shows
+ * the sync state everywhere. Colour carries the same three states the status bar
+ * uses, and the label spells them out for anyone who cannot see the difference.
+ */
+
+.toolbox-sync-indicator--syncing,
+.toolbox-sync-indicator--live {
+	color: var(--text-accent);
+}
+
+.toolbox-sync-indicator--error {
+	color: var(--text-error);
+}
+
+.toolbox-sync-indicator--off {
+	color: var(--text-faint);
 }

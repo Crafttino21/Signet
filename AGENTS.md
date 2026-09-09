@@ -82,6 +82,11 @@ elsewhere. Three rules are not negotiable:
 - Nothing is installed unless Obsidian's curated community list contains it, the
   release manifest exists, and that manifest declares the same id. An id in a
   snapshot is never on its own a reason to fetch and run code.
+- A ring file that will not open is classified before anything is written over it
+  (`classifyRingFile`). Only a file whose ring id is demonstrably not ours may be
+  moved aside, and it goes to the trash rather than being overwritten. A file of
+  ours that merely looks broken is left alone — a sync client caught mid-write
+  looks exactly the same.
 
 ## Sync guardian
 
@@ -123,9 +128,17 @@ snapshot announces what it found.
 
 - Only the host publishes. A request to publish from elsewhere is a no-op on every
   other device, which is why the request is a broadcast rather than a call.
-- A client adopts an address only when it has none. Someone who typed one by hand
-  meant it, and on a home network the host's address can be the unreachable one.
-- An address out of a snapshot is checked for scheme before it is ever used.
+- An address a person typed is never replaced by the ring; one that came from the
+  ring is. On a home network the host's address can be the unreachable one, so a
+  typed answer stands — but a server that moves must not need a visit to every
+  device. `serverUrlSource` in the sync settings is what carries that distinction,
+  and `shouldAdopt` in `server-url.ts` is the whole rule.
+- An address out of a snapshot is checked for scheme before it is ever used, and so
+  is one the host typed — before it is published, not after, because a client drops
+  a malformed address silently and there is nowhere to see that happen.
+- The address also rides on the join code, because the snapshot cannot reach a
+  device that has never synced. That is a display form only: settings store the
+  bare ring code, and `parseRingCode` ignores any suffix.
 - A joining device registers nothing. Registration creates the vault and fixes
   which token opens it; every later device derives that same token from the same
   ring code, so it only asks whether the host has been there yet. The registration

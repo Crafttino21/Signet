@@ -66,6 +66,8 @@ export const de: Translations = {
 	'ring.notice.wrongRing':
 		'Dieser Snapshot gehört nicht zu deinem Ring oder wurde nachträglich verändert.',
 	'ring.notice.joined': 'Dem Ring von „{host}“ beigetreten.',
+	'ring.notice.joinedWithServer':
+		'Beigetreten. Der Code enthielt die Serveradresse, dieses Gerät verbindet sich gerade damit.',
 	'ring.notice.joinedWaiting':
 		'Code übernommen. Warte darauf, dass der Snapshot des Hosts unter „{path}“ ankommt — dieses Gerät meldet sich, sobald er da ist.',
 	'ring.notice.left': 'Ring verlassen. An den installierten Plugins wurde nichts geändert.',
@@ -78,6 +80,22 @@ export const de: Translations = {
 	'ring.notice.hasChanges': 'Toolbox: Im Plugin-Ring gibt es Änderungen von einem anderen Gerät.',
 	'ring.notice.conflictCopies':
 		'Toolbox: {count} Konfliktkopien der Ring-Datei gefunden. Womöglich veröffentlichen zwei Geräte gleichzeitig.',
+	'ring.notice.newerCode':
+		'Dieser Code stammt aus einer neueren Toolbox-Version. Aktualisiere zuerst das Plugin auf diesem Gerät.',
+	'ring.notice.replacedRingFile': 'Die alte Ring-Datei „{path}“ liegt jetzt im Papierkorb.',
+	'ring.notice.ringFileBusy':
+		'Die Datei „{path}“ steht noch nicht in Obsidians Index und lässt sich deshalb nicht sicher verschieben. Versuch es gleich noch einmal.',
+
+	'ring.conflict.title': 'Hier liegt schon eine Ring-Datei',
+	'ring.conflict.foreign':
+		'Die Datei „{path}“ gehört zu einem anderen Ring. Dieses Gerät kann sie weder lesen noch überschreiben.',
+	'ring.conflict.corrupt':
+		'Die Datei „{path}“ gehört zu diesem Ring, lässt sich aber nicht öffnen. Möglicherweise ist sie beschädigt.',
+	'ring.conflict.trashHint':
+		'Beim Ersetzen wandert sie in den Papierkorb und ist wiederherstellbar. Am anderen Ring ändert das nichts — es macht nur den Pfad frei.',
+	'ring.conflict.keep': 'Unverändert lassen',
+	'ring.conflict.replace': 'In den Papierkorb',
+
 	'ring.notice.codeCopied': 'Ring-Code kopiert.',
 	'ring.notice.codeCopyFailed':
 		'Der Code konnte nicht kopiert werden — bitte von Hand markieren.',
@@ -96,6 +114,11 @@ export const de: Translations = {
 	'ring.join.submit': 'Beitreten',
 
 	'ring.code.title': 'Dein Ring-Code',
+	'ring.code.includeServer': 'Serveradresse mitgeben',
+	'ring.code.includeServerDesc':
+		'Ausschalten, wenn das andere Gerät den Server unter einer anderen Adresse erreicht — über ein VPN oder unter einem Namen, den dieses Netz nicht kennt.',
+	'ring.code.hintWithServer':
+		'Gib diesen Code auf einem anderen Gerät ein, um es in den Ring aufzunehmen. Er enthält die Adresse des Sync-Servers, dort ist also nichts weiter einzutragen. Wer ihn hat, kann den Ring lesen und darin veröffentlichen — behandle ihn wie ein Passwort.',
 	'ring.code.hint':
 		'Gib diesen Code auf einem anderen Gerät ein, um es in den Ring aufzunehmen. Wer ihn hat, kann den Ring lesen und darin veröffentlichen — behandle ihn wie ein Passwort.',
 
@@ -262,6 +285,8 @@ export const de: Translations = {
 		'{done} synchronisiert, {failed} fehlgeschlagen. Verloren ist nichts, der Rest wird beim nächsten Mal erneut versucht.',
 
 	'vaultSync.notice.needsRing': 'Zuerst einen Plugin-Ring erstellen oder beitreten.',
+	'vaultSync.notice.badServerUrl':
+		'Das ist keine vollständige Adresse. Sie muss mit http:// oder https:// beginnen, zum Beispiel http://192.168.1.10:8787.',
 	'vaultSync.notice.needsServer': 'Zuerst die Serveradresse eintragen.',
 	'vaultSync.notice.serverFromRing': 'Sync-Server aus dem Ring übernommen: {url}',
 	'vaultSync.notice.readyFromRing':
@@ -297,7 +322,14 @@ export const de: Translations = {
 	'ring.panel.none': 'Noch in keinem Ring.',
 	'ring.panel.host': 'Host · veröffentlicht bis {seq}',
 	'ring.panel.client': 'Folgt · angewendet bis {seq}',
-	'ring.panel.waitingForHost': 'Warte darauf, dass der Snapshot des Hosts hierher synchronisiert wird.',
+	'ring.panel.waitingForHost':
+		'Warte darauf, dass der Snapshot des Hosts hierher synchronisiert wird.',
+	'ring.panel.noFileHost':
+		'Keine Ring-Datei unter „{path}“. Veröffentliche, damit die anderen Geräte etwas zum Beitreten haben.',
+	'ring.panel.foreignFile':
+		'Die Datei „{path}“ gehört zu einem anderen Ring. Beim Veröffentlichen wird angeboten, sie beiseitezulegen.',
+	'ring.panel.corruptFile':
+		'Die Ring-Datei „{path}“ lässt sich nicht öffnen. Möglicherweise ist sie beschädigt.',
 	'ring.panel.nothingPublished':
 		'Noch nichts veröffentlicht — die anderen Geräte finden keine Ring-Datei. Auf „Jetzt veröffentlichen“ drücken.',
 
@@ -308,6 +340,8 @@ export const de: Translations = {
 	'vaultSync.panel.ready': 'Bereit · Stand {seq}',
 	'vaultSync.panel.live': 'Live',
 	'vaultSync.panel.liveOff': 'Manuell',
+	'vaultSync.panel.serverFromRing': 'Server: {url} · aus dem Ring',
+	'vaultSync.panel.serverManual': 'Server: {url} · auf diesem Gerät gesetzt',
 	'vaultSync.panel.never': 'Auf diesem Gerät noch nicht synchronisiert.',
 	'vaultSync.panel.lastRun': 'Zuletzt: {summary}',
 
@@ -316,12 +350,14 @@ export const de: Translations = {
 	'vaultSync.status.live': 'Sync: live',
 	'vaultSync.status.error': 'Sync: Problem',
 	'vaultSync.status.off': 'Sync: aus',
+	'vaultSync.indicator.liveNote': 'Diese Notiz wird gerade gemeinsam bearbeitet',
 	'vaultSync.status.tooltip': 'Toolbox Vault-Sync — klicken öffnet die Leiste',
 
 	'sync.panel.title': 'Sync-Gesundheit',
 	'sync.panel.clean': 'Keine Konflikte gefunden.',
 	'sync.panel.conflicts': '{count} Konflikte gefunden.',
 	'sync.panel.unchecked': 'Noch nicht geprüft.',
+	'sync.panel.devices': 'Geräte',
 	'sync.panel.check': 'Jetzt prüfen',
 	'sync.panel.report': 'Bericht öffnen',
 	'ring.reason.cannotInstall': 'Installieren ist auf diesem Gerät nicht möglich',

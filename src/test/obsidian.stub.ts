@@ -245,3 +245,27 @@ export function getLanguage(): string {
 export function normalizePath(path: string): string {
 	return path.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
 }
+
+/**
+ * Enough of a view to satisfy an `instanceof` check. The sync indicator picks
+ * markdown views out of the workspace that way, and a test that imports the
+ * module it lives in would otherwise fail on a name that is not there.
+ */
+export class MarkdownView {
+	file: { path: string } | null = null;
+
+	addAction(_icon: string, _title: string, _callback: () => void): HTMLElement {
+		return document.createElement('div');
+	}
+}
+
+/** Draws an icon into an element. Tests only care that it does not throw. */
+export function setIcon(element: HTMLElement, icon: string): void {
+	element.setAttribute('data-icon', icon);
+}
+
+/** Which platform Obsidian thinks it is on. Tests run as the desktop app. */
+export const Platform = {
+	isDesktopApp: true,
+	isMobile: false,
+};

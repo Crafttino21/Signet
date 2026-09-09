@@ -138,11 +138,42 @@ settings do not ask for either. The registration secret is a server-wide
 credential; it is used once, on the device that creates the vault, and never
 travels.
 
-The address of the server is published into the ring — inside the same encrypted
-envelope as everything else, because where a machine on your home network lives is
-not something to write in clear text into a vault. A device that joins picks the
-address up with the snapshot and asks the server whether the vault is there yet. If
-it is, that device is set up.
+### The code carries the address
+
+Once the host has a server, **Show code** hands out a slightly longer code:
+
+```
+TBX1-K3M9PQ-R7XZ2W-8HTVBN-4CDFG5-019R9S-X0
+                                 ^^^^^^^^ the server
+```
+
+Those eight characters are the address of the sync server, packed as tightly as it
+will go — the scheme, four octets of IPv4 and a port code, five bits to a
+character. A name instead of an IP costs a little more; a port other than 8787
+costs three more characters.
+
+They are there to break a deadlock. The address also travels inside the encrypted
+snapshot, but the snapshot is an ordinary vault file: it reaches a new device only
+once something has synced, and nothing can sync until the device knows where the
+server is. Everything else a device needs it derives from the secret it has just
+been given, so the address is the one thing that has to be said out loud.
+
+The address is no more secret than the code it hangs off. Anyone holding the code
+can read the ring, and the ring says where the server is. A device that reaches the
+server somewhere else — over a VPN, or by a name your network does not resolve —
+can be given the plain code instead, with the toggle in the same dialog, and told
+the address by hand.
+
+A device that joins with a plain code still picks the address up from the snapshot
+when one arrives, as before.
+
+### When the server moves
+
+An address that arrived through the ring is replaced when the host publishes a new
+one, so moving the server — a new IP, a port, TLS in front of it — is a job done
+once on the host. An address someone typed on a device is never overwritten: on a
+home network the host's address can be exactly the one that is unreachable from
+there.
 
 There is nothing to negotiate between the devices, and no key exchange to get
 wrong: **every key is derived from the ring code** — the vault id, the access
@@ -153,6 +184,18 @@ sees ciphertext, the server included.
 
 The server cannot read your notes, which also means **it cannot help you if the
 ring code is lost**. Keep the code somewhere safe and separate from the server.
+
+### Seeing what it is doing
+
+Every open note carries the sync state in its header: idle, working, live, or a
+problem. That is the one place an indicator can live on a phone, where Obsidian has
+no status bar at all — the desktop keeps its status bar item as well. A note being
+edited together says so instead, because in that note it is the more useful fact.
+
+The **Toolbox panel** in the right sidebar is the rest of it: which devices are in
+this vault and when each was last heard from, which server this device is talking
+to and whether it was told or chose, the state of the ring file, and every ring
+action in one column.
 
 ### Live between open devices
 

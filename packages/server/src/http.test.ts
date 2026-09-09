@@ -227,6 +227,47 @@ describe('a vault, end to end', () => {
 		expect(pulled.files).toHaveLength(1);
 	});
 
+	it('parks a request and wakes it the moment another device commits', async () => {
+		const head = await (
+			await fetch(`${base}/v1/vaults/${vaultId}/head`, { headers: authed() })
+		).json();
+		const at = (head as { seq: number }).seq;
+
+		// One device settles in to wait...
+		const parked = fetch(`${base}/v1/vaults/${vaultId}/head?since=${String(at)}&wait=20`, {
+			headers: authed(),
+		});
+
+		// ...and only afterwards does another one commit.
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		const committed = await push(at + 1, []);
+		expect(committed.status).toBe(201);
+
+		// The waiting device is told straight away rather than after its full wait.
+		const woken = (await (await parked).json()) as { seq: number };
+		expect(woken.seq).toBe(at + 1);
+	}, 25_000);
+
+	it('answers a parked request when the wait runs out, without an error', async () => {
+		const head = await (
+			await fetch(`${base}/v1/vaults/${vaultId}/head`, { headers: authed() })
+		).json();
+		const at = (head as { seq: number }).seq;
+
+		const started = Date.now();
+		const response = await fetch(
+			`${base}/v1/vaults/${vaultId}/head?since=${String(at)}&wait=1`,
+			{
+				headers: authed(),
+			}
+		);
+
+		// Nothing happened; that is an ordinary answer, not a failure.
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({ seq: at });
+		expect(Date.now() - started).toBeGreaterThanOrEqual(900);
+	}, 10_000);
+
 	it('rejects a manifest that is not a sealed envelope', async () => {
 		const response = await fetch(`${base}/v1/vaults/${vaultId}/commits`, {
 			method: 'POST',

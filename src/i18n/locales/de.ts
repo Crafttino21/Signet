@@ -262,4 +262,12 @@ export const de: Translations = {
 	'vaultSync.notice.forgotten':
 		'Vergessen. Die nächste Synchronisierung behandelt jeden Unterschied als Konflikt und behält beide Seiten.',
 	'vaultSync.notice.failed': 'Synchronisierung fehlgeschlagen:',
+	'vaultSync.settings.live': 'Offene Geräte gleich halten',
+	'vaultSync.settings.liveDesc':
+		'Hält eine Anfrage beim Server offen, sodass eine Änderung von einem anderen offenen Gerät binnen einer Sekunde ankommt. Läuft nur, solange Obsidian sichtbar ist, und wendet Ankommendes ohne Rückfrage an — bei Konflikten bleiben weiterhin beide Fassungen, Löschungen gehen weiterhin in den Papierkorb.',
+	'vaultSync.settings.syncOnStart': 'Beim Öffnen von Obsidian aufholen',
+	'vaultSync.settings.syncOnStartDesc':
+		'Läuft auch, wenn die App wieder in den Vordergrund kommt — so holt sich ein Handy, was es verpasst hat.',
+	'vaultSync.notice.restartNeeded':
+		'Wirkt, nachdem das Modul aus- und wieder eingeschaltet wurde.',
 };

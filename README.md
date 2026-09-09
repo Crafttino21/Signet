@@ -98,14 +98,30 @@ say yes. Uploading never asks — it cannot cost you anything.
 The server cannot read your notes, which also means **it cannot help you if the
 ring code is lost**. Keep the code somewhere safe and separate from the server.
 
+### Live between open devices
+
+With **Keep open devices in step** switched on, a device parks one request on the
+server, which answers the moment another device commits — so a change made on the
+desktop shows up on an open phone within about a second, without either of them
+polling. Local edits are pushed after a two-second pause, so a burst of typing
+becomes one commit instead of thirty.
+
+**Catch up when Obsidian opens** covers the other half: a device that was closed
+or in the background syncs as soon as it comes back to the front. On a phone that
+is the moment you open the app.
+
+Both only run while Obsidian is on screen, and that limit is not a choice. iOS
+suspends a backgrounded app and Android vendors kill it, so "syncs while the phone
+is in your pocket" is not something any plugin can deliver. Self-hosted LiveSync
+reached the same conclusion and requires its own peer-to-peer mode to run in the
+foreground with the screen awake.
+
 ### What it does not do yet
 
-Syncing runs when you ask it to, or on a timer. There is no live push, and there
-will not be one on mobile: iOS suspends background apps and Android vendors kill
-them, so "syncs while the phone is in your pocket" is not something any plugin can
-promise. The largest existing project in this space, Self-hosted LiveSync, reached
-the same conclusion and requires its own peer-to-peer mode to run in the
-foreground with the screen awake.
+Sync is **file-level**, not character-level. Two devices editing the same note at
+the same moment produce a conflicted copy rather than merging keystroke by
+keystroke. Real collaborative editing needs a CRDT layer on top of this — a
+separate and much larger piece of work, not a setting.
 
 ## Sync guardian
 

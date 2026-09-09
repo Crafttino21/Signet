@@ -19,6 +19,7 @@ import type { VaultStore } from './storage';
 interface Context {
 	req: IncomingMessage;
 	res: ServerResponse;
+	url: URL;
 	params: string[];
 	config: ServerConfig;
 	store: VaultStore;
@@ -29,6 +30,9 @@ interface Route {
 	pattern: RegExp;
 	handler: (ctx: Context) => Promise<void>;
 }
+
+/** Long enough to be worth parking, short enough that proxies do not cut it off. */
+const MAX_WAIT_SECONDS = 55;
 
 class RequestTooLarge extends Error {
 	constructor(readonly limit: number) {
@@ -152,6 +156,27 @@ const routes: Route[] = [
 			if (!(await authorise(ctx, vaultId))) {
 				return;
 			}
+
+			// `?since=N&wait=S` parks the request until the vault moves past N. That
+			// is what lets an open app react within a second of another device
+			// committing, without polling in a loop.
+			const wait = Number(ctx.url.searchParams.get('wait') ?? '0');
+			const since = Number(ctx.url.searchParams.get('since') ?? '-1');
+
+			if (Number.isFinite(wait) && wait > 0 && Number.isFinite(since) && since >= 0) {
+				const seconds = Math.min(wait, MAX_WAIT_SECONDS);
+				send(
+					ctx.res,
+					200,
+					(await ctx.store.waitForChange(
+						vaultId,
+						since,
+						seconds * 1000
+					)) satisfies HeadResponse
+				);
+				return;
+			}
+
 			send(ctx.res, 200, (await ctx.store.readHead(vaultId)) satisfies HeadResponse);
 		},
 	},
@@ -273,7 +298,8 @@ async function handle(
 	config: ServerConfig,
 	store: VaultStore
 ): Promise<void> {
-	const path = new URL(req.url ?? '/', 'http://localhost').pathname;
+	const url = new URL(req.url ?? '/', 'http://localhost');
+	const path = url.pathname;
 
 	// Several routes share a pattern and differ only by method — blobs are both
 	// read and written at the same address — so the method has to be part of
@@ -298,7 +324,7 @@ async function handle(
 		}
 
 		try {
-			await route.handler({ req, res, params: match.slice(1), config, store });
+			await route.handler({ req, res, url, params: match.slice(1), config, store });
 		} catch (error) {
 			if (error instanceof RequestTooLarge) {
 				fail(res, 413, `Body exceeds the ${String(error.limit)} byte limit.`);

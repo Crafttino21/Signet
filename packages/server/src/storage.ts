@@ -58,6 +58,15 @@ export class VaultStore {
 	/** One promise chain per vault, so two pushes cannot interleave. */
 	private readonly queues = new Map<string, Promise<unknown>>();
 
+	/**
+	 * Devices currently holding a long-poll open on each vault.
+	 *
+	 * This is what makes live sync possible without hammering the server: an idle
+	 * device parks one request and is woken the moment another device commits,
+	 * instead of asking every few seconds and mostly being told nothing changed.
+	 */
+	private readonly waiters = new Map<string, Set<(head: VaultHead) => void>>();
+
 	constructor(private readonly root: string) {}
 
 	private vaultDir(vaultId: string): string {
@@ -118,6 +127,55 @@ export class VaultStore {
 		);
 	}
 
+	/**
+	 * Resolves as soon as the vault moves past `sinceSeq`, or when the wait runs
+	 * out — whichever comes first. A timeout is a normal outcome, not an error:
+	 * the client simply asks again.
+	 */
+	async waitForChange(vaultId: string, sinceSeq: number, timeoutMs: number): Promise<VaultHead> {
+		const current = await this.readHead(vaultId);
+		if (current.seq > sinceSeq) {
+			return current;
+		}
+
+		return new Promise<VaultHead>((resolve) => {
+			const listeners = this.waiters.get(vaultId) ?? new Set();
+			this.waiters.set(vaultId, listeners);
+
+			const finish = (head: VaultHead): void => {
+				clearTimeout(timer);
+				listeners.delete(notify);
+				if (listeners.size === 0) {
+					this.waiters.delete(vaultId);
+				}
+				resolve(head);
+			};
+
+			const notify = (head: VaultHead): void => {
+				finish(head);
+			};
+			const timer = setTimeout(() => {
+				finish(current);
+			}, timeoutMs);
+			// A parked request must never hold the process open on shutdown.
+			timer.unref?.();
+
+			listeners.add(notify);
+		});
+	}
+
+	/** Wakes everyone parked on this vault. */
+	private announce(vaultId: string, head: VaultHead): void {
+		const listeners = this.waiters.get(vaultId);
+		if (!listeners) {
+			return;
+		}
+		// Copied first: each listener removes itself as it runs.
+		for (const listener of [...listeners]) {
+			listener(head);
+		}
+	}
+
 	async readCommit(vaultId: string, seq: number): Promise<Buffer | undefined> {
 		try {
 			return await readFile(join(this.vaultDir(vaultId), 'commits', `${padSeq(seq)}.json`));
@@ -146,14 +204,15 @@ export class VaultStore {
 			);
 			// HEAD moves last. A crash between the two leaves an orphan commit that
 			// nothing points at, which is harmless; the reverse would lose it.
+			const next: VaultHead = { seq, updatedAt: new Date().toISOString() };
 			await this.writeAtomic(
 				join(this.vaultDir(vaultId), 'HEAD.json'),
-				JSON.stringify(
-					{ seq, updatedAt: new Date().toISOString() } satisfies VaultHead,
-					null,
-					2
-				)
+				JSON.stringify(next, null, 2)
 			);
+
+			// Only once the commit is durable. Waking a device earlier would send it
+			// to fetch a commit that is not on disk yet.
+			this.announce(vaultId, next);
 			return { ok: true, seq };
 		});
 	}

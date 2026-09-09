@@ -263,6 +263,13 @@ export const en = {
 	'vaultSync.notice.forgotten':
 		'Forgotten. The next sync treats every difference as a conflict and keeps both sides.',
 	'vaultSync.notice.failed': 'Sync failed:',
+	'vaultSync.settings.live': 'Keep open devices in step',
+	'vaultSync.settings.liveDesc':
+		'Holds one request open on the server, so a change made on another open device arrives within a second. Runs only while Obsidian is on screen, and applies what arrives without asking — conflicts still keep both versions and deletions still go to the trash.',
+	'vaultSync.settings.syncOnStart': 'Catch up when Obsidian opens',
+	'vaultSync.settings.syncOnStartDesc':
+		'Also runs when the app comes back to the front, which is how a phone picks up what it missed.',
+	'vaultSync.notice.restartNeeded': 'Takes effect after the module is switched off and on again.',
 };
 
 export type TranslationKey = keyof typeof en;

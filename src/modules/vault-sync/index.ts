@@ -8,6 +8,7 @@ import { t } from '../../i18n';
 import { SyncClient, SyncServerError } from './client';
 import { isQuiet, planSync, runSync } from './engine';
 import type { SyncDeps } from './engine';
+import { LiveSession } from './live';
 import { touchesLocalFiles } from './reconcile';
 import { SyncStateStore } from './state';
 import { describeReport, SyncPlanModal } from './sync-modal';
@@ -29,9 +30,13 @@ type VaultSyncSettings = {
 	registrationSecret: string;
 	registered: boolean;
 	excludedFolders: string[];
-	/** 0 switches automatic syncing off. */
+	/** 0 switches the timer off. Ignored while live sync is on. */
 	autoSyncMinutes: number;
 	confirmLocalChanges: boolean;
+	/** Keeps open devices in step by parking a request on the server. */
+	liveSync: boolean;
+	/** Catch up as soon as Obsidian is opened or brought back to the front. */
+	syncOnStart: boolean;
 };
 
 const DEFAULT_SETTINGS: VaultSyncSettings = {
@@ -41,6 +46,8 @@ const DEFAULT_SETTINGS: VaultSyncSettings = {
 	excludedFolders: [],
 	autoSyncMinutes: 0,
 	confirmLocalChanges: true,
+	liveSync: false,
+	syncOnStart: true,
 };
 
 const RING_MODULE_ID = 'plugin-ring';
@@ -53,6 +60,9 @@ interface RingSettings {
 
 class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	private running = false;
+	private live?: LiveSession;
+	/** The commit this device is known to hold, so the live loop knows what to wait past. */
+	private seq = 0;
 
 	override onload(): void {
 		this.addRibbonIcon('refresh-cw', t('vaultSync.ribbon'), () => void this.sync());
@@ -73,7 +83,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			callback: () => void this.forget(),
 		});
 
-		if (this.settings.autoSyncMinutes > 0) {
+		// A timer is the fallback for people who would rather not hold a connection
+		// open; live sync makes it redundant.
+		if (this.settings.autoSyncMinutes > 0 && !this.settings.liveSync) {
 			this.registerInterval(
 				window.setInterval(
 					() => void this.sync(true),
@@ -81,6 +93,81 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 				)
 			);
 		}
+
+		this.setUpLive();
+
+		// The vault index is not ready during onload, so the first catch-up waits.
+		this.app.workspace.onLayoutReady(() => {
+			if (this.settings.syncOnStart) {
+				void this.autoSync();
+			}
+			this.live?.start();
+		});
+	}
+
+	/**
+	 * Wires the live session to the two things that decide whether this device
+	 * should be doing live work: whether the window is on screen, and whether the
+	 * vault changed here.
+	 */
+	private setUpLive(): void {
+		if (!this.settings.liveSync) {
+			return;
+		}
+
+		const live = new LiveSession({
+			currentSeq: () => this.seq,
+			waitForRemote: async (since, seconds) => {
+				const client = await this.client();
+				if (!client) {
+					throw new Error('Not configured.');
+				}
+				return (await client.head({ since, seconds })).seq;
+			},
+			sync: () => this.autoSync(),
+			// `document.hidden` covers a minimised window and, more importantly, a
+			// backgrounded app on a phone.
+			isActive: () => !document.hidden,
+			onError: (error) => {
+				console.error('Toolbox: live sync paused after an error.', error);
+			},
+		});
+
+		this.live = live;
+		this.register(() => {
+			live.stop();
+		});
+
+		// Coming back to the front is exactly when a device needs to catch up.
+		this.registerDomEvent(document, 'visibilitychange', () => {
+			if (document.hidden) {
+				live.stop();
+				return;
+			}
+			if (this.settings.syncOnStart) {
+				void this.autoSync();
+			}
+			live.start();
+		});
+
+		// Registered one by one because each event carries a different payload, and
+		// a union of them does not satisfy the overloads.
+		const touched = (): void => {
+			live.noteLocalChange();
+		};
+		this.registerEvent(this.app.vault.on('create', touched));
+		this.registerEvent(this.app.vault.on('modify', touched));
+		this.registerEvent(this.app.vault.on('delete', touched));
+		this.registerEvent(this.app.vault.on('rename', touched));
+	}
+
+	/** A sync nobody asked for: never prompts, and stays quiet when nothing happened. */
+	private async autoSync(): Promise<void> {
+		const deps = await this.deps(true);
+		if (!deps) {
+			return;
+		}
+		await this.execute(deps, true);
 	}
 
 	override displaySettings(containerEl: HTMLElement): void {
@@ -137,6 +224,25 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			.addToggle((toggle) =>
 				toggle.setValue(this.settings.confirmLocalChanges).onChange(async (value) => {
 					await this.patchSettings({ confirmLocalChanges: value });
+				})
+			);
+
+		new Setting(containerEl)
+			.setName(t('vaultSync.settings.live'))
+			.setDesc(t('vaultSync.settings.liveDesc'))
+			.addToggle((toggle) =>
+				toggle.setValue(this.settings.liveSync).onChange(async (value) => {
+					await this.patchSettings({ liveSync: value });
+					new Notice(t('vaultSync.notice.restartNeeded'));
+				})
+			);
+
+		new Setting(containerEl)
+			.setName(t('vaultSync.settings.syncOnStart'))
+			.setDesc(t('vaultSync.settings.syncOnStartDesc'))
+			.addToggle((toggle) =>
+				toggle.setValue(this.settings.syncOnStart).onChange(async (value) => {
+					await this.patchSettings({ syncOnStart: value });
 				})
 			);
 
@@ -293,6 +399,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		try {
 			const { report, state } = await runSync(deps);
 			await this.stateStore().save(state);
+			this.seq = state.baseSeq;
 
 			if (!quiet || !isQuiet(report)) {
 				new Notice(describeReport(report));
@@ -339,16 +446,20 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		};
 	}
 
-	private secret(): Bytes | undefined {
+	private secret(quiet = false): Bytes | undefined {
 		const ring = this.ring();
 		if (!ring) {
-			new Notice(t('vaultSync.notice.needsRing'));
+			if (!quiet) {
+				new Notice(t('vaultSync.notice.needsRing'));
+			}
 			return undefined;
 		}
 		try {
 			return parseRingCode(ring.code);
 		} catch {
-			new Notice(t('ring.notice.invalidCode'));
+			if (!quiet) {
+				new Notice(t('ring.notice.invalidCode'));
+			}
 			return undefined;
 		}
 	}
@@ -357,13 +468,15 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		return new SyncStateStore(this.app, this.plugin.manifest.id);
 	}
 
-	private async client(): Promise<SyncClient | undefined> {
-		const secret = this.secret();
+	private async client(quiet = false): Promise<SyncClient | undefined> {
+		const secret = this.secret(quiet);
 		if (!secret) {
 			return undefined;
 		}
 		if (!this.settings.serverUrl) {
-			new Notice(t('vaultSync.notice.needsServer'));
+			if (!quiet) {
+				new Notice(t('vaultSync.notice.needsServer'));
+			}
 			return undefined;
 		}
 
@@ -374,15 +487,18 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		);
 	}
 
-	private async deps(): Promise<SyncDeps | undefined> {
+	private async deps(quiet = false): Promise<SyncDeps | undefined> {
 		const ring = this.ring();
-		const secret = this.secret();
-		const client = await this.client();
+		const secret = this.secret(quiet);
+		const client = await this.client(quiet);
 		if (!ring || !secret || !client) {
 			return undefined;
 		}
 		if (!this.settings.registered) {
-			new Notice(t('vaultSync.notice.notSetUp'));
+			// A background run must not nag someone who has not set this up.
+			if (!quiet) {
+				new Notice(t('vaultSync.notice.notSetUp'));
+			}
 			return undefined;
 		}
 

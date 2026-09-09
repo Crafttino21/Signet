@@ -100,8 +100,18 @@ export class SyncClient {
 		return response.status === 201 ? 'created' : 'exists';
 	}
 
-	async head(): Promise<HeadResponse> {
-		const response = await this.call(routes.head(this.vaultId));
+	/**
+	 * The current commit number.
+	 *
+	 * With `waitFor`, the request parks on the server until the vault moves past
+	 * that commit or the wait runs out. A timeout comes back as the unchanged head,
+	 * which is an ordinary answer rather than an error.
+	 */
+	async head(waitFor?: { since: number; seconds: number }): Promise<HeadResponse> {
+		const query = waitFor
+			? `?since=${String(waitFor.since)}&wait=${String(waitFor.seconds)}`
+			: '';
+		const response = await this.call(`${routes.head(this.vaultId)}${query}`);
 		if (response.status !== 200) {
 			throw new SyncServerError(describe(response.status, response.text), response.status);
 		}

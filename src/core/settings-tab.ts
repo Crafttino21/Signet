@@ -19,6 +19,24 @@ export class ToolboxSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	/**
+	 * Redraws, but only while the user is actually looking at this tab.
+	 *
+	 * A module calls this after changing something the settings show — creating a
+	 * ring, registering with a server. Without it the controls keep describing the
+	 * state from before the button was pressed until the tab is left and reopened,
+	 * which reads as "nothing happened".
+	 *
+	 * The visibility check is what makes it safe to call from anywhere: when the
+	 * tab is closed its container is detached, and redrawing into it would be work
+	 * nobody sees, thrown away by the next `display()`.
+	 */
+	refresh(): void {
+		if (this.containerEl.isConnected) {
+			this.display();
+		}
+	}
+
 	override display(): void {
 		const { containerEl } = this;
 

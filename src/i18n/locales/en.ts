@@ -64,11 +64,14 @@ export const en = {
 	'ring.notice.notHost': 'Only the host publishes to the ring.',
 	'ring.notice.invalidCode': 'That is not a ring code. Check that you copied all of it.',
 	'ring.notice.noRingFileYet':
-		'No ring file found in this vault yet. Publish from the host device first.',
-	'ring.notice.noRingFile': 'There is no ring file in this vault.',
+		'No ring file at "{path}" yet. Publish on the host device, then let this device finish syncing.',
+	'ring.notice.noRingFile': 'There is no ring file at "{path}" in this vault.',
+	'ring.notice.publishFailed': 'Could not write the ring file "{path}": {message}',
 	'ring.notice.codeMismatch': 'That code does not match the ring in this vault.',
 	'ring.notice.wrongRing': 'This snapshot does not belong to your ring, or it was altered.',
 	'ring.notice.joined': 'Joined the ring hosted by "{host}".',
+	'ring.notice.joinedWaiting':
+		'Code accepted. Waiting for the host\'s snapshot to arrive at "{path}" — this device will say so once it does.',
 	'ring.notice.left': 'Left the ring. Nothing installed was changed.',
 	'ring.notice.raced':
 		'The ring was changed by "{host}" since this device last published. Nothing was overwritten.',
@@ -281,6 +284,9 @@ export const en = {
 	'ring.panel.none': 'Not in a ring yet.',
 	'ring.panel.host': 'Host · published up to {seq}',
 	'ring.panel.client': 'Following · applied up to {seq}',
+	'ring.panel.waitingForHost': 'Waiting for the host\'s snapshot to sync to this device.',
+	'ring.panel.nothingPublished':
+		'Nothing published yet — the other devices have no ring file to join. Press "Publish now".',
 
 	'vaultSync.panel.title': 'Vault sync',
 	'vaultSync.panel.notSetUp': 'Not set up yet.',

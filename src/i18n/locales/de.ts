@@ -59,12 +59,15 @@ export const de: Translations = {
 	'ring.notice.notHost': 'Nur der Host veröffentlicht im Ring.',
 	'ring.notice.invalidCode': 'Das ist kein Ring-Code. Prüfe, ob du ihn vollständig kopiert hast.',
 	'ring.notice.noRingFileYet':
-		'In diesem Vault gibt es noch keine Ring-Datei. Zuerst auf dem Host-Gerät veröffentlichen.',
-	'ring.notice.noRingFile': 'In diesem Vault gibt es keine Ring-Datei.',
+		'Unter „{path}“ liegt noch keine Ring-Datei. Erst auf dem Host veröffentlichen, dann dieses Gerät fertig synchronisieren lassen.',
+	'ring.notice.noRingFile': 'In diesem Vault gibt es unter „{path}“ keine Ring-Datei.',
+	'ring.notice.publishFailed': 'Ring-Datei „{path}“ konnte nicht geschrieben werden: {message}',
 	'ring.notice.codeMismatch': 'Dieser Code gehört nicht zum Ring in diesem Vault.',
 	'ring.notice.wrongRing':
 		'Dieser Snapshot gehört nicht zu deinem Ring oder wurde nachträglich verändert.',
 	'ring.notice.joined': 'Dem Ring von „{host}“ beigetreten.',
+	'ring.notice.joinedWaiting':
+		'Code übernommen. Warte darauf, dass der Snapshot des Hosts unter „{path}“ ankommt — dieses Gerät meldet sich, sobald er da ist.',
 	'ring.notice.left': 'Ring verlassen. An den installierten Plugins wurde nichts geändert.',
 	'ring.notice.raced':
 		'Der Ring wurde von „{host}“ geändert, seit dieses Gerät zuletzt veröffentlicht hat. Es wurde nichts überschrieben.',
@@ -281,6 +284,9 @@ export const de: Translations = {
 	'ring.panel.none': 'Noch in keinem Ring.',
 	'ring.panel.host': 'Host · veröffentlicht bis {seq}',
 	'ring.panel.client': 'Folgt · angewendet bis {seq}',
+	'ring.panel.waitingForHost': 'Warte darauf, dass der Snapshot des Hosts hierher synchronisiert wird.',
+	'ring.panel.nothingPublished':
+		'Noch nichts veröffentlicht — die anderen Geräte finden keine Ring-Datei. Auf „Jetzt veröffentlichen“ drücken.',
 
 	'vaultSync.panel.title': 'Vault-Sync',
 	'vaultSync.panel.notSetUp': 'Noch nicht eingerichtet.',

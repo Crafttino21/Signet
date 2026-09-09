@@ -34,14 +34,14 @@ export class RingFile {
 	}
 
 	async read(): Promise<RingFileState> {
-		const file = this.app.vault.getFileByPath(this.path);
-		if (!file) {
+		const contents = await this.readContents();
+		if (contents === undefined) {
 			return { status: 'absent' };
 		}
 
 		let parsed: unknown;
 		try {
-			parsed = JSON.parse(await this.app.vault.read(file));
+			parsed = JSON.parse(contents);
 		} catch {
 			return { status: 'unreadable', message: t('ring.file.notJson') };
 		}
@@ -50,6 +50,28 @@ export class RingFile {
 			return { status: 'unreadable', message: t('ring.file.notSnapshot') };
 		}
 		return { status: 'ok', envelope: parsed };
+	}
+
+	/**
+	 * The file's text, or undefined if it is really not there.
+	 *
+	 * The index is asked first, because a file it knows about is a file Obsidian
+	 * will report changes for. But the index is not the disk: a sync client that
+	 * drops the ring file in while Obsidian is running leaves a file that exists
+	 * and is not indexed yet — the ordinary case on a phone, where the app is
+	 * opened and the sync arrives seconds later. Trusting the index alone there
+	 * meant telling the user there was no ring file while it sat in the vault.
+	 */
+	private async readContents(): Promise<string | undefined> {
+		const file = this.app.vault.getFileByPath(this.path);
+		if (file) {
+			return this.app.vault.read(file);
+		}
+
+		if (await this.app.vault.adapter.exists(this.path)) {
+			return this.app.vault.adapter.read(this.path);
+		}
+		return undefined;
 	}
 
 	async write(envelope: RingEnvelope): Promise<void> {
@@ -62,6 +84,14 @@ export class RingFile {
 		}
 
 		await this.ensureParentFolder();
+
+		// Same gap the other way round: `create` refuses a path that is already on
+		// disk, so a host whose index has not caught up could never publish again.
+		if (await this.app.vault.adapter.exists(this.path)) {
+			await this.app.vault.adapter.write(this.path, contents);
+			return;
+		}
+
 		await this.app.vault.create(this.path, contents);
 	}
 
@@ -97,8 +127,14 @@ export class RingFile {
 		}
 
 		const folder = this.path.slice(0, lastSlash);
-		if (!this.app.vault.getFolderByPath(folder)) {
-			await this.app.vault.createFolder(folder);
+		if (this.app.vault.getFolderByPath(folder)) {
+			return;
 		}
+		// `createFolder` throws on a folder that is on disk but not indexed, which
+		// is the same staleness the file itself has to cope with.
+		if (await this.app.vault.adapter.exists(folder)) {
+			return;
+		}
+		await this.app.vault.createFolder(folder);
 	}
 }

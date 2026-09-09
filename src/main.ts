@@ -27,6 +27,7 @@ export default class ToolboxPlugin extends Plugin {
 	 * writing over somebody's typing.
 	 */
 	readonly liveEditing = new LiveEditingRegistry();
+	private settingTab!: ToolboxSettingTab;
 
 	override async onload(): Promise<void> {
 		// Before anything renders a label.
@@ -35,7 +36,8 @@ export default class ToolboxPlugin extends Plugin {
 		this.settings = migrateSettings(await this.loadData(), TOOLBOX_MODULES);
 		this.registry = new ModuleRegistry(this, TOOLBOX_MODULES);
 
-		this.addSettingTab(new ToolboxSettingTab(this.app, this));
+		this.settingTab = new ToolboxSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 
 		registerViewOnce(this, TOOLBOX_PANEL_TYPE, (leaf) => new ToolboxPanelView(leaf, this));
 		this.addRibbonIcon('wrench', t('panel.open'), () => void this.openPanel());
@@ -104,10 +106,24 @@ export default class ToolboxPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Redraws the settings tab, if the user is looking at it.
+	 *
+	 * Separate from {@link refreshPanel} on purpose. The panel shows live status and
+	 * is redrawn often; the settings tab holds text fields somebody may be typing
+	 * in, and rebuilding it takes their cursor with it. So this belongs to
+	 * deliberate changes of state — a ring created, a server registered — not to
+	 * progress reports.
+	 */
+	refreshSettings(): void {
+		this.settingTab.refresh();
+	}
+
 	/** Called when another device changes data.json underneath us (e.g. via sync). */
 	override async onExternalSettingsChange(): Promise<void> {
 		this.settings = migrateSettings(await this.loadData(), TOOLBOX_MODULES);
 		await this.registry.syncWithSettings();
 		this.refreshPanel();
+		this.refreshSettings();
 	}
 }

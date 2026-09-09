@@ -451,6 +451,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			// The registration secret is a one-off. Keeping it around would leave a
 			// server-wide credential sitting in a settings file for no reason.
 			await this.patchSettings({ registered: true, registrationSecret: '' });
+			// The settings still show the registration field until they are redrawn,
+			// which reads as if the button had done nothing.
+			this.refreshUi();
 			new Notice(
 				outcome === 'created' ? t('vaultSync.notice.created') : t('vaultSync.notice.joined')
 			);

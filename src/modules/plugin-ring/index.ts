@@ -127,18 +127,21 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			callback: () => void this.leave(),
 		});
 
-		// A client learns about a new snapshot the moment sync drops it in.
-		this.registerEvent(
-			this.app.vault.on('modify', (file) => {
-				if (
-					file instanceof TFile &&
-					file.path === this.ringFile().path &&
-					this.settings.role === 'client'
-				) {
-					void this.notifyIfNewer();
-				}
-			})
-		);
+		// A client learns about a new snapshot the moment sync drops it in. Both
+		// events matter: the very first snapshot to reach a device arrives as a
+		// creation, and listening only for modifications missed exactly the case a
+		// device waiting to join is waiting for.
+		const noticed = (file: unknown): void => {
+			if (
+				file instanceof TFile &&
+				file.path === this.ringFile().path &&
+				this.settings.role === 'client'
+			) {
+				void this.notifyIfNewer();
+			}
+		};
+		this.registerEvent(this.app.vault.on('create', noticed));
+		this.registerEvent(this.app.vault.on('modify', noticed));
 
 		// The file index is not populated yet during onload, so the scan has to wait
 		// for the layout to settle or it would always find nothing.
@@ -193,6 +196,20 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 						? t('ring.panel.host', { seq: this.settings.lastPublishedSeq })
 						: t('ring.panel.client', { seq: this.settings.lastAppliedSeq }),
 		});
+
+		if (role === 'client' && this.settings.hostId === null) {
+			containerEl.createEl('p', {
+				cls: 'toolbox-panel__state toolbox-panel__state--warn',
+				text: t('ring.panel.waitingForHost'),
+			});
+		}
+
+		if (role === 'host' && this.settings.lastPublishedSeq === 0) {
+			containerEl.createEl('p', {
+				cls: 'toolbox-panel__state toolbox-panel__state--warn',
+				text: t('ring.panel.nothingPublished'),
+			});
+		}
 
 		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
 		const button = (label: string, onClick: () => void): void => {
@@ -355,7 +372,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		});
 
 		await this.publish();
-		this.refreshPanel();
+		this.refreshUi();
 		new ShowCodeModal(this.app, code).open();
 	}
 
@@ -373,8 +390,26 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		}
 
 		const state = await this.ringFile().read();
-		if (state.status !== 'ok') {
-			new Notice(state.status === 'absent' ? t('ring.notice.noRingFileYet') : state.message);
+
+		if (state.status === 'unreadable') {
+			new Notice(state.message);
+			return;
+		}
+
+		if (state.status === 'absent') {
+			// Joining must not depend on the sync having already run. The snapshot
+			// travels through whatever sync the vault uses, and on a phone that is
+			// routinely seconds or minutes behind — refusing to join until it lands
+			// makes the ring look broken when it is merely waiting. So the code is
+			// remembered now and checked against the snapshot the moment it arrives.
+			await this.patchSettings({
+				code: formatRingCode(secret),
+				role: 'client',
+				hostId: null,
+				lastAppliedSeq: 0,
+			});
+			this.refreshUi();
+			new Notice(t('ring.notice.joinedWaiting', { path: this.ringFile().path }));
 			return;
 		}
 
@@ -395,6 +430,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			lastAppliedSeq: 0,
 		});
 
+		this.refreshUi();
 		new Notice(t('ring.notice.joined', { host: snapshot.host.name }));
 		await this.check();
 	}
@@ -407,6 +443,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			lastAppliedSeq: 0,
 			lastPublishedSeq: 0,
 		});
+		this.refreshUi();
 		new Notice(t('ring.notice.left'));
 	}
 
@@ -420,15 +457,23 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 	// --- host ---------------------------------------------------------------
 
-	private async publish(): Promise<void> {
+	/**
+	 * Writes the ring file. Returns whether it actually got written.
+	 *
+	 * Every failure here is reported. Silence would be the worst outcome: the ring
+	 * exists in this device's settings either way, so a publish that threw would
+	 * leave a host convinced it had a ring while the other devices find no file to
+	 * join — which is exactly how it looks from the phone.
+	 */
+	private async publish(): Promise<boolean> {
 		const secret = this.secret();
 		if (!secret || !this.api) {
 			new Notice(t('ring.notice.notInRing'));
-			return;
+			return false;
 		}
 		if (this.settings.role !== 'host') {
 			new Notice(t('ring.notice.notHost'));
-			return;
+			return false;
 		}
 
 		const file = this.ringFile();
@@ -436,42 +481,62 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		if (state.status === 'unreadable') {
 			new Notice(t('ring.notice.retryLater', { message: state.message }));
-			return;
+			return false;
 		}
 
 		if (state.status === 'ok') {
 			const current = await this.decrypt(secret, state.envelope);
 			if (!current) {
-				return;
+				return false;
 			}
 			// Optimistic concurrency: if the file moved on since we last wrote it,
 			// another device has been publishing. Stop rather than overwrite it.
 			if (current.seq !== this.settings.lastPublishedSeq) {
 				new Notice(t('ring.notice.raced', { host: current.host.name }));
-				return;
+				return false;
 			}
 		}
 
 		const seq = this.settings.lastPublishedSeq + 1;
-		const snapshot = await buildSnapshot(this.app, this.api, {
-			selfId: this.plugin.manifest.id,
-			excludedIds: this.settings.excludedIds,
-			host: { id: this.settings.deviceId, name: this.deviceName() },
-			seq,
-		});
+		let count: number;
+		try {
+			const snapshot = await buildSnapshot(this.app, this.api, {
+				selfId: this.plugin.manifest.id,
+				excludedIds: this.settings.excludedIds,
+				host: { id: this.settings.deviceId, name: this.deviceName() },
+				seq,
+			});
+			await file.write(await sealSnapshot(secret, snapshot));
+			count = snapshot.plugins.length;
+		} catch (error) {
+			console.error('Toolbox: could not write the ring file.', error);
+			new Notice(
+				t('ring.notice.publishFailed', {
+					path: file.path,
+					message: error instanceof Error ? error.message : String(error),
+				})
+			);
+			return false;
+		}
 
-		await file.write(await sealSnapshot(secret, snapshot));
 		await this.patchSettings({ lastPublishedSeq: seq });
-		this.refreshPanel();
-		new Notice(t('ring.notice.published', { count: snapshot.plugins.length }));
+		this.refreshUi();
+		new Notice(t('ring.notice.published', { count }));
+		return true;
 	}
 
 	// --- client -------------------------------------------------------------
 
 	private async notifyIfNewer(): Promise<void> {
-		const snapshot = await this.loadSnapshot({ quiet: true });
+		// A device that joined before the snapshot had synced has had no chance to
+		// find out that the code was mistyped. This is that chance, so it is not
+		// kept quiet the way a routine update is.
+		const waiting = this.settings.hostId === null;
+
+		const snapshot = await this.loadSnapshot({ quiet: !waiting });
 		if (snapshot && snapshot.seq > this.settings.lastAppliedSeq) {
 			new Notice(t('ring.notice.hasChanges'));
+			this.refreshUi();
 		}
 	}
 
@@ -525,6 +590,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		// the remaining differences behind an empty diff.
 		if (result.complete) {
 			await this.patchSettings({ lastAppliedSeq: snapshot.seq, hostId: snapshot.host.id });
+			this.refreshUi();
 		}
 		return result;
 	}
@@ -548,7 +614,11 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		const state = await this.ringFile().read();
 		if (state.status !== 'ok') {
 			if (!options.quiet) {
-				new Notice(state.status === 'absent' ? t('ring.notice.noRingFile') : state.message);
+				new Notice(
+					state.status === 'absent'
+						? t('ring.notice.noRingFile', { path: this.ringFile().path })
+						: state.message
+				);
 			}
 			return undefined;
 		}

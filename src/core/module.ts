@@ -150,8 +150,27 @@ export abstract class ToolboxModule<S = unknown> extends Component {
 		return undefined;
 	}
 
-	/** Asks the panel to redraw, after this module changed something worth showing. */
+	/**
+	 * Asks the panel to redraw, after this module changed something worth showing.
+	 *
+	 * Cheap and safe to call often — the panel holds no input the user could be in
+	 * the middle of. For a change the settings tab also shows, use {@link refreshUi}.
+	 */
 	protected refreshPanel(): void {
 		this.plugin.refreshPanel();
+	}
+
+	/**
+	 * Redraws both surfaces after a deliberate change of state.
+	 *
+	 * Creating a ring, joining one, registering with a server: the settings tab
+	 * describes all of these, and without this it would go on describing how things
+	 * were before the button was pressed until the user leaves the tab and comes
+	 * back. Not for progress updates — rebuilding the settings tab takes the cursor
+	 * out of any text field being typed into.
+	 */
+	protected refreshUi(): void {
+		this.plugin.refreshPanel();
+		this.plugin.refreshSettings();
 	}
 }

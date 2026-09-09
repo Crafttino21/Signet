@@ -40,24 +40,47 @@ export class FakeVault {
 	readonly configDir = '.obsidian';
 	readonly files = new Map<string, Uint8Array>();
 	readonly folders = new Set<string>();
-	/** Hidden files, reached only through the adapter, exactly as in Obsidian. */
+	/**
+	 * On disk, but not in the file index.
+	 *
+	 * Two different things live here, and in Obsidian they are the same thing: files
+	 * the index never carries (anything under the config folder), and files that are
+	 * simply not indexed *yet* — what a sync client leaves behind when it drops a
+	 * file into an open vault. Both are reachable through the adapter and invisible
+	 * to `getFileByPath`, which is exactly the situation this models.
+	 */
 	readonly hidden = new Map<string, string>();
 	readonly trashed: string[] = [];
 
 	private clock = 1_000;
 
+	/** The adapter is the disk: it sees indexed and unindexed files alike. */
 	readonly adapter = {
 		read: (path: string): Promise<string> => {
-			const value = this.hidden.get(path);
+			const value = this.hidden.get(path) ?? this.text(path);
 			return value === undefined
 				? Promise.reject(new Error(`No such file: ${path}`))
 				: Promise.resolve(value);
 		},
 		write: (path: string, data: string): Promise<void> => {
-			this.hidden.set(path, data);
+			if (this.files.has(path)) {
+				this.put(path, data);
+			} else {
+				this.hidden.set(path, data);
+			}
 			return Promise.resolve();
 		},
-		exists: (path: string): Promise<boolean> => Promise.resolve(this.hidden.has(path)),
+		exists: (path: string): Promise<boolean> =>
+			Promise.resolve(
+				this.hidden.has(path) ||
+					this.files.has(path) ||
+					this.folders.has(path) ||
+					// A folder exists on disk as soon as something is in it, whether or
+					// not the index has been told about either.
+					[...this.hidden.keys(), ...this.files.keys()].some((other) =>
+						other.startsWith(`${path}/`)
+					)
+			),
 		mkdir: (): Promise<void> => Promise.resolve(),
 	};
 
@@ -137,6 +160,23 @@ export class FakeVault {
 			return Promise.resolve();
 		},
 		read: (file: FakeFile): Promise<string> => Promise.resolve(this.text(file.path) ?? ''),
+		/**
+		 * Refuses a path that is already on disk, the way Obsidian does — including
+		 * one the index has not caught up with, which is the whole point of the
+		 * distinction.
+		 */
+		create: (path: string, contents: string): Promise<FakeFile> => {
+			if (this.files.has(path) || this.hidden.has(path)) {
+				return Promise.reject(new Error(`File already exists: ${path}`));
+			}
+			this.put(path, contents);
+			this.folders.add(folderOf(path));
+			return Promise.resolve(this.toFile(path));
+		},
+		modify: (file: FakeFile, contents: string): Promise<void> => {
+			this.put(file.path, contents);
+			return Promise.resolve();
+		},
 	};
 
 	/** Shaped like the `App` the engine expects. */

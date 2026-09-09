@@ -1,8 +1,8 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
 import { t } from '../../i18n';
-import { isRingEnvelope } from './crypto';
-import type { RingEnvelope } from './crypto';
+import { isRingEnvelope } from '@toolbox/protocol';
+import type { RingEnvelope } from '@toolbox/protocol';
 
 export type RingFileState =
 	| { status: 'absent' }

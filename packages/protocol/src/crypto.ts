@@ -72,6 +72,8 @@ function bytesToHex(bytes: Uint8Array): string {
 	return hex;
 }
 
+export { bytesToBase64, base64ToBytes, bytesToHex, subtle };
+
 function hkdfParams(info: string): HkdfParams {
 	return {
 		name: 'HKDF',
@@ -79,6 +81,29 @@ function hkdfParams(info: string): HkdfParams {
 		salt: new Uint8Array(0),
 		info: new TextEncoder().encode(info),
 	};
+}
+
+/**
+ * Raw key material from the ring secret, for a purpose named by `info`.
+ *
+ * Every distinct use gets its own `info` string, so the values are
+ * cryptographically unrelated: learning the vault id tells you nothing about the
+ * encryption key or the auth token.
+ */
+export async function hkdfBits(secret: Bytes, info: string, bits: number): Promise<Uint8Array> {
+	const derived = await subtle().deriveBits(hkdfParams(info), await importSecret(secret), bits);
+	return new Uint8Array(derived);
+}
+
+/** An AES-GCM key for the purpose named by `info`. */
+export async function hkdfAesKey(secret: Bytes, info: string): Promise<CryptoKey> {
+	return subtle().deriveKey(
+		hkdfParams(info),
+		await importSecret(secret),
+		{ name: 'AES-GCM', length: 256 },
+		false,
+		['encrypt', 'decrypt']
+	);
 }
 
 async function importSecret(secret: Bytes): Promise<CryptoKey> {

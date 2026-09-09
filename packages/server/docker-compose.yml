@@ -1,0 +1,21 @@
+# Run from this directory: docker compose up -d --build
+#
+# The build context is the repository root because the server is bundled together
+# with the shared protocol package.
+services:
+    toolbox-sync:
+        build:
+            context: ../..
+            dockerfile: packages/server/Dockerfile
+        container_name: toolbox-sync
+        restart: unless-stopped
+        env_file: .env
+        volumes:
+            - toolbox-data:/data
+        ports:
+            # Bound to localhost only. Put a reverse proxy in front for TLS — the notes
+            # are encrypted, but the bearer token is not.
+            - '127.0.0.1:8787:8787'
+
+volumes:
+    toolbox-data:

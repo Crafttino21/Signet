@@ -1,0 +1,11 @@
+{
+	"name": "@toolbox/protocol",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Wire format and cryptography shared by the Obsidian plugin and the sync server.",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"types": "./src/index.ts"
+}

@@ -1,9 +1,13 @@
 # Dependencies
 node_modules
 
-# Build output — the compiled bundle is a release artifact, not source.
+# Build output — compiled bundles are release artifacts, not source.
 main.js
+packages/*/dist
 *.map
+
+# The sync server's secrets never belong in the repository.
+packages/server/.env
 
 # Obsidian writes plugin settings here at runtime.
 data.json

@@ -1,21 +1,53 @@
 import { defineConfig } from 'eslint/config';
+import globals from 'globals';
 import obsidianmd from 'eslint-plugin-obsidianmd';
+import tseslint from 'typescript-eslint';
+
+/**
+ * The repository holds two very different kinds of code, and they must not be
+ * judged by the same rules:
+ *
+ * - the Obsidian plugin under `src/`, plus the shared protocol package, which run
+ *   inside Obsidian and are held to the community review's standards;
+ * - the sync server under `packages/server/`, which is a Node service. There,
+ *   importing `node:fs` is the point rather than a mobile-compatibility bug, and a
+ *   daemon that logs nothing is a daemon nobody can operate.
+ */
+/** The sync server is a Node service; Obsidian's rules do not apply to it. */
+const NOT_OBSIDIAN = ['packages/server/**'];
+
+/**
+ * Obsidian's rule set, kept away from the server.
+ *
+ * Its entries carry their own `files` targeting — one of them even switches the
+ * language to JSON so it can validate the manifest — so rewriting that targeting
+ * breaks them. Adding an `ignores` instead leaves each entry pointed where its
+ * author intended.
+ */
+const obsidianRules = obsidianmd.configs.recommended.map((config) =>
+	// An entry carrying only `ignores` is a global-ignores block. Extending that
+	// one would exclude the server from every rule, including our own.
+	Object.keys(config).length === 1 && 'ignores' in config
+		? config
+		: { ...config, ignores: [...(config.ignores ?? []), ...NOT_OBSIDIAN] }
+);
 
 export default defineConfig(
 	{
 		// Build output and dependencies are never linted.
-		ignores: ['main.js', 'node_modules/**', 'coverage/**'],
+		ignores: ['main.js', 'node_modules/**', 'coverage/**', 'packages/*/dist/**'],
 	},
 
-	// Obsidian's own review rules. Running these locally means the community
-	// review does not surprise us later.
-	...obsidianmd.configs.recommended,
+	...obsidianRules,
 
 	{
-		// Type-aware rules need this on every linted TypeScript file, including
-		// vitest.config.ts — not just the ones under src/.
+		// Scoping Obsidian's rule set above also scoped its plugin registrations, so
+		// typescript-eslint is set up here for the whole repository. Type-aware rules
+		// need the project service on every linted TypeScript file.
 		files: ['**/*.ts'],
+		plugins: { '@typescript-eslint': tseslint.plugin },
 		languageOptions: {
+			parser: tseslint.parser,
 			parserOptions: {
 				projectService: true,
 				tsconfigRootDir: import.meta.dirname,
@@ -27,21 +59,37 @@ export default defineConfig(
 				{ argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
 			],
 			'@typescript-eslint/consistent-type-imports': 'error',
+			// TypeScript already resolves every identifier; the core rule only adds
+			// false alarms about Buffer, process and the NodeJS namespace.
+			'no-undef': 'off',
 		},
 	},
 
 	{
-		// Build and test configuration runs in Node, never inside Obsidian, so the
-		// mobile-compatibility rules do not apply to it.
-		files: ['*.config.js', '*.config.mjs', '*.config.ts', '*.config.mts'],
+		// The sync server is a Node service, not a plugin.
+		files: ['packages/server/**/*.ts', 'packages/server/*.mjs'],
+		languageOptions: {
+			globals: globals.node,
+		},
+		rules: {
+			// A server that cannot say why it refused to start is unoperatable.
+			'obsidianmd/rule-custom-message': 'off',
+		},
+	},
+
+	{
+		// Build and test configuration runs in Node, never inside Obsidian.
+		files: ['*.config.js', '*.config.mjs', '*.config.ts', '*.config.mts', '**/build.mjs'],
 		rules: {
 			'obsidianmd/no-nodejs-modules': 'off',
+			// Build tooling is a devDependency of the workspace root.
+			'import/no-extraneous-dependencies': 'off',
 		},
 	},
 
 	{
 		// The settings tab deliberately stays on the pre-1.13 `display()` API so that
-		// minAppVersion can remain 1.7.2. See the comment at the top of the file.
+		// minAppVersion can stay where it is. See the comment at the top of the file.
 		files: ['src/core/settings-tab.ts'],
 		rules: {
 			'obsidianmd/settings-tab/prefer-setting-definitions': 'off',
@@ -50,10 +98,10 @@ export default defineConfig(
 	},
 
 	{
-		// Crypto lives on `globalThis` rather than `window` on purpose: this code
-		// also runs under Node in the tests, where `window` does not exist. The rule
-		// guards against per-popout-window state, which the crypto namespace is not.
-		files: ['src/modules/plugin-ring/code.ts', 'src/modules/plugin-ring/crypto.ts'],
+		// The shared protocol package runs inside Obsidian *and* on the sync server,
+		// so `window` does not exist for half of its callers. The rule guards against
+		// per-popout-window state, which the crypto namespace is not.
+		files: ['packages/protocol/src/**/*.ts'],
 		rules: {
 			'obsidianmd/no-global-this': 'off',
 		},
@@ -81,6 +129,7 @@ export default defineConfig(
 		rules: {
 			'obsidianmd/hardcoded-config-path': 'off',
 			'@typescript-eslint/no-unsafe-assignment': 'off',
+			'import/no-extraneous-dependencies': 'off',
 		},
 	},
 

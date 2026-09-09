@@ -1,0 +1,14 @@
+{
+	"name": "@toolbox/server",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Sync server for the Toolbox vault sync. Holds encrypted blobs it cannot read.",
+	"scripts": {
+		"build": "node build.mjs",
+		"start": "node dist/server.js"
+	},
+	"dependencies": {
+		"@toolbox/protocol": "0.1.0"
+	}
+}

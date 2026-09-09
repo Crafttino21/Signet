@@ -723,6 +723,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 export const pluginRingModule: ModuleDescriptor<PluginRingSettings> = {
 	id: 'plugin-ring',
+	enabledByDefault: true,
 	// Getters, because the descriptor is built at import time while the locale is
 	// only chosen once the plugin loads.
 	get name() {

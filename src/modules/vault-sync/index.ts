@@ -48,7 +48,9 @@ const DEFAULT_SETTINGS: VaultSyncSettings = {
 	excludedFolders: [],
 	autoSyncMinutes: 0,
 	confirmLocalChanges: true,
-	liveSync: false,
+	// On, because keeping open devices in step is the point of having a server at
+	// all. It only runs while Obsidian is on screen and costs one parked request.
+	liveSync: true,
 	syncOnStart: true,
 };
 
@@ -291,7 +293,10 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			cls: 'toolbox-panel__state',
 			text: ready
 				? t('vaultSync.panel.ready', { seq: this.seq })
-				: t('vaultSync.panel.notSetUp'),
+				: this.ring()?.role === 'client'
+					? // Not something to fix — something that is on its way.
+						t('vaultSync.panel.waitingForRing')
+					: t('vaultSync.panel.notSetUp'),
 		});
 		containerEl.createEl('p', {
 			cls:
@@ -329,6 +334,69 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			});
 	}
 
+	/**
+	 * What a device sees while it waits for the ring to tell it where the server is.
+	 *
+	 * There is deliberately nothing to fill in. Everything this device needs it
+	 * already has — the ring code is the key, and the address is on its way. Asking
+	 * for either again would be asking someone to re-enter what they have.
+	 */
+	private renderWaiting(containerEl: HTMLElement): void {
+		new Setting(containerEl)
+			.setName(t('vaultSync.settings.fromRing'))
+			.setDesc(
+				this.settings.serverUrl
+					? t('vaultSync.settings.fromRingWaiting', { url: this.settings.serverUrl })
+					: t('vaultSync.settings.fromRingNoServer')
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(t('vaultSync.setup.checkAgain'))
+					.setCta()
+					.onClick(() => void this.claimAndCatchUp(false))
+			);
+	}
+
+	/**
+	 * The one device that has to be told where the server is, once.
+	 *
+	 * Someone has to say where it lives and prove they may create a vault on it.
+	 * That is this device and this moment; the registration secret is server-wide,
+	 * is cleared straight after use, and never travels to another device.
+	 */
+	private renderConnect(containerEl: HTMLElement): void {
+		new Setting(containerEl).setName(t('vaultSync.settings.connect')).setHeading();
+
+		new Setting(containerEl)
+			.setName(t('vaultSync.settings.server'))
+			.setDesc(t('vaultSync.settings.connectDesc'))
+			.addText((text) =>
+				text
+					.setPlaceholder('https://sync.example.com')
+					.setValue(this.settings.serverUrl)
+					.onChange(async (value) => {
+						const url = value.trim();
+						await this.patchSettings({ serverUrl: url });
+						this.plugin.ringLink.contribute({ serverUrl: url });
+					})
+			);
+
+		new Setting(containerEl)
+			.setName(t('vaultSync.settings.registration'))
+			.setDesc(t('vaultSync.settings.registrationDesc'))
+			.addText((text) =>
+				text.setValue(this.settings.registrationSecret).onChange(async (value) => {
+					await this.patchSettings({ registrationSecret: value.trim() });
+				})
+			)
+			.addButton((button) =>
+				button
+					.setButtonText(t('vaultSync.settings.setUp'))
+					.setCta()
+					.onClick(() => void this.setUp())
+			);
+	}
+
 	/** A sync nobody asked for: never prompts, and stays quiet when nothing happened. */
 	private async autoSync(): Promise<void> {
 		const deps = await this.deps(true);
@@ -357,35 +425,16 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					: t('vaultSync.settings.statusNotSetUp')
 			);
 
-		new Setting(containerEl)
-			.setName(t('vaultSync.settings.server'))
-			.setDesc(t('vaultSync.settings.serverDesc'))
-			.addText((text) =>
-				text
-					.setPlaceholder('https://sync.example.com')
-					.setValue(this.settings.serverUrl)
-					.onChange(async (value) => {
-						const url = value.trim();
-						await this.patchSettings({ serverUrl: url });
-						this.plugin.ringLink.contribute({ serverUrl: url });
-					})
-			);
-
+		// Nothing about the server is shown once this device is set up: the address
+		// came from the ring, and there is no reason to invite anyone to change it.
+		// It stays reachable under Advanced for the case where it is genuinely
+		// different here.
 		if (!this.settings.registered) {
-			new Setting(containerEl)
-				.setName(t('vaultSync.settings.registration'))
-				.setDesc(t('vaultSync.settings.registrationDesc'))
-				.addText((text) =>
-					text.setValue(this.settings.registrationSecret).onChange(async (value) => {
-						await this.patchSettings({ registrationSecret: value.trim() });
-					})
-				)
-				.addButton((button) =>
-					button
-						.setButtonText(t('vaultSync.settings.setUp'))
-						.setCta()
-						.onClick(() => void this.setUp())
-				);
+			if (ring.role === 'client') {
+				this.renderWaiting(containerEl);
+			} else {
+				this.renderConnect(containerEl);
+			}
 		}
 
 		new Setting(containerEl)
@@ -417,6 +466,20 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			);
 
 		const advanced = advancedSection(containerEl);
+
+		new Setting(advanced)
+			.setName(t('vaultSync.settings.server'))
+			.setDesc(t('vaultSync.settings.serverDesc'))
+			.addText((text) =>
+				text
+					.setPlaceholder('https://sync.example.com')
+					.setValue(this.settings.serverUrl)
+					.onChange(async (value) => {
+						const url = value.trim();
+						await this.patchSettings({ serverUrl: url });
+						this.plugin.ringLink.contribute({ serverUrl: url });
+					})
+			);
 
 		new Setting(advanced)
 			.setName(t('vaultSync.settings.interval'))
@@ -799,6 +862,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 export const vaultSyncModule: ModuleDescriptor<VaultSyncSettings> = {
 	id: 'vault-sync',
+	enabledByDefault: true,
 	get name() {
 		return t('vaultSync.name');
 	},

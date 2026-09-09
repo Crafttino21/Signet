@@ -4,7 +4,11 @@ An Obsidian plugin that collects several small quality-of-life tools in one plac
 each one switchable on its own.
 
 Every feature is a **module**: a self-contained unit with its own settings that can
-be turned on and off at runtime without restarting Obsidian.
+be turned on and off at runtime without restarting Obsidian. The ring, the sync and
+live editing start switched on — they do nothing at all until there is a ring, and
+having to find three switches before anything can happen is not a safety feature.
+The sync guardian starts off, because its double-sync check looks at folders above
+the vault.
 
 **Getting started** takes one command: _Set up Toolbox_. It walks the handful of
 decisions in the order they depend on each other — a ring first, because its code
@@ -128,7 +132,11 @@ say yes. Uploading never asks — it cannot cost you anything.
    a server-wide credential, not a login, and it never travels to another device.
 4. Press **Show what a sync would do** before the first real run.
 
-**On every other device**: join the ring with the code. That is the whole setup.
+**On every other device**: join the ring with the code. That is the whole setup —
+there is no address to type and no registration secret to carry around, and the
+settings do not ask for either. The registration secret is a server-wide
+credential; it is used once, on the device that creates the vault, and never
+travels.
 
 The address of the server is published into the ring — inside the same encrypted
 envelope as everything else, because where a machine on your home network lives is

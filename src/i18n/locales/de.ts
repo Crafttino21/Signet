@@ -211,10 +211,18 @@ export const de: Translations = {
 	'vaultSync.settings.statusNotSetUp': 'Auf diesem Server noch nicht eingerichtet.',
 	'vaultSync.settings.server': 'Serveradresse',
 	'vaultSync.settings.serverDesc':
-		'Zum Beispiel https://sync.example.com. Bitte https — deine Notizen sind verschlüsselt, das Zugriffstoken nicht.',
+		'Kommt normalerweise aus dem Ring und muss nicht angefasst werden. Nur ändern, wenn dieses Gerät den Server unter einer anderen Adresse erreicht.',
+	'vaultSync.settings.connect': 'Server verbinden',
+	'vaultSync.settings.connectDesc':
+		'Nur auf diesem Gerät und nur einmal. Alle anderen Geräte im Ring bekommen die Adresse von hier. Im Heimnetz ist das eine Adresse wie http://192.168.1.10:8787; bitte https, sobald der Server von außen erreichbar ist, denn die Notizen sind verschlüsselt, das Zugriffstoken nicht.',
+	'vaultSync.settings.fromRing': 'Kommt aus dem Ring',
+	'vaultSync.settings.fromRingWaiting':
+		'Server: {url}. Hier ist nichts einzutragen — warte darauf, dass der Host den Vault dort anlegt.',
+	'vaultSync.settings.fromRingNoServer':
+		'Hier ist nichts einzutragen. Der Host veröffentlicht die Server-Adresse im Ring, und dieses Gerät richtet sich damit selbst ein.',
 	'vaultSync.settings.registration': 'Registrierungsschlüssel',
 	'vaultSync.settings.registrationDesc':
-		'Einmalig nötig, um den Vault auf dem Server anzulegen. Wird direkt danach wieder gelöscht.',
+		'Vom Server, einmalig nötig, um den Vault anzulegen. Wird direkt danach gelöscht und verlässt dieses Gerät nie.',
 	'vaultSync.settings.setUp': 'Einrichten',
 	'vaultSync.settings.confirm': 'Vor Änderungen auf diesem Gerät fragen',
 	'vaultSync.settings.confirmDesc':
@@ -294,6 +302,8 @@ export const de: Translations = {
 		'Noch nichts veröffentlicht — die anderen Geräte finden keine Ring-Datei. Auf „Jetzt veröffentlichen“ drücken.',
 
 	'vaultSync.panel.title': 'Vault-Sync',
+	'vaultSync.panel.waitingForRing':
+		'Richtet sich über den Ring selbst ein — hier ist nichts zu tun.',
 	'vaultSync.panel.notSetUp': 'Noch nicht eingerichtet.',
 	'vaultSync.panel.ready': 'Bereit · Stand {seq}',
 	'vaultSync.panel.live': 'Live',

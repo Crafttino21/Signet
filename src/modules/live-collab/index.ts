@@ -411,6 +411,7 @@ class LiveCollabModule extends ToolboxModule<LiveCollabSettings> {
 
 export const liveCollabModule: ModuleDescriptor<LiveCollabSettings> = {
 	id: 'live-collab',
+	enabledByDefault: true,
 	get name() {
 		return t('collab.name');
 	},

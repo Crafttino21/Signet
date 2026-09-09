@@ -19,7 +19,11 @@ export interface ModuleDescriptor<S = unknown> {
 	/** One line explaining what switching this on does. */
 	readonly description: string;
 	readonly defaultSettings: S;
-	/** Defaults to false — a fresh install should stay quiet until asked. */
+	/**
+	 * Defaults to false. On for the modules this plugin exists for, which do
+	 * nothing at all until there is a ring; off for anything that reaches outside
+	 * the vault or acts on its own.
+	 */
 	readonly enabledByDefault?: boolean;
 	create(plugin: ToolboxPlugin): ToolboxModule<S>;
 }

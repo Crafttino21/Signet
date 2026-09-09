@@ -41,7 +41,7 @@ describe('migrateSettings', () => {
 	it('keeps the stored value for a setting and fills in newly added ones', () => {
 		const settings = migrateSettings(
 			{
-				version: 1,
+				version: 2,
 				enabledModules: { alpha: false },
 				moduleSettings: { alpha: { greeting: 'moin' } },
 			},
@@ -51,6 +51,33 @@ describe('migrateSettings', () => {
 		expect(settings.enabledModules.alpha).toBe(false);
 		// `greeting` survives, `count` is added from the defaults.
 		expect(settings.moduleSettings.alpha).toEqual({ greeting: 'moin', count: 1 });
+	});
+
+	it('switches on a module that used to default to off, once', () => {
+		// The `false` in a version 1 file is the old default rather than anybody's
+		// decision — every module used to start off, and the first load wrote that
+		// down. Left alone it would keep the main features off forever.
+		const settings = migrateSettings(
+			{ version: 1, enabledModules: { alpha: false, beta: false }, moduleSettings: {} },
+			descriptors
+		);
+
+		expect(settings.enabledModules.alpha).toBe(true);
+		// Only for modules that default to on now; the rest are untouched.
+		expect(settings.enabledModules.beta).toBe(false);
+	});
+
+	it('leaves a module switched off after that migration alone', () => {
+		const once = migrateSettings(
+			{ version: 1, enabledModules: { alpha: false }, moduleSettings: {} },
+			descriptors
+		);
+		expect(once.enabledModules.alpha).toBe(true);
+
+		// The user switches it off again, and it is written back at the new version.
+		const off = { ...once, enabledModules: { ...once.enabledModules, alpha: false } };
+
+		expect(migrateSettings(off, descriptors).enabledModules.alpha).toBe(false);
 	});
 
 	it('does not discard settings of modules it no longer knows', () => {

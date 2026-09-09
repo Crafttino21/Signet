@@ -212,10 +212,18 @@ export const en = {
 	'vaultSync.settings.statusNotSetUp': 'Not set up yet on this server.',
 	'vaultSync.settings.server': 'Server address',
 	'vaultSync.settings.serverDesc':
-		'For example https://sync.example.com. Use https — your notes are encrypted, the access token is not.',
+		'Normally comes from the ring and needs no attention. Change it only if this device reaches the server at a different address.',
+	'vaultSync.settings.connect': 'Connect a server',
+	'vaultSync.settings.connectDesc':
+		'Only on this device, and only once. Every other device in the ring gets the address from here. On a home network that is an address like http://192.168.1.10:8787; use https as soon as the server is reachable from outside, because the notes are encrypted but the access token is not.',
+	'vaultSync.settings.fromRing': 'Comes from the ring',
+	'vaultSync.settings.fromRingWaiting':
+		'Server: {url}. Nothing to enter here — waiting for the host to create the vault there.',
+	'vaultSync.settings.fromRingNoServer':
+		'Nothing to enter here. The host publishes the server address to the ring, and this device sets itself up when it arrives.',
 	'vaultSync.settings.registration': 'Registration secret',
 	'vaultSync.settings.registrationDesc':
-		'Needed once to create the vault on the server. It is cleared again straight afterwards.',
+		'From the server, needed once to create the vault. It is cleared straight afterwards and never leaves this device.',
 	'vaultSync.settings.setUp': 'Set up',
 	'vaultSync.settings.confirm': 'Ask before changing files here',
 	'vaultSync.settings.confirmDesc':
@@ -294,6 +302,7 @@ export const en = {
 		'Nothing published yet — the other devices have no ring file to join. Press "Publish now".',
 
 	'vaultSync.panel.title': 'Vault sync',
+	'vaultSync.panel.waitingForRing': 'Setting itself up from the ring — nothing to do here.',
 	'vaultSync.panel.notSetUp': 'Not set up yet.',
 	'vaultSync.panel.ready': 'Ready · commit {seq}',
 	'vaultSync.panel.live': 'Live',

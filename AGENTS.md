@@ -79,6 +79,9 @@ elsewhere. Three rules are not negotiable:
   as a batch of disables followed by a batch of enables.
 - A snapshot only counts as applied when every item succeeded, and a plugin the
   host does not have is left alone rather than removed.
+- Nothing is installed unless Obsidian's curated community list contains it, the
+  release manifest exists, and that manifest declares the same id. An id in a
+  snapshot is never on its own a reason to fetch and run code.
 
 ## Sync guardian
 

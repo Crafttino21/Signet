@@ -6,6 +6,8 @@ import type { ModuleDescriptor } from '../../core/module';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
 import { applyPlans } from './apply';
+import { CommunityCatalog } from './catalog';
+import { installPlugin } from './installer';
 import type { ApplyResult } from './apply';
 import { formatRingCode, generateRingSecret, parseRingCode } from '@toolbox/protocol';
 import type { Bytes } from '@toolbox/protocol';
@@ -49,6 +51,8 @@ type PluginRingSettings = {
 	excludedIds: string[];
 	/** Plugins this device never touches. */
 	ignoredIds: string[];
+	/** Fetch plugins the host has and this device does not. */
+	installMissing: boolean;
 };
 
 const DEFAULT_SETTINGS: PluginRingSettings = {
@@ -62,6 +66,7 @@ const DEFAULT_SETTINGS: PluginRingSettings = {
 	lastAppliedSeq: 0,
 	excludedIds: [],
 	ignoredIds: [],
+	installMissing: true,
 };
 
 function parseIdList(value: string): string[] {
@@ -73,6 +78,7 @@ function parseIdList(value: string): string[] {
 
 class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	private api?: PluginApi;
+	private readonly catalog = new CommunityCatalog();
 
 	override onload(): void {
 		this.api = PluginApi.detect(this.app);
@@ -245,6 +251,20 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 					await this.patchSettings({ deviceName: value });
 				})
 			);
+
+		const installer = new Setting(containerEl)
+			.setName(t('ring.settings.install'))
+			.setDesc(t('ring.settings.installDesc'));
+
+		if (this.api?.canInstall() === true) {
+			installer.addToggle((toggle) =>
+				toggle.setValue(this.settings.installMissing).onChange(async (value) => {
+					await this.patchSettings({ installMissing: value });
+				})
+			);
+		} else {
+			installer.setDesc(t('ring.settings.installUnsupported'));
+		}
 
 		const advanced = advancedSection(containerEl);
 
@@ -434,6 +454,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			selfId: this.plugin.manifest.id,
 			isMobile: Platform.isMobile,
 			ignoredIds: this.settings.ignoredIds,
+			canInstall: this.canInstall(),
 		});
 
 		new RingDiffModal(
@@ -450,12 +471,23 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 	private async apply(items: readonly DiffItem[], snapshot: RingSnapshot): Promise<ApplyResult> {
 		if (!this.api) {
-			return { applied: [], failed: [], complete: false };
+			return { applied: [], installed: [], failed: [], complete: false };
 		}
 
 		const selfId = this.plugin.manifest.id;
 		const plans = planApply(items, snapshot, { selfId });
-		const result = await applyPlans(this.app, this.api, plans, selfId);
+		const api = this.api;
+		const result = await applyPlans(
+			{
+				app: this.app,
+				api,
+				selfId,
+				install: this.canInstall()
+					? (request) => installPlugin({ api, catalog: this.catalog }, request)
+					: undefined,
+			},
+			plans
+		);
 
 		// Only a clean run counts as caught up. Recording it otherwise would hide
 		// the remaining differences behind an empty diff.
@@ -466,6 +498,11 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	}
 
 	// --- helpers ------------------------------------------------------------
+
+	/** Both the user's choice and whether this Obsidian can do it at all. */
+	private canInstall(): boolean {
+		return this.settings.installMissing && this.api?.canInstall() === true;
+	}
 
 	private async loadSnapshot(options: { quiet: boolean }): Promise<RingSnapshot | undefined> {
 		const secret = this.secret();

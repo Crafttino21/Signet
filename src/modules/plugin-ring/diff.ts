@@ -7,6 +7,8 @@ export interface DiffOptions {
 	isMobile: boolean;
 	/** Plugins this device deliberately ignores. */
 	ignoredIds?: readonly string[];
+	/** False when this Obsidian has no installer, or the user switched it off. */
+	canInstall?: boolean;
 }
 
 /** Structural comparison of two JSON values. Arrays compare in order, objects do not. */
@@ -70,13 +72,16 @@ export function computeDiff(
 		const reason: DiffReason | undefined = blockedOnMobile ? 'desktopOnly' : undefined;
 
 		if (!mine) {
+			// Installing is the only action that brings in code this device has never
+			// run, so it needs both a working installer and a device that can run it.
+			const installable = options.canInstall === true && !blockedOnMobile;
 			items.push({
 				kind: 'missing',
 				id: entry.id,
 				name: entry.name,
 				hostVersion: entry.version,
-				actionable: false,
-				reason: reason ?? 'notInstalled',
+				actionable: installable,
+				reason: installable ? undefined : (reason ?? 'cannotInstall'),
 			});
 			continue;
 		}
@@ -162,7 +167,15 @@ export function planApply(
 		}
 
 		const plan = plans.get(item.id) ?? { id: item.id, name: item.name };
-		if (item.kind === 'settings') {
+		if (item.kind === 'missing') {
+			plan.install = entry.version;
+			// A plugin worth fetching is one the host is actually using, and its
+			// settings come along in the same unit of work.
+			plan.enabled = entry.enabled;
+			if (entry.settings !== undefined) {
+				plan.settings = entry.settings;
+			}
+		} else if (item.kind === 'settings') {
 			plan.settings = entry.settings;
 		} else if (item.kind === 'enable' || item.kind === 'disable') {
 			plan.enabled = item.kind === 'enable';

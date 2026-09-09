@@ -48,12 +48,26 @@ whose settings should never leave this device.
 
 [PHANTOMPULSE]: https://thehackernews.com/2026/04/obsidian-plugin-abuse-delivers.html
 
-### What it currently does and does not do
+### Installing what is missing
 
-Switching plugins on and off and syncing their settings works. **Installing a
-plugin the device does not have yet is not implemented** — those show up in the
-diff as "not installed here" so you know what to add by hand. When that lands, it
-will install only from Obsidian's curated community list.
+A device that joins the ring does not just learn which plugins it lacks — it can
+fetch them. Obsidian's own installer does the work, the same one behind "Browse
+community plugins", so the downloading and unpacking are its problem rather than
+this plugin's.
+
+**Only what Obsidian's curated list contains gets installed.** That is the line
+that matters: a snapshot names plugins by id, and a snapshot is only as
+trustworthy as whoever holds the ring code. If an id were enough on its own, it
+would be an instruction to run code from anywhere — the shape of the PHANTOMPULSE
+attack. So an id is checked against the community directory, the release manifest
+has to exist, and it has to declare the same id. Anything else is refused and said
+so plainly, rather than quietly skipped.
+
+A freshly installed plugin gets its settings written before it is switched on,
+because it is not running yet and there is nothing to overwrite them.
+
+Updating a plugin that is already installed but at a different version is still
+only reported, not done.
 
 ### Disclosure
 

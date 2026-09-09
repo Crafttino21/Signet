@@ -303,4 +303,12 @@ export const de: Translations = {
 	'sync.panel.unchecked': 'Noch nicht geprüft.',
 	'sync.panel.check': 'Jetzt prüfen',
 	'sync.panel.report': 'Bericht öffnen',
+	'ring.reason.cannotInstall': 'Installieren ist auf diesem Gerät nicht möglich',
+	'ring.kind.install': 'Installieren',
+	'ring.settings.install': 'Fehlende Plugins installieren',
+	'ring.settings.installDesc':
+		'Holt Plugins, die der Host hat und dieses Gerät nicht. Installiert wird ausschließlich, was in Obsidians eigenem Community-Verzeichnis steht — eine ID im Snapshot allein genügt nie.',
+	'ring.settings.installUnsupported':
+		'Diese Obsidian-Version stellt den Plugin-Installer nicht bereit, fehlende Plugins können deshalb nur aufgelistet werden.',
+	'ring.result.installed': '{count} installiert.',
 };

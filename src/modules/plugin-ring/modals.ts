@@ -87,6 +87,7 @@ const KIND_KEY: Record<DiffItem['kind'], TranslationKey> = {
 const REASON_KEY: Record<NonNullable<DiffItem['reason']>, TranslationKey> = {
 	desktopOnly: 'ring.reason.desktopOnly',
 	notInstalled: 'ring.reason.notInstalled',
+	cannotInstall: 'ring.reason.cannotInstall',
 	noUpdate: 'ring.reason.noUpdate',
 	hostLacks: 'ring.reason.hostLacks',
 };
@@ -94,10 +95,17 @@ const REASON_KEY: Record<NonNullable<DiffItem['reason']>, TranslationKey> = {
 /** Turns an apply run into the sentence shown afterwards. */
 export function describeResult(result: ApplyResult): string {
 	const total = result.applied.length + result.failed.length;
+	const installed =
+		result.installed.length > 0
+			? ` ${t('ring.result.installed', { count: result.installed.length })}`
+			: '';
+
 	if (result.complete) {
-		return total === 1
-			? t('ring.result.appliedOne')
-			: t('ring.result.appliedMany', { count: total });
+		return (
+			(total === 1
+				? t('ring.result.appliedOne')
+				: t('ring.result.appliedMany', { count: total })) + installed
+		);
 	}
 
 	return t('ring.result.partial', {
@@ -183,7 +191,13 @@ export class RingDiffModal extends Modal {
 		for (const item of items) {
 			const row = list.createEl('li', { cls: 'toolbox-ring__row' });
 			row.createSpan({ cls: 'toolbox-ring__name', text: item.name });
-			row.createSpan({ cls: 'toolbox-ring__kind', text: t(KIND_KEY[item.kind]) });
+			row.createSpan({
+				cls: 'toolbox-ring__kind',
+				text:
+					item.kind === 'missing' && item.actionable
+						? t('ring.kind.install')
+						: t(KIND_KEY[item.kind]),
+			});
 
 			const detail = this.describeVersions(item);
 			if (detail) {

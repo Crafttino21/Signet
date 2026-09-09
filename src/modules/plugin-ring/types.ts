@@ -46,7 +46,8 @@ export type DiffKind =
  * Why an item is not actionable. A code rather than a sentence, so that the diff
  * logic stays free of display text and the wording lives with the translations.
  */
-export type DiffReason = 'desktopOnly' | 'notInstalled' | 'noUpdate' | 'hostLacks';
+export type DiffReason =
+	'desktopOnly' | 'notInstalled' | 'cannotInstall' | 'noUpdate' | 'hostLacks';
 
 export interface DiffItem {
 	kind: DiffKind;
@@ -63,6 +64,8 @@ export interface DiffItem {
 export interface PluginPlan {
 	id: string;
 	name: string;
+	/** Version to fetch first, when this device does not have the plugin at all. */
+	install?: string;
 	/** data.json to write, or undefined to leave it alone. */
 	settings?: unknown;
 	/** Desired enabled state, or undefined to leave it alone. */

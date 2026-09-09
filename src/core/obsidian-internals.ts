@@ -121,6 +121,41 @@ export class PluginApi {
 		await this.manager.saveConfig?.();
 	}
 
+	/**
+	 * Whether this Obsidian exposes the installer at all.
+	 *
+	 * Separate from {@link detect} on purpose: the ring is useful without it — it
+	 * can still switch plugins on and off and carry settings — so a missing
+	 * installer disables one feature rather than the module.
+	 */
+	canInstall(): boolean {
+		return typeof this.manager.installPlugin === 'function';
+	}
+
+	/**
+	 * Installs a community plugin through Obsidian's own installer.
+	 *
+	 * This is the same code path the "Browse community plugins" screen uses, so
+	 * Obsidian does the downloading and the writing rather than us reaching into
+	 * the plugins folder ourselves.
+	 */
+	async install(repo: string, version: string, manifest: PluginManifest): Promise<void> {
+		if (!this.manager.installPlugin) {
+			throw new Error('This Obsidian version does not expose the plugin installer.');
+		}
+		await this.manager.installPlugin(repo, version, manifest);
+	}
+
+	/** Rereads the plugin folder, so a freshly installed plugin becomes known. */
+	async reloadManifests(): Promise<void> {
+		await this.manager.loadManifests?.();
+	}
+
+	/** True once the plugin folder actually contains it. */
+	isInstalled(id: string): boolean {
+		return this.manager.manifests?.[id] !== undefined;
+	}
+
 	/** Reloads a plugin so it picks up a data.json we just wrote from outside. */
 	async reload(id: string): Promise<void> {
 		await this.manager.disablePlugin?.(id);

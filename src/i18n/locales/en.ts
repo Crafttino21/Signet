@@ -303,6 +303,14 @@ export const en = {
 	'sync.panel.unchecked': 'Not checked yet.',
 	'sync.panel.check': 'Check now',
 	'sync.panel.report': 'Open report',
+	'ring.reason.cannotInstall': 'Installing is not possible on this device',
+	'ring.kind.install': 'Install',
+	'ring.settings.install': 'Install missing plugins',
+	'ring.settings.installDesc':
+		'Fetches plugins the host has and this device does not. Only plugins listed in Obsidian’s own community directory are installed — an id in a snapshot is never enough on its own.',
+	'ring.settings.installUnsupported':
+		'This Obsidian version does not expose the plugin installer, so missing plugins can only be listed.',
+	'ring.result.installed': 'Installed {count}.',
 };
 
 export type TranslationKey = keyof typeof en;

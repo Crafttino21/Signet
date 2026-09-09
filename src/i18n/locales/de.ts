@@ -192,4 +192,74 @@ export const de: Translations = {
 	'sync.settings.doubleSyncCheck': 'Vor einem zweiten Sync-Programm warnen',
 	'sync.settings.doubleSyncCheckDesc':
 		'Sieht in den Ordnern oberhalb deines Vaults nach einem weiteren Sync-Client. Nur am Desktop, und es werden ausschließlich Ordnernamen gelesen.',
+	'vaultSync.name': 'Vault-Sync',
+	'vaultSync.description':
+		'Synchronisiert deine Notizen mit deinem eigenen Server, verschlüsselt auf diesem Gerät, bevor sie es verlassen. Nutzt denselben Ring-Code wie der Plugin-Ring.',
+
+	'vaultSync.ribbon': 'Vault synchronisieren',
+	'vaultSync.command.sync': 'Vault jetzt synchronisieren',
+	'vaultSync.command.preview': 'Anzeigen, was eine Synchronisierung täte',
+	'vaultSync.command.forget': 'Vergessen, was dieses Gerät zuletzt synchronisiert hat',
+
+	'vaultSync.settings.needsRing':
+		'Zuerst einen Plugin-Ring erstellen oder beitreten. Der Ring-Code verschlüsselt deine Notizen und weist deinen Vault gegenüber dem Server aus.',
+	'vaultSync.settings.status': 'Status',
+	'vaultSync.settings.statusReady': 'Eingerichtet. Dieses Gerät kann synchronisieren.',
+	'vaultSync.settings.statusNotSetUp': 'Auf diesem Server noch nicht eingerichtet.',
+	'vaultSync.settings.server': 'Serveradresse',
+	'vaultSync.settings.serverDesc':
+		'Zum Beispiel https://sync.example.com. Bitte https — deine Notizen sind verschlüsselt, das Zugriffstoken nicht.',
+	'vaultSync.settings.registration': 'Registrierungsschlüssel',
+	'vaultSync.settings.registrationDesc':
+		'Einmalig nötig, um den Vault auf dem Server anzulegen. Wird direkt danach wieder gelöscht.',
+	'vaultSync.settings.setUp': 'Einrichten',
+	'vaultSync.settings.confirm': 'Vor Änderungen auf diesem Gerät fragen',
+	'vaultSync.settings.confirmDesc':
+		'Zeigt, was hier ankommt, ersetzt oder in den Papierkorb wandert, und wartet. Beim Hochladen wird nie gefragt.',
+	'vaultSync.settings.interval': 'Automatisch synchronisieren alle',
+	'vaultSync.settings.intervalDesc': 'Minuten. 0 schaltet es ab. Wirkt nach einem Neustart.',
+	'vaultSync.settings.excluded': 'Diese Ordner nicht synchronisieren',
+	'vaultSync.settings.excludedDesc':
+		'Ein Pfad pro Zeile. Obsidians Konfigurationsordner bleibt immer außen vor.',
+	'vaultSync.settings.actions': 'Ausführen',
+	'vaultSync.settings.test': 'Verbindung testen',
+	'vaultSync.settings.codeWarning':
+		'Der Server kann nichts davon lesen und kann dir deshalb auch nicht helfen, wenn der Ring-Code verloren geht. Bewahre ihn sicher und getrennt auf.',
+
+	'vaultSync.plan.title': 'Was diese Synchronisierung täte',
+	'vaultSync.plan.firstRun':
+		'Dieses Gerät hat noch nie synchronisiert. Alles, was sich unterscheidet, gilt deshalb als Konflikt, statt geraten zu werden.',
+	'vaultSync.plan.hereChanges': 'Änderungen auf diesem Gerät',
+	'vaultSync.plan.serverChanges': 'Änderungen auf dem Server',
+	'vaultSync.plan.conflictNote':
+		'Wo beide Seiten geändert wurden, wird nichts überschrieben: Die ankommende Fassung landet als Konfliktkopie neben deiner.',
+	'vaultSync.plan.confirm': 'Jetzt synchronisieren',
+
+	'vaultSync.action.upload': 'geht an den Server',
+	'vaultSync.action.download': 'kommt hier an',
+	'vaultSync.action.deleteLocal': 'wandert hier in den Papierkorb',
+	'vaultSync.action.deleteRemote': 'wird auf dem Server entfernt',
+	'vaultSync.action.conflict': 'beide geändert, beide bleiben',
+	'vaultSync.action.resurrect': 'woanders gelöscht, bleibt weil du es bearbeitet hast',
+
+	'vaultSync.result.upToDate': 'Alles ist bereits synchron.',
+	'vaultSync.result.uploaded': '{count} gesendet',
+	'vaultSync.result.downloaded': '{count} empfangen',
+	'vaultSync.result.trashed': '{count} in den Papierkorb verschoben',
+	'vaultSync.result.conflicts': '{count} als Konfliktkopie behalten',
+	'vaultSync.result.partial':
+		'{done} synchronisiert, {failed} fehlgeschlagen. Verloren ist nichts, der Rest wird beim nächsten Mal erneut versucht.',
+
+	'vaultSync.notice.needsRing': 'Zuerst einen Plugin-Ring erstellen oder beitreten.',
+	'vaultSync.notice.needsServer': 'Zuerst die Serveradresse eintragen.',
+	'vaultSync.notice.needsRegistrationSecret':
+		'Zuerst den Registrierungsschlüssel deines Servers eintragen.',
+	'vaultSync.notice.notSetUp': 'Diesen Vault zuerst auf dem Server einrichten.',
+	'vaultSync.notice.reachable': 'Server erreicht. Protokollversion {protocol}.',
+	'vaultSync.notice.created': 'Vault auf dem Server angelegt.',
+	'vaultSync.notice.joined':
+		'Dieser Vault war auf dem Server bereits vorhanden, dieses Gerät ist beigetreten.',
+	'vaultSync.notice.forgotten':
+		'Vergessen. Die nächste Synchronisierung behandelt jeden Unterschied als Konflikt und behält beide Seiten.',
+	'vaultSync.notice.failed': 'Synchronisierung fehlgeschlagen:',
 };

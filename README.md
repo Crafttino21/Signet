@@ -53,6 +53,60 @@ not part of the public typings — `src/core/obsidian-internals.ts` isolates it 
 disables the feature if a future Obsidian release changes it. The ring itself makes
 no network requests.
 
+## Vault sync
+
+Syncs your notes with a server you run, encrypted on the device before they leave
+it. The server code is in [`packages/server`](packages/server/README.md).
+
+It uses the same ring code as the plugin ring, so one code covers both which
+plugins you have and what your notes say. Every key is derived from it with a
+separate label, and the server is only ever told the vault id and a hash of an
+access token — never the key that decrypts anything. It cannot read a note, a
+filename, or tell whether two vaults hold the same document.
+
+### How it decides what to do
+
+The reconciler compares three things, not two: what is here, what is on the
+server, and what this device last agreed with the server. Comparing only the
+first two can tell you that they differ but never _who_ changed, so it has to
+guess — and the usual guess, "newer wins", is exactly what quietly eats a note.
+
+With the third input the question is answerable, and the awkward cases have real
+answers instead of guesses:
+
+| Situation                            | What happens                                                                                                      |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Only the server changed              | Pulled.                                                                                                           |
+| Only this device changed             | Pushed.                                                                                                           |
+| **Both changed**                     | **Both kept.** The incoming version is saved beside yours as a conflicted copy — never merged, never overwritten. |
+| Deleted elsewhere, untouched here    | Moved to the **trash**, never deleted outright.                                                                   |
+| Deleted elsewhere, but you edited it | Kept, and put back on the other devices. Work beats a deletion.                                                   |
+| A device with no memory of syncing   | Downloads; it never reads its own emptiness as "the user deleted everything".                                     |
+
+Before anything on this device is replaced or trashed, you get to see the list and
+say yes. Uploading never asks — it cannot cost you anything.
+
+### Setting it up
+
+1. Run the server: see [`packages/server/README.md`](packages/server/README.md).
+2. Create or join a plugin ring, if you have not already. The ring code is the key.
+3. In the module's settings, enter the server address and the registration secret
+   from the server, then press **Set up**. The registration secret is used once and
+   cleared afterwards; it is not a login.
+4. Press **Show what a sync would do** before the first real run.
+
+The server cannot read your notes, which also means **it cannot help you if the
+ring code is lost**. Keep the code somewhere safe and separate from the server.
+
+### What it does not do yet
+
+Syncing runs when you ask it to, or on a timer. There is no live push, and there
+will not be one on mobile: iOS suspends background apps and Android vendors kill
+them, so "syncs while the phone is in your pocket" is not something any plugin can
+promise. The largest existing project in this space, Self-hosted LiveSync, reached
+the same conclusion and requires its own peer-to-peer mode to run in the
+foreground with the screen awake.
+
 ## Sync guardian
 
 Watches whatever sync you already use instead of replacing it. Three things go
@@ -233,13 +287,18 @@ src/
   modules/
     index.ts               the module list — the only file a new feature touches
     plugin-ring/           keeps plugins in step across devices
+    vault-sync/            syncs notes with your own server, encrypted
     sync-health/           finds sync conflicts, watches device heartbeats
   i18n/
     index.ts               t() and locale selection
     locales/               en.ts is the base, one file per language
   test/
     obsidian.stub.ts       stand-in for the `obsidian` module
-    fake-app.ts            in-memory vault and plugin manager for tests
+    fake-app.ts            in-memory plugin manager for tests
+    fake-vault.ts          in-memory vault for tests
+packages/
+  protocol/                wire format and cryptography, shared with the server
+  server/                  the sync server you run yourself
 ```
 
 In both modules the files without an Obsidian import — `code.ts`, `crypto.ts`,

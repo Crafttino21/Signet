@@ -197,6 +197,46 @@ export class Notice {
 	hide(): void {}
 }
 
+export interface RequestUrlParam {
+	url: string;
+	method?: string;
+	body?: string | ArrayBuffer;
+	headers?: Record<string, string>;
+	throw?: boolean;
+}
+
+export interface RequestUrlResponse {
+	status: number;
+	text: string;
+	json: unknown;
+	arrayBuffer: ArrayBuffer;
+}
+
+/**
+ * Obsidian's CORS-free HTTP call. The stub goes through `fetch`, which is enough
+ * for tests to talk to a real server over a real socket.
+ */
+export async function requestUrl(request: RequestUrlParam | string): Promise<RequestUrlResponse> {
+	const options = typeof request === 'string' ? { url: request } : request;
+	const response = await fetch(options.url, {
+		method: options.method ?? 'GET',
+		headers: options.headers,
+		body: options.body as BodyInit | undefined,
+	});
+
+	const arrayBuffer = await response.arrayBuffer();
+	const text = new TextDecoder().decode(arrayBuffer);
+
+	return {
+		status: response.status,
+		text,
+		get json(): unknown {
+			return JSON.parse(text) as unknown;
+		},
+		arrayBuffer,
+	};
+}
+
 /** Obsidian's UI language. Tests drive the locale through initI18n() instead. */
 export function getLanguage(): string {
 	return 'en';

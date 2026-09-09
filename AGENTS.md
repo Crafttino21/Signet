@@ -85,6 +85,23 @@ The double-sync check reads folder names above the vault. That is access outside
 the vault, so it stays desktop-only, reads listings only, is switchable off, and is
 disclosed in the README — the developer policy requires that disclosure.
 
+## Vault sync
+
+The rules the reconciler and engine must keep, in `src/modules/vault-sync`:
+
+- Never merge and never overwrite when both sides changed. Keep both, naming the
+  incoming one so the sync guardian recognises it.
+- A remote deletion goes through `trashFile()`, never a hard delete, and never at
+  all if this device edited the file since it last synced.
+- Never infer a deletion without a base. A device with no sync state is missing
+  files, not reporting that the user deleted them.
+- The base state is per-device and carries the device id. A base written by
+  another device is treated as no base at all.
+
+The wire format and cryptography live in `packages/protocol` and are shared with
+the server. Never reimplement either on one side only; drift between the ends of
+a sync protocol is what loses data.
+
 ## Privacy
 
 The plugin works offline and stays that way: no network calls, no telemetry, no

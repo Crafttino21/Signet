@@ -193,6 +193,76 @@ export const en = {
 	'sync.settings.doubleSyncCheck': 'Warn about a second sync tool',
 	'sync.settings.doubleSyncCheckDesc':
 		'Looks at the folders above your vault for another sync client. Desktop only, and it reads folder names only.',
+	'vaultSync.name': 'Vault sync',
+	'vaultSync.description':
+		'Syncs your notes with your own server, encrypted on this device before they leave it. Uses the same ring code as the plugin ring.',
+
+	'vaultSync.ribbon': 'Sync vault',
+	'vaultSync.command.sync': 'Sync the vault now',
+	'vaultSync.command.preview': 'Show what a sync would do',
+	'vaultSync.command.forget': 'Forget what this device last synced',
+
+	'vaultSync.settings.needsRing':
+		'Create or join a plugin ring first. The ring code is what encrypts your notes and identifies your vault to the server.',
+	'vaultSync.settings.status': 'Status',
+	'vaultSync.settings.statusReady': 'Set up. This device can sync.',
+	'vaultSync.settings.statusNotSetUp': 'Not set up yet on this server.',
+	'vaultSync.settings.server': 'Server address',
+	'vaultSync.settings.serverDesc':
+		'For example https://sync.example.com. Use https — your notes are encrypted, the access token is not.',
+	'vaultSync.settings.registration': 'Registration secret',
+	'vaultSync.settings.registrationDesc':
+		'Needed once to create the vault on the server. It is cleared again straight afterwards.',
+	'vaultSync.settings.setUp': 'Set up',
+	'vaultSync.settings.confirm': 'Ask before changing files here',
+	'vaultSync.settings.confirmDesc':
+		'Shows what would arrive, be replaced or be trashed on this device, and waits. Uploading never asks.',
+	'vaultSync.settings.interval': 'Sync automatically every',
+	'vaultSync.settings.intervalDesc': 'Minutes. 0 switches it off. Takes effect after a restart.',
+	'vaultSync.settings.excluded': 'Do not sync these folders',
+	'vaultSync.settings.excludedDesc':
+		'One path per line. The Obsidian config folder is always left out.',
+	'vaultSync.settings.actions': 'Run',
+	'vaultSync.settings.test': 'Test connection',
+	'vaultSync.settings.codeWarning':
+		'The server cannot read any of this, which also means it cannot help you if the ring code is lost. Keep the code somewhere safe and separate.',
+
+	'vaultSync.plan.title': 'What this sync would do',
+	'vaultSync.plan.firstRun':
+		'This device has not synced before, so anything that differs is treated as a conflict rather than guessed at.',
+	'vaultSync.plan.hereChanges': 'Changes on this device',
+	'vaultSync.plan.serverChanges': 'Changes on the server',
+	'vaultSync.plan.conflictNote':
+		'Where both sides changed, nothing is overwritten: the incoming version is saved next to yours as a conflicted copy.',
+	'vaultSync.plan.confirm': 'Sync now',
+
+	'vaultSync.action.upload': 'send to the server',
+	'vaultSync.action.download': 'arrives here',
+	'vaultSync.action.deleteLocal': 'moved to the trash here',
+	'vaultSync.action.deleteRemote': 'removed on the server',
+	'vaultSync.action.conflict': 'both changed, both kept',
+	'vaultSync.action.resurrect': 'deleted elsewhere, kept because you edited it',
+
+	'vaultSync.result.upToDate': 'Everything is already in sync.',
+	'vaultSync.result.uploaded': '{count} sent',
+	'vaultSync.result.downloaded': '{count} received',
+	'vaultSync.result.trashed': '{count} moved to the trash',
+	'vaultSync.result.conflicts': '{count} kept as conflicted copies',
+	'vaultSync.result.partial':
+		'{done} synced, {failed} failed. Nothing was lost, and the rest is tried again next time.',
+
+	'vaultSync.notice.needsRing': 'Create or join a plugin ring first.',
+	'vaultSync.notice.needsServer': 'Enter the server address first.',
+	'vaultSync.notice.needsRegistrationSecret':
+		'Enter the registration secret from your server first.',
+	'vaultSync.notice.notSetUp': 'Set this vault up on the server first.',
+	'vaultSync.notice.reachable': 'Server reached. Protocol version {protocol}.',
+	'vaultSync.notice.created': 'Vault created on the server.',
+	'vaultSync.notice.joined':
+		'This vault already existed on the server, and this device has joined it.',
+	'vaultSync.notice.forgotten':
+		'Forgotten. The next sync treats every difference as a conflict and keeps both sides.',
+	'vaultSync.notice.failed': 'Sync failed:',
 };
 
 export type TranslationKey = keyof typeof en;

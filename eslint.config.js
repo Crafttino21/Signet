@@ -130,6 +130,9 @@ export default defineConfig(
 			'obsidianmd/hardcoded-config-path': 'off',
 			'@typescript-eslint/no-unsafe-assignment': 'off',
 			'import/no-extraneous-dependencies': 'off',
+			// Tests run under Node, not in Obsidian: temporary directories and real
+			// sockets are how an integration test earns its name.
+			'obsidianmd/no-nodejs-modules': 'off',
 		},
 	},
 
@@ -143,6 +146,8 @@ export default defineConfig(
 			'obsidianmd/prefer-window-timers': 'off',
 			'@typescript-eslint/no-explicit-any': 'off',
 			'@typescript-eslint/no-empty-function': 'off',
+			// The stub *implements* requestUrl, so fetch is what it has to call.
+			'no-restricted-globals': 'off',
 		},
 	}
 );

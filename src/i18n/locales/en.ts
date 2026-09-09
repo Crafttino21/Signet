@@ -247,6 +247,8 @@ export const en = {
 	'vaultSync.settings.registrationDesc':
 		'From the server, needed once to create the vault. It is cleared straight afterwards and never leaves this device.',
 	'vaultSync.settings.setUp': 'Set up',
+	'vaultSync.settings.moreAfterSetup':
+		'The rest of the settings appear once the server has answered for this vault.',
 	'vaultSync.settings.confirm': 'Ask before changing files here',
 	'vaultSync.settings.confirmDesc':
 		'Shows what would arrive, be replaced or be trashed on this device, and waits. Uploading never asks.',
@@ -285,6 +287,10 @@ export const en = {
 		'{done} synced, {failed} failed. Nothing was lost, and the rest is tried again next time.',
 
 	'vaultSync.notice.needsRing': 'Create or join a plugin ring first.',
+	'vaultSync.notice.portAdded':
+		'No port given, so the usual one was added: {url}. Change it under Advanced if your server listens elsewhere.',
+	'vaultSync.notice.unreachable':
+		'Toolbox: {url} could not be reached. {message} Check the address including the port — the server listens on 8787 unless you changed it.',
 	'vaultSync.notice.badServerUrl':
 		'That is not a complete address. It needs to start with http:// or https://, for example http://192.168.1.10:8787.',
 	'vaultSync.notice.needsServer': 'Enter the server address first.',
@@ -315,6 +321,7 @@ export const en = {
 
 	'panel.title': 'Toolbox',
 	'panel.open': 'Open the Toolbox panel',
+	'panel.available': 'Ready to switch on in the settings: {names}.',
 	'panel.nothing': 'No modules are switched on. Turn one on in the settings.',
 
 	'ring.panel.title': 'Plugin ring',

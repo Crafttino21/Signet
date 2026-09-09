@@ -185,6 +185,18 @@ sees ciphertext, the server included.
 The server cannot read your notes, which also means **it cannot help you if the
 ring code is lost**. Keep the code somewhere safe and separate from the server.
 
+### One thing at a time
+
+Nothing about the sync is on screen until it can do something. The vault sync
+appears once there is a ring — before that it has no key, no vault id and nothing
+it could say — and live editing appears once a server has answered for this vault.
+Both arrive switched off, and the panel names what has become available.
+
+While the sync has no server yet, its settings show the one step that is left
+rather than a page of options for something that does not run. The address field
+stays reachable under **Advanced**, because a wrong address is the likeliest
+reason it is not running.
+
 ### Seeing what it is doing
 
 Every open note carries the sync state in its header: idle, working, live, or a

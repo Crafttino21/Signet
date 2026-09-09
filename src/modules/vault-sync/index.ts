@@ -14,7 +14,12 @@ import { LiveSession } from './live';
 import { touchesLocalFiles } from './reconcile';
 import { SyncIndicator } from './indicator';
 import type { SyncState } from './indicator';
-import { isUsableServerUrl, normaliseServerUrl, shouldAdopt } from './server-url';
+import {
+	completeServerUrl,
+	isUsableServerUrl,
+	normaliseServerUrl,
+	shouldAdopt,
+} from './server-url';
 import type { ServerUrlSource } from './server-url';
 import { SyncStateStore } from './state';
 import { describeReport, SyncPlanModal } from './sync-modal';
@@ -65,6 +70,28 @@ const DEFAULT_SETTINGS: VaultSyncSettings = {
 };
 
 const RING_MODULE_ID = 'plugin-ring';
+
+/**
+ * The example in every address field.
+ *
+ * It shows a port on purpose. The server listens on 8787 and nothing listens on
+ * 80, so an address without one is refused by the machine rather than by this
+ * plugin — which arrives as "connection refused" for a server that is plainly
+ * running, and is the single easiest way to lose an evening to this.
+ */
+const SERVER_PLACEHOLDER = 'http://192.168.1.10:8787';
+
+/**
+ * Whether this vault is in a ring at all.
+ *
+ * Read straight from the stored settings rather than through the ring module,
+ * because the descriptor is asked this before any module is built — and because
+ * the two modules deliberately do not import each other.
+ */
+function hasRing(plugin: ToolboxPlugin): boolean {
+	const ring = plugin.settings.moduleSettings[RING_MODULE_ID] as RingSettings | undefined;
+	return typeof ring?.code === 'string' && ring.code.length > 0;
+}
 
 interface RingSettings {
 	code?: unknown;
@@ -277,7 +304,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 				new Setting(containerEl).setName(t('vaultSync.settings.server')).addText((text) =>
 					text
-						.setPlaceholder('https://sync.example.com')
+						.setPlaceholder(SERVER_PLACEHOLDER)
 						.setValue(this.settings.serverUrl)
 						.onChange(async (value) => {
 							await this.setServerUrl(value);
@@ -412,7 +439,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			.setDesc(t('vaultSync.settings.connectDesc'))
 			.addText((text) =>
 				text
-					.setPlaceholder('https://sync.example.com')
+					.setPlaceholder(SERVER_PLACEHOLDER)
 					.setValue(this.settings.serverUrl)
 					.onChange(async (value) => {
 						await this.setServerUrl(value);
@@ -432,6 +459,25 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					.setButtonText(t('vaultSync.settings.setUp'))
 					.setCta()
 					.onClick(() => void this.setUp())
+			);
+	}
+
+	/**
+	 * The address field, in the two places it belongs: under Advanced once this
+	 * device is set up, and again while it is not, because a wrong address is the
+	 * likeliest reason it is not.
+	 */
+	private renderServerField(containerEl: HTMLElement): void {
+		new Setting(containerEl)
+			.setName(t('vaultSync.settings.server'))
+			.setDesc(t('vaultSync.settings.serverDesc'))
+			.addText((text) =>
+				text
+					.setPlaceholder(SERVER_PLACEHOLDER)
+					.setValue(this.settings.serverUrl)
+					.onChange(async (value) => {
+						await this.setServerUrl(value);
+					})
 			);
 	}
 
@@ -463,16 +509,25 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					: t('vaultSync.settings.statusNotSetUp')
 			);
 
-		// Nothing about the server is shown once this device is set up: the address
-		// came from the ring, and there is no reason to invite anyone to change it.
-		// It stays reachable under Advanced for the case where it is genuinely
-		// different here.
+		// Until the server has answered for this vault there is exactly one thing to
+		// do here, and everything else would be a choice about a sync that does not
+		// run yet. Showing it anyway is how a settings page ends up unable to say
+		// which of its twelve controls is the one standing in the way.
 		if (!this.settings.registered) {
 			if (ring.role === 'client') {
 				this.renderWaiting(containerEl);
 			} else {
 				this.renderConnect(containerEl);
 			}
+
+			containerEl.createEl('p', {
+				cls: 'toolbox-ring__hint',
+				text: t('vaultSync.settings.moreAfterSetup'),
+			});
+			// The one exception, because it is the way out when the address itself is
+			// what is wrong.
+			this.renderServerField(advancedSection(containerEl));
+			return;
 		}
 
 		new Setting(containerEl)
@@ -505,17 +560,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 		const advanced = advancedSection(containerEl);
 
-		new Setting(advanced)
-			.setName(t('vaultSync.settings.server'))
-			.setDesc(t('vaultSync.settings.serverDesc'))
-			.addText((text) =>
-				text
-					.setPlaceholder('https://sync.example.com')
-					.setValue(this.settings.serverUrl)
-					.onChange(async (value) => {
-						await this.setServerUrl(value);
-					})
-			);
+		this.renderServerField(advanced);
 
 		new Setting(advanced)
 			.setName(t('vaultSync.settings.interval'))
@@ -570,7 +615,37 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 	// --- actions ------------------------------------------------------------
 
+	/**
+	 * Checks the address before it is used, and fills in a missing port.
+	 *
+	 * Both at the moment of use rather than at every keystroke: half of a URL is
+	 * not an error while it is still being typed, and a port appended mid-word
+	 * would fight the person typing.
+	 */
+	private async readyToConnect(): Promise<boolean> {
+		const completed = completeServerUrl(this.settings.serverUrl);
+		if (completed !== this.settings.serverUrl) {
+			await this.patchSettings({ serverUrl: completed, serverUrlSource: 'user' });
+			this.plugin.ringLink.contribute({ serverUrl: completed });
+			new Notice(t('vaultSync.notice.portAdded', { url: completed }));
+			this.refreshUi();
+		}
+
+		// An address without a scheme reaches nothing, and published into the ring it
+		// is silently discarded by every other device — a failure with nowhere to see
+		// it happen.
+		if (!isUsableServerUrl(this.settings.serverUrl)) {
+			new Notice(t('vaultSync.notice.badServerUrl'));
+			return false;
+		}
+		return true;
+	}
+
 	private async testConnection(): Promise<void> {
+		if (!(await this.readyToConnect())) {
+			return;
+		}
+
 		const client = await this.client();
 		if (!client) {
 			return;
@@ -598,11 +673,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	}
 
 	private async setUp(): Promise<void> {
-		// Checked here rather than at every keystroke: an address without a scheme
-		// reaches nothing, and published into the ring it is silently discarded by
-		// every other device — a failure with nowhere to see it.
-		if (!isUsableServerUrl(this.settings.serverUrl)) {
-			new Notice(t('vaultSync.notice.badServerUrl'));
+		if (!(await this.readyToConnect())) {
 			return;
 		}
 
@@ -918,17 +989,31 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		};
 	}
 
+	/**
+	 * What went wrong, with the address in it.
+	 *
+	 * A server that answers and says no is a different problem from one that was
+	 * never reached, and only the second one is usually a typo in the address. The
+	 * message names the address for that reason: "connection refused" says nothing
+	 * about which of the two it is until you can see what was dialled.
+	 */
 	private explain(error: unknown): string {
 		if (error instanceof SyncServerError) {
 			return `${t('vaultSync.notice.failed')} ${error.message}`;
 		}
-		return `${t('vaultSync.notice.failed')} ${error instanceof Error ? error.message : String(error)}`;
+		return t('vaultSync.notice.unreachable', {
+			url: this.settings.serverUrl || '—',
+			message: error instanceof Error ? error.message : String(error),
+		});
 	}
 }
 
 export const vaultSyncModule: ModuleDescriptor<VaultSyncSettings> = {
 	id: 'vault-sync',
-	enabledByDefault: true,
+	// A vault sync before there is a ring has no key, no vault id and nothing to
+	// say. It appears the moment a ring does, switched off, as a thing to turn on.
+	available: (plugin) => hasRing(plugin),
+	enabledByDefault: false,
 	get name() {
 		return t('vaultSync.name');
 	},

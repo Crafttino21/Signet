@@ -343,33 +343,75 @@
 	display: block;
 }
 
-/* Narrow screens
+/* Fitting a phone
  *
- * Obsidian gives a raw `<button>` no mobile treatment: it stays `white-space:
- * nowrap`, and a flex item will not shrink below its content unless it is told
- * to. On a phone the side panel is as wide as the screen, and a label like
- * "Anzeigen, was eine Synchronisierung täte" is wider than that — so without
- * this the buttons stand outside their container and the panel scrolls sideways
- * into nothing.
+ * Everything below exists because a control that cannot shrink does not wrap —
+ * it sticks out. Three defaults conspire:
  *
- * The `overflow-x: hidden` on the containers is the second half: one child that
- * still manages to be too wide opens a scrollable area rather than being clipped,
- * and a sideways scroll with nothing in it is the bug being fixed here.
+ * - Obsidian styles a `<button>` as `white-space: nowrap`, and gives a raw one
+ *   created with `createEl` none of the treatment its own components get.
+ * - A flex or grid item has `min-width: auto`, so it refuses to go narrower than
+ *   its content no matter what the container says.
+ * - `overflow-y: auto` silently computes `overflow-x` to `auto` as well, so a box
+ *   that scrolls vertically will happily scroll sideways into nothing.
+ *
+ * On a phone the side panel is the width of the screen and the labels are German,
+ * so all three fire at once. The rules are scoped to this plugin's own three
+ * surfaces — `.toolbox-panel`, `.toolbox-settings`, `.toolbox-modal` — and never
+ * to Obsidian's classes on their own: a plugin has no business restyling settings
+ * rows that belong to somebody else.
  */
 
 .toolbox-panel,
+.toolbox-settings,
+.toolbox-modal,
 .toolbox-panel__section,
 .toolbox-panel__setup,
-.toolbox-setup__step,
-.toolbox-modal {
+.toolbox-setup__step {
 	min-width: 0;
 	max-width: 100%;
 	overflow-x: hidden;
 }
 
-.toolbox-panel__buttons button,
-.toolbox-panel__setup button,
-.toolbox-sync__actions button {
+/* Obsidian's setting rows, in this plugin's surfaces only. */
+.toolbox-settings .setting-item,
+.toolbox-modal .setting-item {
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
+.toolbox-settings .setting-item-info,
+.toolbox-settings .setting-item-control,
+.toolbox-modal .setting-item-info,
+.toolbox-modal .setting-item-control {
+	min-width: 0;
+	max-width: 100%;
+}
+
+.toolbox-settings .setting-item-name,
+.toolbox-settings .setting-item-description,
+.toolbox-modal .setting-item-name,
+.toolbox-modal .setting-item-description {
+	overflow-wrap: anywhere;
+}
+
+/* A text field defaults to a width in characters, which on a narrow screen is
+ * wider than the screen. */
+.toolbox-settings input[type='text'],
+.toolbox-settings input[type='password'],
+.toolbox-settings textarea,
+.toolbox-modal input[type='text'],
+.toolbox-modal input[type='password'],
+.toolbox-modal textarea {
+	min-width: 0;
+	max-width: 100%;
+	box-sizing: border-box;
+}
+
+/* Every button this plugin puts on screen, raw or built by the Setting API. */
+.toolbox-panel button,
+.toolbox-settings button,
+.toolbox-modal button {
 	min-width: 0;
 	max-width: 100%;
 	height: auto;
@@ -377,12 +419,12 @@
 	overflow-wrap: anywhere;
 }
 
-/* One action per line. Three buttons side by side fit no phone, and a row that
- * wraps in the middle of a label reads worse than a column of whole ones.
+/* One control per line.
  *
- * Both selectors, and not one of them: the media query catches a narrow window on
- * any platform, and `body.is-mobile` catches a tablet, which is a phone as far as
- * these controls are concerned while being nowhere near 600px wide.
+ * Both selectors and not one of them: `body.is-mobile` is the real target, and it
+ * catches a tablet too, which is a phone as far as these controls are concerned
+ * while being nowhere near 600px wide. The media query catches Obsidian squeezed
+ * into a narrow window on a desktop, where there is no such class.
  */
 @media (max-width: 600px) {
 	.toolbox-panel__buttons,
@@ -391,16 +433,25 @@
 		align-items: stretch;
 	}
 
-	/* The footers built by Obsidian's Setting API, in this plugin's modals only. */
+	.toolbox-settings .setting-item,
+	.toolbox-modal .setting-item {
+		flex-direction: column;
+		align-items: stretch;
+		gap: var(--size-4-2);
+	}
+
+	.toolbox-settings .setting-item-control,
 	.toolbox-modal .setting-item-control {
+		width: 100%;
 		flex-wrap: wrap;
 		justify-content: flex-start;
 	}
 
-	.toolbox-modal .setting-item-control button {
-		white-space: normal;
-		overflow-wrap: anywhere;
-		height: auto;
+	.toolbox-settings input[type='text'],
+	.toolbox-settings textarea,
+	.toolbox-modal input[type='text'],
+	.toolbox-modal textarea {
+		width: 100%;
 	}
 
 	.toolbox-ring__code {
@@ -414,25 +465,29 @@ body.is-mobile .toolbox-sync__actions {
 	align-items: stretch;
 }
 
+body.is-mobile .toolbox-settings .setting-item,
+body.is-mobile .toolbox-modal .setting-item {
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--size-4-2);
+}
+
+body.is-mobile .toolbox-settings .setting-item-control,
 body.is-mobile .toolbox-modal .setting-item-control {
+	width: 100%;
 	flex-wrap: wrap;
 	justify-content: flex-start;
 }
 
-body.is-mobile .toolbox-modal .setting-item-control button {
-	white-space: normal;
-	overflow-wrap: anywhere;
-	height: auto;
+body.is-mobile .toolbox-settings input[type='text'],
+body.is-mobile .toolbox-settings textarea,
+body.is-mobile .toolbox-modal input[type='text'],
+body.is-mobile .toolbox-modal textarea {
+	width: 100%;
 }
 
 body.is-mobile .toolbox-ring__code {
 	font-size: var(--font-ui-medium);
-}
-
-/* A modal on a phone is the width of the screen; its own content must not be able
- * to make it wider than that. */
-body.is-mobile .toolbox-modal {
-	max-width: 100%;
 }
 
 /* Sync indicator in the note header

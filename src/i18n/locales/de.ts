@@ -247,6 +247,8 @@ export const de: Translations = {
 	'vaultSync.settings.registrationDesc':
 		'Vom Server, einmalig nötig, um den Vault anzulegen. Wird direkt danach gelöscht und verlässt dieses Gerät nie.',
 	'vaultSync.settings.setUp': 'Einrichten',
+	'vaultSync.settings.moreAfterSetup':
+		'Die übrigen Einstellungen erscheinen, sobald der Server für diesen Vault geantwortet hat.',
 	'vaultSync.settings.confirm': 'Vor Änderungen auf diesem Gerät fragen',
 	'vaultSync.settings.confirmDesc':
 		'Zeigt, was hier ankommt, ersetzt oder in den Papierkorb wandert, und wartet. Beim Hochladen wird nie gefragt.',
@@ -285,6 +287,10 @@ export const de: Translations = {
 		'{done} synchronisiert, {failed} fehlgeschlagen. Verloren ist nichts, der Rest wird beim nächsten Mal erneut versucht.',
 
 	'vaultSync.notice.needsRing': 'Zuerst einen Plugin-Ring erstellen oder beitreten.',
+	'vaultSync.notice.portAdded':
+		'Keine Portangabe, deshalb wurde der übliche ergänzt: {url}. Unter „Erweitert“ änderbar, falls dein Server woanders lauscht.',
+	'vaultSync.notice.unreachable':
+		'Toolbox: {url} war nicht erreichbar. {message} Prüfe die Adresse samt Port — der Server lauscht auf 8787, sofern du das nicht geändert hast.',
 	'vaultSync.notice.badServerUrl':
 		'Das ist keine vollständige Adresse. Sie muss mit http:// oder https:// beginnen, zum Beispiel http://192.168.1.10:8787.',
 	'vaultSync.notice.needsServer': 'Zuerst die Serveradresse eintragen.',
@@ -316,6 +322,7 @@ export const de: Translations = {
 
 	'panel.title': 'Toolbox',
 	'panel.open': 'Toolbox-Leiste öffnen',
+	'panel.available': 'In den Einstellungen einschaltbar: {names}.',
 	'panel.nothing': 'Es ist kein Modul eingeschaltet. In den Einstellungen eines aktivieren.',
 
 	'ring.panel.title': 'Plugin-Ring',

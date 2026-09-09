@@ -14,6 +14,8 @@
  * once on the host rather than once per device.
  */
 
+import { DEFAULT_SYNC_PORT } from '@toolbox/protocol';
+
 /** Who put the current address there. */
 export type ServerUrlSource = 'user' | 'ring';
 
@@ -34,6 +36,45 @@ export function isUsableServerUrl(value: string): boolean {
 /** Trailing slashes only ever cause double slashes further down. */
 export function normaliseServerUrl(value: string): string {
 	return value.trim().replace(/\/+$/, '');
+}
+
+/** An address on this network, where nothing is listening on port 80. */
+function isLocalHost(host: string): boolean {
+	return host === 'localhost' || host.endsWith('.local') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);
+}
+
+/**
+ * Fills in the port nobody types.
+ *
+ * `http://10.112.156.244` is a complete URL and a wrong one: it means port 80,
+ * where nothing is listening, so the machine refuses the connection and the
+ * plugin reports that a server which is plainly running cannot be reached. The
+ * address of a sync server on a home network is not ambiguous — it is 8787
+ * unless someone said otherwise — so it is filled in and said out loud rather
+ * than left as a trap.
+ *
+ * Only for plain http to a local-looking host. `https://sync.example.com` means
+ * 443 and means it, because something in front of the server is terminating TLS.
+ */
+export function completeServerUrl(value: string): string {
+	const url = normaliseServerUrl(value);
+	// Read off the text rather than off `URL.port`, which is empty both when no
+	// port was given and when the one given is the scheme's default. Somebody who
+	// typed `:80` said something, and it is not this function's place to disagree.
+	if (/^[a-z][a-z0-9+.-]*:\/\/[^/]*:\d+/i.test(url)) {
+		return url;
+	}
+
+	try {
+		const parsed = new URL(url);
+		if (parsed.protocol === 'http:' && isLocalHost(parsed.hostname)) {
+			parsed.port = String(DEFAULT_SYNC_PORT);
+			return normaliseServerUrl(parsed.toString());
+		}
+	} catch {
+		// Not a URL at all yet. The caller checks that separately and says so.
+	}
+	return url;
 }
 
 /**

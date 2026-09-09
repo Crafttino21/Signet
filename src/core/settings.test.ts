@@ -94,3 +94,74 @@ describe('migrateSettings', () => {
 		expect(settings.moduleSettings.removed).toEqual({ keep: 'me' });
 	});
 });
+
+/**
+ * Version 3 undoes version 2 for the two sync modules.
+ *
+ * Version 2 switched them on everywhere, on the grounds that they do nothing
+ * until there is a ring. They do nothing visible — but they put a page of
+ * settings in front of someone with no ring and no server, and no way to tell
+ * from the page why none of it works.
+ */
+describe('switching off what is not in use', () => {
+	const sync = [
+		{
+			id: 'vault-sync',
+			name: 'Vault sync',
+			description: '',
+			defaultSettings: {},
+			create: () => {
+				throw new Error('not needed for these tests');
+			},
+		},
+		{
+			id: 'live-collab',
+			name: 'Live editing',
+			description: '',
+			defaultSettings: {},
+			create: () => {
+				throw new Error('not needed for these tests');
+			},
+		},
+	] as unknown as readonly ModuleDescriptor[];
+
+	it('switches them off on a device that never finished setting up', () => {
+		const settings = migrateSettings(
+			{
+				version: 2,
+				enabledModules: { 'vault-sync': true, 'live-collab': true },
+				moduleSettings: { 'vault-sync': { registered: false } },
+			},
+			sync
+		);
+
+		expect(settings.enabledModules).toEqual({ 'vault-sync': false, 'live-collab': false });
+	});
+
+	it('leaves a working sync alone', () => {
+		// The one case where switching it off would take away something that works.
+		const settings = migrateSettings(
+			{
+				version: 2,
+				enabledModules: { 'vault-sync': true, 'live-collab': true },
+				moduleSettings: { 'vault-sync': { registered: true } },
+			},
+			sync
+		);
+
+		expect(settings.enabledModules).toEqual({ 'vault-sync': true, 'live-collab': true });
+	});
+
+	it('runs once and then leaves the choice alone', () => {
+		const settings = migrateSettings(
+			{
+				version: SETTINGS_VERSION,
+				enabledModules: { 'vault-sync': true },
+				moduleSettings: { 'vault-sync': { registered: false } },
+			},
+			sync
+		);
+
+		expect(settings.enabledModules['vault-sync']).toBe(true);
+	});
+});

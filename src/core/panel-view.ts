@@ -51,7 +51,7 @@ export class ToolboxPanelView extends ItemView {
 		// The shortest path from "installed" to "working" belongs at the top, and
 		// disappears once there is nothing left to set up.
 		const outstanding = this.plugin.registry
-			.list()
+			.visible()
 			.flatMap(
 				(descriptor) => this.plugin.registry.getActive(descriptor.id)?.setupStep() ?? []
 			)
@@ -70,7 +70,7 @@ export class ToolboxPanelView extends ItemView {
 		}
 
 		let drew = false;
-		for (const descriptor of this.plugin.registry.list()) {
+		for (const descriptor of this.plugin.registry.visible()) {
 			const module = this.plugin.registry.getActive(descriptor.id);
 			if (!module) {
 				continue;
@@ -86,6 +86,23 @@ export class ToolboxPanelView extends ItemView {
 
 			contentEl.appendChild(section);
 			drew = true;
+		}
+
+		// A module becomes available when its prerequisite appears — the vault sync
+		// once there is a ring, live editing once a server answers. It arrives
+		// switched off, so without this line the only way to find out it is now on
+		// offer would be to go and look.
+		const waiting = this.plugin.registry
+			.visible()
+			.filter((descriptor) => !this.plugin.registry.isEnabled(descriptor.id));
+
+		if (waiting.length > 0) {
+			contentEl.createEl('p', {
+				cls: 'toolbox-panel__state',
+				text: t('panel.available', {
+					names: waiting.map((descriptor) => descriptor.name).join(', '),
+				}),
+			});
 		}
 
 		if (!drew) {

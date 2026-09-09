@@ -20,11 +20,23 @@ export interface ModuleDescriptor<S = unknown> {
 	readonly description: string;
 	readonly defaultSettings: S;
 	/**
-	 * Defaults to false. On for the modules this plugin exists for, which do
-	 * nothing at all until there is a ring; off for anything that reaches outside
-	 * the vault or acts on its own.
+	 * Defaults to false. On only for the ring, which is where everything starts;
+	 * everything else is switched on once it has something to do.
 	 */
 	readonly enabledByDefault?: boolean;
+	/**
+	 * Whether this module has any business being on screen yet. Defaults to true.
+	 *
+	 * A module whose prerequisite is missing is not shown at all — not as a switch,
+	 * not in the panel, not in the setup. Offering the vault sync before there is a
+	 * ring means offering a screen of settings that cannot do anything and cannot
+	 * say why, and the same goes for live editing before a server answers.
+	 *
+	 * This governs display only. Whether a module runs is the user's switch, and a
+	 * module that is on but not yet relevant sits idle rather than being torn down
+	 * and rebuilt as its prerequisite comes and goes.
+	 */
+	available?(plugin: ToolboxPlugin): boolean;
 	create(plugin: ToolboxPlugin): ToolboxModule<S>;
 }
 

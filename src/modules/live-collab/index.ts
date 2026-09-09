@@ -47,6 +47,12 @@ const DEFAULT_SETTINGS: LiveCollabSettings = {
 const RING_MODULE_ID = 'plugin-ring';
 const SYNC_MODULE_ID = 'vault-sync';
 
+/** Whether the vault sync has a server that has answered for this vault. */
+function isSyncRegistered(plugin: ToolboxPlugin): boolean {
+	const sync = plugin.settings.moduleSettings[SYNC_MODULE_ID] as SyncSettings | undefined;
+	return sync?.registered === true && typeof sync.serverUrl === 'string' && sync.serverUrl !== '';
+}
+
 /** How long after the last keystroke the document is written back to the file. */
 const FLUSH_MS = 2_000;
 
@@ -411,7 +417,11 @@ class LiveCollabModule extends ToolboxModule<LiveCollabSettings> {
 
 export const liveCollabModule: ModuleDescriptor<LiveCollabSettings> = {
 	id: 'live-collab',
-	enabledByDefault: true,
+	// It relays keystrokes through the sync server, so it is worth offering only
+	// once this device has one that answers. Before that it could only explain
+	// itself as unavailable, which is a worse thing to read than nothing.
+	available: (plugin) => isSyncRegistered(plugin),
+	enabledByDefault: false,
 	get name() {
 		return t('collab.name');
 	},

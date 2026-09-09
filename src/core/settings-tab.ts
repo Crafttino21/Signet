@@ -44,10 +44,15 @@ export class ToolboxSettingTab extends PluginSettingTab {
 		// stale controls behind whenever a module is switched off.
 		containerEl.empty();
 
-		for (const descriptor of this.plugin.registry.list()) {
-			new Setting(containerEl).setName(descriptor.name).setHeading();
+		// Every module gets its own container: it is what the narrow-screen rules in
+		// styles.css hang off, and Obsidian's setting rows are otherwise loose
+		// children of a tab this plugin does not own.
+		const page = containerEl.createDiv({ cls: 'toolbox-settings' });
 
-			new Setting(containerEl)
+		for (const descriptor of this.plugin.registry.visible()) {
+			new Setting(page).setName(descriptor.name).setHeading();
+
+			new Setting(page)
 				.setName(t('common.enable'))
 				.setDesc(descriptor.description)
 				.addToggle((toggle) =>
@@ -60,7 +65,7 @@ export class ToolboxSettingTab extends PluginSettingTab {
 						})
 				);
 
-			this.plugin.registry.getActive(descriptor.id)?.displaySettings(containerEl);
+			this.plugin.registry.getActive(descriptor.id)?.displaySettings(page);
 		}
 	}
 }

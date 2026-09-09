@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { isUsableServerUrl, normaliseServerUrl, shouldAdopt } from './server-url';
+import {
+	completeServerUrl,
+	isUsableServerUrl,
+	normaliseServerUrl,
+	shouldAdopt,
+} from './server-url';
 import type { ServerUrlSource } from './server-url';
 
 /**
@@ -67,5 +72,34 @@ describe('isUsableServerUrl', () => {
 describe('normaliseServerUrl', () => {
 	it('trims space and trailing slashes', () => {
 		expect(normaliseServerUrl('  http://10.0.0.1:8787/  ')).toBe('http://10.0.0.1:8787');
+	});
+});
+
+describe('completeServerUrl', () => {
+	it('fills in the port for a server on this network', () => {
+		// The bug this exists for: http://10.112.156.244 is a valid URL meaning port
+		// 80, nothing is listening there, and the result is "connection refused" for
+		// a server that is running perfectly well.
+		expect(completeServerUrl('http://10.112.156.244')).toBe('http://10.112.156.244:8787');
+		expect(completeServerUrl('http://localhost')).toBe('http://localhost:8787');
+		expect(completeServerUrl('http://nas.local')).toBe('http://nas.local:8787');
+	});
+
+	it('leaves a port alone once there is one', () => {
+		expect(completeServerUrl('http://10.0.0.1:9000')).toBe('http://10.0.0.1:9000');
+		expect(completeServerUrl('http://10.0.0.1:80')).toBe('http://10.0.0.1:80');
+	});
+
+	it('does not guess for a public name or for https', () => {
+		// A name resolved on the internet, or anything behind TLS, means a proxy is
+		// in front of the server and 443 is the answer the user intended.
+		expect(completeServerUrl('https://10.0.0.1')).toBe('https://10.0.0.1');
+		expect(completeServerUrl('https://sync.example.com')).toBe('https://sync.example.com');
+		expect(completeServerUrl('http://sync.example.com')).toBe('http://sync.example.com');
+	});
+
+	it('hands back anything it cannot read, for the caller to reject', () => {
+		expect(completeServerUrl('  10.0.0.1:8787 ')).toBe('10.0.0.1:8787');
+		expect(completeServerUrl('')).toBe('');
 	});
 });

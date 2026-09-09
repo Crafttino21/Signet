@@ -24,6 +24,15 @@ export class ModuleRegistry {
 		return this.descriptors;
 	}
 
+	/**
+	 * The modules worth showing right now. Everything that draws a surface walks
+	 * this rather than {@link list}, which stays complete because settings are
+	 * stored per module whether or not it is currently relevant.
+	 */
+	visible(): readonly ModuleDescriptor[] {
+		return this.descriptors.filter((descriptor) => descriptor.available?.(this.plugin) ?? true);
+	}
+
 	isEnabled(id: string): boolean {
 		return this.plugin.settings.enabledModules[id] === true;
 	}

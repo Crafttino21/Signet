@@ -30,6 +30,20 @@ so a new module appears there without `core/panel-view.ts` changing. Call
 Settings that exist for unusual setups go inside `advancedSection()`. What is left
 outside it should be what someone actually needs on the first day.
 
+A module that cannot do anything yet is not shown at all. `available()` on the
+descriptor is that gate — the vault sync appears once there is a ring, live
+editing once a server has answered — and it governs the settings tab, the panel
+and the guided setup alike. A module arrives switched off; the panel names what
+has become available so nobody has to go looking. Availability is display only:
+whether a module runs is the user's switch, and one that is on but not yet
+relevant sits idle rather than being torn down and rebuilt as its prerequisite
+comes and goes.
+
+The same principle inside a module: while the vault sync has no server that has
+answered, its settings show the one thing there is to do and say the rest follows.
+A page of controls that cannot say which of them is the one in the way is worse
+than a short page.
+
 ## Text shown to users
 
 Every user-facing string goes through `t()` from `src/i18n`, never inline. Add the
@@ -136,6 +150,10 @@ snapshot announces what it found.
 - An address out of a snapshot is checked for scheme before it is ever used, and so
   is one the host typed — before it is published, not after, because a client drops
   a malformed address silently and there is nowhere to see that happen.
+- A local address without a port gets 8787, and is told so. `http://10.0.0.1` is a
+  valid URL meaning port 80, where nothing is listening, and the result is
+  "connection refused" for a server that is running fine. An explicitly typed port
+  is never second-guessed, including `:80`.
 - The address also rides on the join code, because the snapshot cannot reach a
   device that has never synced. That is a display form only: settings store the
   bare ring code, and `parseRingCode` ignores any suffix.

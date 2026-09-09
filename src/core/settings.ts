@@ -4,7 +4,7 @@ import type { ModuleDescriptor } from './module';
  * Bump this whenever the shape of {@link ToolboxSettings} changes in a way that
  * stored data cannot satisfy on its own, and add a step to {@link runMigrations}.
  */
-export const SETTINGS_VERSION = 2;
+export const SETTINGS_VERSION = 3;
 
 export interface ToolboxSettings {
 	version: number;
@@ -38,7 +38,44 @@ function runMigrations(
 	if (fromVersion < 2) {
 		source = switchOnTheDefaults(source, descriptors);
 	}
+	if (fromVersion < 3) {
+		source = switchOffWhatIsNotInUse(source);
+	}
 	return source;
+}
+
+/** Modules that version 2 switched on for everybody, and what proves one is wanted. */
+const NOT_ON_BY_DEFAULT_ANY_MORE = ['vault-sync', 'live-collab'];
+
+/**
+ * Undoes version 2 for the two modules it should not have covered.
+ *
+ * Version 2 switched the sync on everywhere on the grounds that it does nothing
+ * until there is a ring. It does nothing visible, but it is not nothing: it puts a
+ * screenful of settings in front of someone who has no server, no ring and no way
+ * to tell from the page why none of it works. They are now offered when they have
+ * something to do, which means they have to start off.
+ *
+ * A device that had actually finished setting the sync up keeps it. That is the
+ * one case where switching it off would take away something that was working.
+ */
+function switchOffWhatIsNotInUse(source: Record<string, unknown>): Record<string, unknown> {
+	const stored = isRecord(source.enabledModules) ? source.enabledModules : {};
+	const modules = isRecord(source.moduleSettings) ? source.moduleSettings : {};
+	const sync = isRecord(modules['vault-sync']) ? modules['vault-sync'] : {};
+	if (sync.registered === true) {
+		return source;
+	}
+
+	const enabledModules = { ...stored };
+	for (const id of NOT_ON_BY_DEFAULT_ANY_MORE) {
+		// Only where there is a stored answer to correct. Writing the key otherwise
+		// would invent a flag for a module this build may not even have.
+		if (id in enabledModules) {
+			enabledModules[id] = false;
+		}
+	}
+	return { ...source, enabledModules };
 }
 
 /**

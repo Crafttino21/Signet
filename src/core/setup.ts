@@ -50,7 +50,7 @@ export class SetupModal extends Modal {
 
 	private steps(): SetupStep[] {
 		return this.plugin.registry
-			.list()
+			.visible()
 			.flatMap(
 				(descriptor) => this.plugin.registry.getActive(descriptor.id)?.setupStep() ?? []
 			);

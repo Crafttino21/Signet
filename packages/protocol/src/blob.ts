@@ -55,6 +55,21 @@ export async function deriveBlobId(nameKey: Bytes, contentHash: string): Promise
 	return bytesToHex(new Uint8Array(mac));
 }
 
+/**
+ * The id a note's collaboration room is filed under.
+ *
+ * Keyed with the vault's own name key, exactly like a blob id, so the server can
+ * route updates between the people editing one note without ever learning which
+ * note that is — or that two vaults are editing a file of the same name.
+ */
+export async function deriveRoomId(nameKey: Bytes, path: string): Promise<string> {
+	const key = await subtle().importKey('raw', nameKey, { name: 'HMAC', hash: 'SHA-256' }, false, [
+		'sign',
+	]);
+	const mac = await subtle().sign('HMAC', key, new TextEncoder().encode(`room:${path}`));
+	return bytesToHex(new Uint8Array(mac));
+}
+
 function canCompress(): boolean {
 	return typeof CompressionStream !== 'undefined';
 }

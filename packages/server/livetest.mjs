@@ -10,11 +10,13 @@
  * data — but it does leave that vault behind, since the server never deletes.
  */
 
+import * as Y from 'yjs';
 import {
 	deriveAuthToken,
 	deriveBlobId,
 	deriveContentKey,
 	deriveNameKey,
+	deriveRoomId,
 	deriveVaultId,
 	generateRingSecret,
 	hashAuthToken,
@@ -148,7 +150,133 @@ async function main() {
 		`seq ${woken.seq}`
 	);
 
+	await checkRoom({ base, vaultId, token, contentKey, nameKey });
+
 	console.log(`\nThrowaway vault left behind: ${vaultId}`);
+}
+
+/**
+ * Two devices in one room, against the deployed relay.
+ *
+ * The merge itself is proved by the test suite; what this establishes is that a
+ * real deployment carries it — that the socket upgrade survives whatever proxy
+ * sits in front, that the token is accepted as a subprotocol, and that the room
+ * outlives the connection that filled it.
+ */
+async function checkRoom({ base, vaultId, token, contentKey, nameKey }) {
+	const roomId = await deriveRoomId(nameKey, 'Arbeit/Gemeinsam.md');
+	const url = `${base.replace(/^http/, 'ws')}/v1/vaults/${vaultId}/rooms/${roomId}`;
+
+	const seal = async (bytes) => bytesToBase64(await sealBlob(contentKey, bytes));
+	const open = (payload) => openBlob(contentKey, base64ToBytes(payload));
+
+	const one = await room(url, token);
+	// Every joiner is greeted with the room's history, this one included. Taking it
+	// now means the next frame it sees is genuinely the other device's edit.
+	const greeting = await one.next();
+	check('the first device is greeted', greeting.type === 'history', `frame ${greeting.type}`);
+
+	const first = new Y.Doc();
+	first.getText('content').insert(0, 'Von Gerät eins.\n');
+	one.send({ type: 'update', payload: await seal(Y.encodeStateAsUpdate(first)) });
+
+	const two = await room(url, token);
+	const history = await two.next();
+	check(
+		'a joining device is given the room',
+		history.type === 'history',
+		`frame ${history.type}`
+	);
+
+	const second = new Y.Doc();
+	for (const update of history.updates ?? []) {
+		Y.applyUpdate(second, await open(update));
+	}
+	check(
+		'what it is given decrypts to the text',
+		second.getText('content').toJSON() === 'Von Gerät eins.\n',
+		JSON.stringify(second.getText('content').toJSON())
+	);
+
+	// The other direction, live rather than from storage.
+	second.getText('content').insert(0, 'Von Gerät zwei. ');
+	two.send({ type: 'update', payload: await seal(Y.encodeStateAsUpdate(second)) });
+
+	const relayed = await one.next();
+	check('an edit reaches the other device', relayed.type === 'update', `frame ${relayed.type}`);
+	Y.applyUpdate(first, await open(relayed.payload));
+	check(
+		'both devices end up with the same text',
+		first.getText('content').toJSON() === second.getText('content').toJSON(),
+		JSON.stringify(first.getText('content').toJSON())
+	);
+
+	one.close();
+	two.close();
+
+	const refused = await room(url, 'x'.repeat(64)).then(
+		() => false,
+		() => true
+	);
+	check('a socket with the wrong token is turned away', refused);
+}
+
+/** One socket, queueing frames so nothing that arrives early is missed. */
+function room(url, token) {
+	const socket = new WebSocket(url, [token]);
+	const queued = [];
+	let waiting;
+
+	socket.addEventListener('message', (event) => {
+		const frame = JSON.parse(event.data);
+		if (waiting) {
+			const resolve = waiting;
+			waiting = undefined;
+			resolve(frame);
+		} else {
+			queued.push(frame);
+		}
+	});
+
+	return new Promise((resolve, reject) => {
+		socket.addEventListener('error', () => reject(new Error('socket refused')));
+		socket.addEventListener('open', () =>
+			resolve({
+				send: (frame) => socket.send(JSON.stringify(frame)),
+				next: (timeoutMs = 10_000) =>
+					queued.length > 0
+						? Promise.resolve(queued.shift())
+						: new Promise((got, fail) => {
+								const timer = setTimeout(
+									() => fail(new Error('no frame arrived')),
+									timeoutMs
+								);
+								waiting = (frame) => {
+									clearTimeout(timer);
+									got(frame);
+								};
+							}),
+				close: () => socket.close(),
+			})
+		);
+	});
+}
+
+function bytesToBase64(bytes) {
+	let binary = '';
+	for (const byte of bytes) {
+		binary += String.fromCharCode(byte);
+	}
+	return btoa(binary);
+}
+
+function base64ToBytes(value) {
+	const binary = atob(value);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i += 1) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes;
 }
 
 main().then(

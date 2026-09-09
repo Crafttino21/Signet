@@ -327,6 +327,21 @@ export const en = {
 	'vaultSync.setup.hint':
 		'The address of the sync server you run, and the registration secret from its configuration. The secret is used once and then forgotten.',
 	'vaultSync.setup.connect': 'Connect',
+	'collab.name': 'Live editing',
+	'collab.description':
+		'Lets two devices edit the same note at once and merges the keystrokes, instead of keeping two versions. Uses the same ring and server as the sync.',
+	'collab.panel.title': 'Live editing',
+	'collab.panel.needsSync': 'Needs a ring and a connected server first.',
+	'collab.panel.idle': 'No note is open for live editing.',
+	'collab.panel.alone': 'connected, nobody else here',
+	'collab.panel.peers': 'connected · {count} other device(s)',
+	'collab.panel.offline': 'not connected',
+	'collab.settings.enabled': 'Edit notes together',
+	'collab.settings.enabledDesc':
+		'While a note is open it is kept in step keystroke by keystroke with anyone else who has it open. That note is left out of the ordinary file sync until it is closed, so the two cannot write over each other.',
+	'collab.settings.excluded': 'Never edit these folders together',
+	'collab.settings.excludedDesc': 'One path per line.',
+	'collab.notice.failed': 'Toolbox: could not start live editing for this note.',
 };
 
 export type TranslationKey = keyof typeof en;

@@ -327,4 +327,19 @@ export const de: Translations = {
 	'vaultSync.setup.hint':
 		'Die Adresse deines Sync-Servers und der Registrierungsschlüssel aus seiner Konfiguration. Der Schlüssel wird einmal benutzt und danach vergessen.',
 	'vaultSync.setup.connect': 'Verbinden',
+	'collab.name': 'Gemeinsames Bearbeiten',
+	'collab.description':
+		'Lässt zwei Geräte dieselbe Notiz gleichzeitig bearbeiten und führt die Tastenanschläge zusammen, statt zwei Fassungen zu behalten. Nutzt denselben Ring und Server wie der Sync.',
+	'collab.panel.title': 'Gemeinsames Bearbeiten',
+	'collab.panel.needsSync': 'Braucht zuerst einen Ring und einen verbundenen Server.',
+	'collab.panel.idle': 'Keine Notiz zum gemeinsamen Bearbeiten geöffnet.',
+	'collab.panel.alone': 'verbunden, sonst niemand da',
+	'collab.panel.peers': 'verbunden · {count} weitere(s) Gerät(e)',
+	'collab.panel.offline': 'nicht verbunden',
+	'collab.settings.enabled': 'Notizen gemeinsam bearbeiten',
+	'collab.settings.enabledDesc':
+		'Solange eine Notiz offen ist, wird sie Anschlag für Anschlag mit allen abgeglichen, die sie ebenfalls offen haben. Diese Notiz bleibt so lange aus dem normalen Dateisync heraus, damit beide sich nicht gegenseitig überschreiben.',
+	'collab.settings.excluded': 'Diese Ordner nie gemeinsam bearbeiten',
+	'collab.settings.excludedDesc': 'Ein Pfad pro Zeile.',
+	'collab.notice.failed': 'Toolbox: Gemeinsames Bearbeiten konnte für diese Notiz nicht starten.',
 };

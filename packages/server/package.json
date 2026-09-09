@@ -9,6 +9,7 @@
 		"start": "node dist/server.js"
 	},
 	"dependencies": {
-		"@toolbox/protocol": "0.1.0"
+		"@toolbox/protocol": "0.1.0",
+		"ws": "^8.21.3"
 	}
 }

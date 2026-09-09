@@ -147,12 +147,36 @@ is in your pocket" is not something any plugin can deliver. Self-hosted LiveSync
 reached the same conclusion and requires its own peer-to-peer mode to run in the
 foreground with the screen awake.
 
-### What it does not do yet
+File sync is **file-level**. Two devices editing the same note at the same moment
+would produce a conflicting copy — which is what the next module is for.
 
-Sync is **file-level**, not character-level. Two devices editing the same note at
-the same moment produce a conflicted copy rather than merging keystroke by
-keystroke. Real collaborative editing needs a CRDT layer on top of this — a
-separate and much larger piece of work, not a setting.
+## Live editing
+
+Two devices, one note, at the same time — merged keystroke by keystroke instead of
+kept as two versions. It uses the ring and the server you already have; there is
+nothing extra to set up, and it can be switched off per folder.
+
+While a note is open, it is a **room** on the server. Everything typed goes out as
+an encrypted update and comes back merged, so two people writing in the same
+paragraph end up with one text. Other people's cursors appear in the margin,
+carrying the device name when you point at one. Two seconds after the typing stops,
+the merged text is written to the file on disk.
+
+What makes this safe is a single rule: **while a note is being edited live, the
+session owns it and the file sync leaves it alone.** The two never write the same
+note at once. When the last device closes the note, it goes back to being an
+ordinary file and the next sync picks it up.
+
+Two details are worth knowing, because they are where a naive version loses text:
+
+- A room that already holds something **wins over the file on disk**. Your copy may
+  be older, and seeding from it would throw away what everyone else wrote.
+- If two devices open the same note at the same second and both find an empty room,
+  they seed it **identically** — the seed is built under one fixed identity, so both
+  produce the same bytes and the text appears once rather than twice.
+
+The server relays and stores these updates without being able to read any of them.
+It cannot tell an edit from a cursor position.
 
 ## Sync guardian
 
@@ -330,11 +354,13 @@ src/
     registry.ts            which modules exist, which are running
     settings.ts            settings shape + migration
     settings-tab.ts        one section per module
+    live-editing.ts        which notes a live session owns, so the sync skips them
     obsidian-internals.ts  the one file that touches Obsidian's internal API
   modules/
     index.ts               the module list — the only file a new feature touches
     plugin-ring/           keeps plugins in step across devices
     vault-sync/            syncs notes with your own server, encrypted
+    live-collab/           editing one note on two devices at once
     sync-health/           finds sync conflicts, watches device heartbeats
   i18n/
     index.ts               t() and locale selection

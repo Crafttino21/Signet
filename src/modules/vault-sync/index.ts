@@ -640,7 +640,10 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			client,
 			secret,
 			device: { id: ring.deviceId, name: ring.deviceName },
-			excluded: this.settings.excludedFolders,
+			// A note being edited live belongs to its session until it closes.
+			// Syncing it as a whole file at the same time would have the two writing
+			// over each other, which is the failure this whole project exists to stop.
+			excluded: [...this.settings.excludedFolders, ...this.plugin.liveEditing.list()],
 			state: await this.stateStore().load(ring.deviceId),
 		};
 	}

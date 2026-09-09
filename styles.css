@@ -257,3 +257,75 @@
 .toolbox-panel__setup p {
 	margin: 0 0 var(--size-4-2);
 }
+
+/* Other people's cursors
+ *
+ * y-codemirror.next puts each device's colour on the element itself, so what is
+ * left here is placement: a caret that sits between characters without moving
+ * the text, and a name that only appears when someone points at it. A label
+ * standing permanently over the line would be unreadable with three devices in
+ * one paragraph.
+ */
+
+.cm-ySelection {
+	/* The colour arrives inline; this only keeps it behind the glyphs. */
+	mix-blend-mode: multiply;
+}
+
+.theme-dark .cm-ySelection {
+	mix-blend-mode: screen;
+}
+
+.cm-yLineSelection {
+	padding: 0 var(--size-2-1);
+}
+
+.cm-ySelectionCaret {
+	position: relative;
+	display: inline;
+	box-sizing: border-box;
+	margin-left: -1px;
+	margin-right: -1px;
+	border-left: 1px solid;
+	border-right: 1px solid;
+}
+
+.cm-ySelectionCaretDot {
+	position: absolute;
+	top: -0.2em;
+	left: -0.2em;
+	width: 0.4em;
+	height: 0.4em;
+	border-radius: 50%;
+	background-color: inherit;
+	transform: scale(0);
+	transition: transform 0.2s ease-in-out;
+}
+
+.cm-ySelectionCaret:hover > .cm-ySelectionCaretDot {
+	transform: scale(1);
+}
+
+.cm-ySelectionInfo {
+	position: absolute;
+	top: -1.4em;
+	left: -1px;
+	z-index: var(--layer-popover);
+	padding: 0 var(--size-2-2);
+	border-radius: var(--radius-s);
+	color: var(--text-on-accent);
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smaller);
+	font-style: normal;
+	line-height: 1.4;
+	white-space: nowrap;
+	user-select: none;
+	opacity: 0;
+	transition: opacity 0.2s ease-in-out;
+	transition-delay: 0.2s;
+}
+
+.cm-ySelectionCaret:hover > .cm-ySelectionInfo {
+	opacity: 1;
+	transition-delay: 0s;
+}

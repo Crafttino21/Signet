@@ -2,6 +2,8 @@ import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ConfigError, loadConfig } from './config';
 import { createSyncServer } from './http';
+import { CollabRelay } from './relay';
+import { RoomStore } from './rooms';
 import { VaultStore } from './storage';
 
 /**
@@ -17,6 +19,11 @@ async function main(): Promise<void> {
 	const store = new VaultStore(config.dataDir);
 	const server = createSyncServer(config, store);
 
+	// Collaboration shares the same port and the same credentials; it is another
+	// door into the same vault rather than a second service to expose.
+	const relay = new CollabRelay(store, new RoomStore(config.dataDir));
+	relay.attach(server);
+
 	server.listen(config.port, config.host, () => {
 		console.log(`Toolbox sync server listening on ${config.host}:${String(config.port)}`);
 		console.log(`Data directory: ${config.dataDir}`);
@@ -24,6 +31,7 @@ async function main(): Promise<void> {
 
 	const shutdown = (signal: string): void => {
 		console.log(`${signal} received, closing.`);
+		relay.close();
 		server.close(() => process.exit(0));
 	};
 	process.on('SIGTERM', () => shutdown('SIGTERM'));

@@ -131,8 +131,10 @@ export default defineConfig(
 			'@typescript-eslint/no-unsafe-assignment': 'off',
 			'import/no-extraneous-dependencies': 'off',
 			// Tests run under Node, not in Obsidian: temporary directories and real
-			// sockets are how an integration test earns its name.
+			// sockets are how an integration test earns its name. There is no popout
+			// window there either, and no `window` object to hang a timer off.
 			'obsidianmd/no-nodejs-modules': 'off',
+			'obsidianmd/prefer-window-timers': 'off',
 		},
 	},
 

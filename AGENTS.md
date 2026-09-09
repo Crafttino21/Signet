@@ -114,6 +114,27 @@ The wire format and cryptography live in `packages/protocol` and are shared with
 the server. Never reimplement either on one side only; drift between the ends of
 a sync protocol is what loses data.
 
+## Live editing
+
+`src/modules/live-collab` puts an open note into a Yjs document and relays sealed
+updates through the server. The rules that keep it from destroying text:
+
+- One writer per note. A note claimed in `src/core/live-editing.ts` belongs to its
+  session; the file sync must exclude every path in `liveEditing.list()`. Two
+  writers on one note is the failure this whole project exists to prevent.
+- A room with history wins over the file on disk. Only an empty room is seeded, and
+  the seed is built under a fixed client id so two devices racing to seed the same
+  file produce identical bytes rather than the text twice.
+- Never echo a remote update back into the room. Updates that arrived from the
+  socket are applied with the session as origin, and that origin is what the send
+  path checks.
+- Writing back to disk only happens when the text actually differs. An identical
+  write still moves the modification time, which the file sync reads as a change.
+
+Getting from a note to its CodeMirror view goes through `editor-binding.ts`, which
+uses `editorInfoField` and a `Compartment` — both exported by Obsidian. Do not
+reach for the undocumented `.cm` property on a Markdown view.
+
 ## Privacy
 
 The plugin works offline and stays that way: no network calls, no telemetry, no

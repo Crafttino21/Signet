@@ -1,5 +1,6 @@
 import { Plugin } from 'obsidian';
 import { initI18n, t } from './i18n';
+import { LiveEditingRegistry } from './core/live-editing';
 import { ModuleRegistry } from './core/registry';
 import { TOOLBOX_PANEL_TYPE, ToolboxPanelView } from './core/panel-view';
 import { migrateSettings } from './core/settings';
@@ -18,6 +19,14 @@ export default class ToolboxPlugin extends Plugin {
 	// Plugin declares `settings?: unknown` and expects subclasses to narrow it.
 	override settings!: ToolboxSettings;
 	registry!: ModuleRegistry;
+	/**
+	 * Notes currently owned by a live editing session.
+	 *
+	 * Shared rather than messaged between modules because the file sync reads it on
+	 * every reconcile and must see the current answer — a stale copy would mean
+	 * writing over somebody's typing.
+	 */
+	readonly liveEditing = new LiveEditingRegistry();
 
 	override async onload(): Promise<void> {
 		// Before anything renders a label.

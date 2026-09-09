@@ -72,6 +72,45 @@ export interface ErrorResponse {
 	error: string;
 }
 
+/**
+ * Frames on the collaboration socket.
+ *
+ * The server routes these without being able to read them: `payload` is a sealed
+ * blob, so an update, a presence ping and a whole document history all look the
+ * same to it. It knows how many bytes moved between which connections, and that
+ * is all.
+ */
+export type RoomFrame =
+	/** Everything the room has so far, sent once when a client joins. */
+	| { type: 'history'; updates: string[]; generation: number }
+	/** One document change, relayed to everyone else and appended to the log. */
+	| { type: 'update'; payload: string }
+	/** Who is editing and where their cursor is. Never stored. */
+	| { type: 'presence'; payload: string }
+	/**
+	 * A merged replacement for the log so far.
+	 *
+	 * A room's history grows with every keystroke, so a client that has just
+	 * rebuilt the whole document offers it back compacted. The old generation is
+	 * kept rather than deleted, in keeping with the rest of the server.
+	 */
+	| { type: 'compact'; payload: string; generation: number }
+	| { type: 'error'; message: string };
+
+export function isRoomFrame(value: unknown): value is RoomFrame {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const candidate = value as { type?: unknown };
+	return (
+		candidate.type === 'history' ||
+		candidate.type === 'update' ||
+		candidate.type === 'presence' ||
+		candidate.type === 'compact' ||
+		candidate.type === 'error'
+	);
+}
+
 /** Both sides build their URLs from here, so a typo cannot go unnoticed. */
 export const routes = {
 	register: (vaultId: string) => `/v1/vaults/${vaultId}/register`,
@@ -80,6 +119,7 @@ export const routes = {
 	push: (vaultId: string) => `/v1/vaults/${vaultId}/commits`,
 	blob: (vaultId: string, blobId: string) => `/v1/vaults/${vaultId}/blobs/${blobId}`,
 	health: () => '/v1/health',
+	room: (vaultId: string, roomId: string) => `/v1/vaults/${vaultId}/rooms/${roomId}`,
 } as const;
 
 export function isVaultManifest(value: unknown): value is VaultManifest {

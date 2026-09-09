@@ -7,9 +7,11 @@ import { secretsMatch, sha256Hex } from './storage';
 import type { VaultStore } from './storage';
 
 /**
- * The HTTP surface. Deliberately tiny and dependency-free: the whole server is
- * `node:http` plus the filesystem, so there is no framework to keep patched on a
- * machine that holds someone's notes.
+ * The HTTP surface. Deliberately tiny: `node:http` plus the filesystem, with no
+ * framework to keep patched on a machine that holds someone's notes. The one
+ * dependency in the whole server is `ws`, for the collaboration relay — hand
+ * rolling WebSocket framing would have been fiddly bit manipulation in exactly
+ * the place where a mistake is a security bug.
  *
  * Every route needs a bearer token derived from the ring code, except health and
  * registration. The server only ever compares hashes, so its own disk never holds

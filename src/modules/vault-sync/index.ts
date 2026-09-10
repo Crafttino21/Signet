@@ -106,8 +106,6 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	private live?: LiveSession;
 	/** The commit this device is known to hold, so the live loop knows what to wait past. */
 	private seq = 0;
-	private state: SyncState = 'off';
-	private lastSummary: string | undefined;
 	private status?: HTMLElement;
 	private indicator?: SyncIndicator;
 
@@ -268,18 +266,13 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	}
 
 	/**
-	 * Moves the indicators and redraws the panel.
+	 * Moves the indicators.
 	 *
-	 * On mobile there is no status bar, so that element may be absent. The note
-	 * header and the panel are the surfaces that exist everywhere, and they carry
-	 * the same information.
+	 * On mobile there is no status bar, so that element may be absent — the
+	 * indicator in the note header is the surface that exists everywhere, which
+	 * is why the panel no longer carries this at all.
 	 */
-	private setState(state: SyncState, summary?: string): void {
-		this.state = state;
-		if (summary !== undefined) {
-			this.lastSummary = summary;
-		}
-
+	private setState(state: SyncState): void {
 		if (this.status) {
 			this.status.setText(t(`vaultSync.status.${state}`));
 			this.status.setAttribute('aria-label', t('vaultSync.status.tooltip'));
@@ -287,7 +280,6 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			this.status.toggleClass('toolbox-status--live', state === 'live');
 		}
 		this.indicator?.setState(state);
-		this.refreshPanel();
 	}
 
 	override setupStep(): SetupStep | undefined {
@@ -347,81 +339,6 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					);
 			},
 		};
-	}
-
-	override displayPanel(containerEl: HTMLElement): void {
-		containerEl.createEl('h3', { text: t('vaultSync.panel.title') });
-
-		const ready = this.settings.registered;
-		containerEl.createEl('p', {
-			cls: 'toolbox-panel__state',
-			text: ready
-				? t('vaultSync.panel.ready', { seq: this.seq })
-				: this.ring()?.role === 'client'
-					? // Something on its way, unless nothing is coming — a device that
-						// joined before the host had a server hears nothing ever again.
-						this.settings.serverUrl
-						? t('vaultSync.panel.waitingForRing')
-						: t('vaultSync.panel.strandedClient')
-					: t('vaultSync.panel.notSetUp'),
-		});
-		containerEl.createEl('p', {
-			cls:
-				this.state === 'error'
-					? 'toolbox-panel__state toolbox-panel__state--warn'
-					: 'toolbox-panel__state',
-			text:
-				this.lastSummary === undefined
-					? t('vaultSync.panel.never')
-					: t('vaultSync.panel.lastRun', { summary: this.lastSummary }),
-		});
-
-		// Which server, and whether this device was told or chose. Without it the
-		// commonest failure — a device pointed at an address nothing answers on —
-		// looks exactly like a device that is simply idle.
-		if (this.settings.serverUrl) {
-			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state',
-				text:
-					this.settings.serverUrlSource === 'ring'
-						? t('vaultSync.panel.serverFromRing', { url: this.settings.serverUrl })
-						: t('vaultSync.panel.serverManual', { url: this.settings.serverUrl }),
-			});
-		}
-
-		if (!ready) {
-			if (this.settings.serverUrl) {
-				const waiting = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
-				waiting
-					.createEl('button', { text: t('vaultSync.settings.test') })
-					.addEventListener('click', () => void this.testConnection());
-				waiting
-					.createEl('button', { text: t('vaultSync.setup.checkAgain') })
-					.addEventListener('click', () => void this.claim(false));
-			}
-			return;
-		}
-
-		// Conflicted copies are this module's own doing — it makes them rather than
-		// merging when both sides changed — so it is the one that has to surface
-		// them. Left uncounted they pile up in folders nobody opens.
-		const conflicts = this.app.vault
-			.getFiles()
-			.filter((file) => matchConflictName(file.path) !== undefined).length;
-		if (conflicts > 0) {
-			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state toolbox-panel__state--warn',
-				text: t('vaultSync.panel.conflicts', { count: conflicts }),
-			});
-		}
-
-		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
-		buttons
-			.createEl('button', { text: t('vaultSync.command.sync'), cls: 'mod-cta' })
-			.addEventListener('click', () => void this.sync());
-		buttons
-			.createEl('button', { text: t('vaultSync.command.preview') })
-			.addEventListener('click', () => void this.preview());
 	}
 
 	/**
@@ -533,6 +450,20 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 
 	override displaySettings(containerEl: HTMLElement): void {
 		const ring = this.ring();
+
+		// Conflicted copies are this module's own doing — it keeps both versions
+		// rather than merging when both sides changed — so it is the one that has
+		// to surface them. Left uncounted they pile up in folders nobody opens,
+		// and a copy nobody looks at is the same as a lost edit.
+		const conflicts = this.app.vault
+			.getFiles()
+			.filter((file) => matchConflictName(file.path) !== undefined).length;
+		if (conflicts > 0) {
+			containerEl.createEl('p', {
+				cls: 'toolbox-ring__warning',
+				text: t('vaultSync.settings.conflicts', { count: conflicts }),
+			});
+		}
 
 		if (!ring) {
 			containerEl.createEl('p', {
@@ -794,7 +725,6 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		}
 		await this.patchSettings({ registered: false });
 		this.seq = 0;
-		this.lastSummary = undefined;
 		this.setState('off');
 		this.refreshUi();
 	}
@@ -1036,11 +966,10 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					? 'error'
 					: this.settings.liveSync && this.live?.isRunning
 						? 'live'
-						: 'idle',
-				summary
+						: 'idle'
 			);
 		} catch (error) {
-			this.setState('error', this.explain(error));
+			this.setState('error');
 			new Notice(this.explain(error));
 		} finally {
 			this.running = false;

@@ -130,6 +130,12 @@ travel by the sync and measure it.
   would leave a ring nobody is publishing.
 - A device's own heartbeat is the only file it writes there, and another
   device's goes to the trash rather than being deleted.
+- Another device's heartbeat arrives as an ordinary file write, so the roster is
+  re-read on vault events in that folder and when the panel finds it stale. The
+  host runs none of the client paths, so without that it read the roster once at
+  startup and never again — which is exactly how a phone stays invisible.
+- The panel is the ring and nothing else. A module with settings puts them in
+  the settings; `displayPanel` is for what only the panel can answer.
 
 ## Vault sync
 

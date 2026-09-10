@@ -90,6 +90,9 @@ const STALE_AFTER_MINUTES = 15;
 /** How often this device writes itself into the roster. */
 const BEAT_EVERY_MINUTES = 5;
 
+/** How old the roster on screen may be before opening the panel re-reads it. */
+const ROSTER_MAX_AGE_MS = 30_000;
+
 const DEFAULT_SETTINGS: PluginRingSettings = {
 	code: null,
 	role: null,
@@ -177,6 +180,21 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		};
 		this.registerEvent(this.app.vault.on('create', noticed));
 		this.registerEvent(this.app.vault.on('modify', noticed));
+
+		// Another device's heartbeat arrives as an ordinary file, written by the
+		// sync. Without this the roster was read once at startup and never again —
+		// so a phone that joined afterwards never appeared, and on the host, which
+		// runs none of the client paths above, nothing was ever re-read at all.
+		const rosterFolder = `${this.ringFolder()}/devices`;
+		const rosterTouched = (file: unknown): void => {
+			if (file instanceof TFile && file.path.startsWith(`${rosterFolder}/`)) {
+				this.rosterDirty = true;
+				void this.refreshDevices();
+			}
+		};
+		this.registerEvent(this.app.vault.on('create', rosterTouched));
+		this.registerEvent(this.app.vault.on('modify', rosterTouched));
+		this.registerEvent(this.app.vault.on('delete', rosterTouched));
 		this.registerEvent(
 			this.app.vault.on('delete', (file) => {
 				if (file instanceof TFile && file.path === this.ringFile().path) {
@@ -356,6 +374,13 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	 * out what actually revoking access takes.
 	 */
 	private renderDevices(containerEl: HTMLElement): void {
+		// Drawing is synchronous, so the list on screen is whatever was last read.
+		// A read is started when it has gone stale, and the redraw it ends with
+		// brings the fresh one — the age check is what stops that looping.
+		if (this.rosterDirty || Date.now() - this.rosterReadAt > ROSTER_MAX_AGE_MS) {
+			void this.refreshDevices();
+		}
+
 		containerEl.createEl('h4', { text: t('ring.panel.devices') });
 
 		if (this.devices.length === 0) {
@@ -639,6 +664,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		});
 
 		await this.publish();
+		await this.beat();
+		await this.refreshDevices();
 		this.refreshUi();
 		this.showCode();
 	}
@@ -724,6 +751,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			// no snapshot here yet, and with the address there does not need to be.
 			// The device reaches the server and pulls the vault, ring file included.
 			announceAddress();
+			void this.beat();
 			void this.refreshFileVerdict();
 			this.refreshUi();
 			new Notice(
@@ -759,6 +787,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			announceAddress();
 		}
 
+		await this.beat();
 		this.refreshUi();
 		new Notice(t('ring.notice.joined', { host: snapshot.host.name }));
 		await this.check();
@@ -1156,6 +1185,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	private fileVerdict: RingFileVerdict | undefined;
 	/** The roster, as last read. The panel draws from this rather than the disk. */
 	private devices: DeviceHealth[] = [];
+	private rosterReadAt = 0;
+	private rosterDirty = false;
 	/** The ciphertext last read, so an unchanged file is not read again. */
 	private lastSeen: string | undefined;
 	/** A mismatched code is a fact, not an event: worth saying once per session. */
@@ -1174,10 +1205,15 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 	// --- the roster ---------------------------------------------------------
 
-	private roster(): DeviceRoster {
+	/** The folder the ring file lives in; the roster sits beside it. */
+	private ringFolder(): string {
 		const path = this.ringFile().path;
 		const slash = path.lastIndexOf('/');
-		return new DeviceRoster(this.app, `${slash < 0 ? '' : path.slice(0, slash)}/devices`);
+		return slash < 0 ? '' : path.slice(0, slash);
+	}
+
+	private roster(): DeviceRoster {
+		return new DeviceRoster(this.app, `${this.ringFolder()}/devices`);
 	}
 
 	/** Writes this device into the roster. Its own file, so nothing can conflict. */
@@ -1200,6 +1236,9 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 	/** Re-reads the roster for the panel. Cheap: a handful of small JSON files. */
 	private async refreshDevices(): Promise<void> {
+		this.rosterReadAt = Date.now();
+		this.rosterDirty = false;
+
 		if (this.settings.role === null) {
 			this.devices = [];
 			this.refreshPanel();
@@ -1244,6 +1283,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		// continue from, which the publish path works out on its own.
 		if (snapshot.host.id === this.settings.deviceId && this.settings.role !== 'host') {
 			await this.patchSettings({ role: 'host', hostId: this.settings.deviceId });
+			await this.beat();
 			this.refreshUi();
 			new Notice(t('ring.notice.becameHost'));
 		}

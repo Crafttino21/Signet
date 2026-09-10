@@ -96,7 +96,7 @@ export class ShowCodeModal extends Modal {
 			});
 		}
 
-		this.contentEl.createDiv({ cls: 'toolbox-ring__code', text: this.shown });
+		this.renderCode();
 
 		// Only offered when there is something to leave out. The short code is for
 		// the case where the other device reaches the server somewhere else — over a
@@ -124,6 +124,30 @@ export class ShowCodeModal extends Modal {
 					);
 				})
 		);
+	}
+
+	/**
+	 * The code, with the address told apart from the ring itself.
+	 *
+	 * They look like one string and are not: the first four groups are the ring
+	 * secret and never change for the life of the ring, and the rest is the
+	 * server address, which appears once a server exists. Printed as one block
+	 * that made the code look as though it had changed — so a code written down
+	 * earlier looked wrong, when in fact it still works and only costs the other
+	 * device one typed address.
+	 */
+	private renderCode(): void {
+		const groups = this.shown.split('-');
+		// TBX1 plus four groups of six is the 24-character secret, exactly.
+		const ring = groups.slice(0, 5).join('-');
+		const address = groups.slice(5).join('-');
+
+		const block = this.contentEl.createDiv({ cls: 'toolbox-ring__code' });
+		block.createSpan({ text: ring });
+		if (address !== '') {
+			block.createSpan({ cls: 'toolbox-ring__code-server', text: `-${address}` });
+			this.contentEl.createEl('p', { cls: 'toolbox-ring__hint', text: t('ring.code.parts') });
+		}
 	}
 
 	override onClose(): void {

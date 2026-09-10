@@ -526,3 +526,13 @@ body.is-mobile .toolbox-ring__code {
 	color: var(--text-faint);
 	font-size: var(--font-ui-smaller);
 }
+
+/* The server address at the end of a join code.
+ *
+ * Told apart from the ring itself, which never changes: printed as one string
+ * the code looked as though it had changed the moment a server was connected,
+ * and a code written down before that looked out of date when it still works.
+ */
+.toolbox-ring__code-server {
+	color: var(--text-muted);
+}

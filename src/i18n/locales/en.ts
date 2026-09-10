@@ -139,6 +139,8 @@ export const en = {
 		'This code carries no server address, because none is set up yet. Set the sync server up first, then show the code again — every device that joins with it then needs nothing else. A device that already joined with this code has to be told the address by hand.',
 	'ring.code.addressNotInCode':
 		'The address {url} does not fit into a code. A code carries a plain address like http://192.168.1.10:8787 — not one with a path, a query, or an IPv6 host. Every device joining with this code has to be given the address by hand, under Advanced in its sync settings.',
+	'ring.code.parts':
+		'The first four groups are the ring itself and never change. The greyed tail is the server address, which appeared when the server was connected — so a shorter code written down before then is not out of date: it still joins this ring, and the device that uses it is asked for the address instead.',
 	'ring.code.includeServer': 'Include the server address',
 	'ring.code.includeServerDesc':
 		'Switch off if the other device reaches the server at a different address — over a VPN, or by a name this network does not know.',
@@ -218,6 +220,8 @@ export const en = {
 	'vaultSync.settings.setUp': 'Set up',
 	'vaultSync.settings.moreAfterSetup':
 		'The rest of the settings appear once the server has answered for this vault.',
+	'vaultSync.settings.conflicts':
+		'{count} conflicted copies in this vault. Both versions of a note were kept, and neither has been looked at since.',
 	'vaultSync.settings.confirm': 'Ask before changing files here',
 	'vaultSync.settings.confirmDesc':
 		'Shows what would arrive, be replaced or be trashed on this device, and waits. Uploading never asks.',

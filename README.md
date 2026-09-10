@@ -15,11 +15,12 @@ decisions in the order they depend on each other — a ring first, because its c
 is the key to everything else, then the server. The panel shows how many steps are
 left until it works, and the prompt disappears once none are.
 
-Everything is managed from one place. The wrench in the ribbon opens a side panel
-listing every device in the ring — what each is called, when it was last here, and
-which one is the host — with the ring's and the sync's own state above it. Every
-open note carries the sync state in its header, which is the one indicator that
-exists on a phone; the desktop keeps a status bar item as well.
+The wrench in the ribbon opens a side panel, and the panel is the ring: every
+device in it, what each is called, when it was last here, which one is the host.
+Nothing else lives there — the sync and live editing have settings, and settings
+belong in the settings. Every open note carries the sync state in its header,
+which is the one indicator that exists on a phone; the desktop keeps a status
+bar item as well.
 
 Settings that exist for unusual setups rather than everyday use sit behind an
 **Advanced** fold that starts closed, so the two or three that matter are not
@@ -149,7 +150,8 @@ registration secret to carry around.
 
 ### The code carries the address
 
-**Show code** hands out a slightly longer code:
+**Show code** hands out a slightly longer code, with the address greyed apart
+from the ring itself:
 
 ```
 TBX1-K3M9PQ-R7XZ2W-8HTVBN-4CDFG5-019R9S-X0
@@ -176,6 +178,11 @@ snapshot, but the snapshot is an ordinary vault file: it reaches a new device on
 once something has synced, and nothing can sync until the device knows where the
 server is. Everything else a device needs it derives from the secret it has just
 been given, so the address is the one thing that has to be said out loud.
+
+The first four groups are the ring itself and never change for its lifetime. Only
+the tail appears, when a server is connected — so a shorter code written down
+before that is not out of date: it still joins this ring, and the device using it
+is asked for the address instead of being handed it.
 
 The address is no more secret than the code it hangs off. Anyone holding the code
 can read the ring, and the ring says where the server is. A device that reaches the

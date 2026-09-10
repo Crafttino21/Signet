@@ -119,41 +119,6 @@ class LiveCollabModule extends ToolboxModule<LiveCollabSettings> {
 
 	// --- panel and settings -------------------------------------------------
 
-	override displayPanel(containerEl: HTMLElement): void {
-		containerEl.createEl('h3', { text: t('collab.panel.title') });
-
-		if (!this.ready()) {
-			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state',
-				text: t('collab.panel.needsSync'),
-			});
-			return;
-		}
-
-		const live = [...this.sessions.entries()];
-		if (live.length === 0) {
-			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state',
-				text: t('collab.panel.idle'),
-			});
-			return;
-		}
-
-		const list = containerEl.createEl('ul', { cls: 'toolbox-sync__list' });
-		for (const [path, session] of live) {
-			const row = list.createEl('li', { cls: 'toolbox-sync__row' });
-			row.createSpan({ cls: 'toolbox-sync__name', text: path });
-			row.createSpan({
-				cls: session.connected ? 'toolbox-sync__meta' : 'toolbox-sync__warn',
-				text: session.connected
-					? session.peers === 0
-						? t('collab.panel.alone')
-						: t('collab.panel.peers', { count: session.peers })
-					: t('collab.panel.offline'),
-			});
-		}
-	}
-
 	override displaySettings(containerEl: HTMLElement): void {
 		new Setting(containerEl)
 			.setName(t('collab.settings.enabled'))

@@ -137,6 +137,8 @@ export const de: Translations = {
 		'Dieser Code enthält keine Serveradresse, weil noch keine eingerichtet ist. Richte zuerst den Sync-Server ein und zeig den Code dann erneut — jedes Gerät, das damit beitritt, braucht danach nichts weiter. Einem Gerät, das mit diesem Code schon beigetreten ist, musst du die Adresse von Hand nennen.',
 	'ring.code.addressNotInCode':
 		'Die Adresse {url} passt nicht in einen Code. Ein Code trägt eine schlichte Adresse wie http://192.168.1.10:8787 — keine mit Pfad, Abfrage oder IPv6-Host. Jedem Gerät, das mit diesem Code beitritt, musst du die Adresse von Hand nennen, in seinen Sync-Einstellungen unter „Erweitert".',
+	'ring.code.parts':
+		'Die ersten vier Gruppen sind der Ring selbst und ändern sich nie. Der graue Rest ist die Serveradresse, die dazukam, als der Server verbunden wurde — ein vorher notierter, kürzerer Code ist also nicht veraltet: er führt weiterhin in diesen Ring, das Gerät wird dann nur nach der Adresse gefragt.',
 	'ring.code.includeServer': 'Serveradresse mitgeben',
 	'ring.code.includeServerDesc':
 		'Ausschalten, wenn das andere Gerät den Server unter einer anderen Adresse erreicht — über ein VPN oder unter einem Namen, den dieses Netz nicht kennt.',
@@ -216,6 +218,8 @@ export const de: Translations = {
 	'vaultSync.settings.setUp': 'Einrichten',
 	'vaultSync.settings.moreAfterSetup':
 		'Die übrigen Einstellungen erscheinen, sobald der Server für diesen Vault geantwortet hat.',
+	'vaultSync.settings.conflicts':
+		'{count} Konfliktkopien in diesem Vault. Beide Fassungen einer Notiz wurden behalten, und seitdem hat keine davon jemand angesehen.',
 	'vaultSync.settings.confirm': 'Vor Änderungen auf diesem Gerät fragen',
 	'vaultSync.settings.confirmDesc':
 		'Zeigt, was hier ankommt, ersetzt oder in den Papierkorb wandert, und wartet. Beim Hochladen wird nie gefragt.',

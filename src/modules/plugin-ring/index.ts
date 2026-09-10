@@ -144,6 +144,11 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 
 		void this.ensureDeviceIdentity();
 
+		// What was true when this device last looked. The vault is asked again as
+		// soon as it can be — below, once the file index is populated — but until
+		// then the last answer beats no answer.
+		this.ringPath = this.settings.ringFilePath || DEFAULT_SETTINGS.ringFilePath;
+
 		this.addCommand({
 			id: 'ring-create',
 			name: t('ring.command.create'),
@@ -180,13 +185,18 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		// creation, and listening only for modifications missed exactly the case a
 		// device waiting to join is waiting for.
 		const noticed = (file: unknown): void => {
-			if (
-				file instanceof TFile &&
-				file.path === this.ringFile().path &&
-				this.settings.role === 'client'
-			) {
-				void this.notifyIfNewer();
+			if (!(file instanceof TFile) || !this.ringPathCandidates().includes(file.path)) {
+				return;
 			}
+			// A file arriving at either of this plugin's two paths can change which
+			// one the ring lives at — a host on this build publishing for the first
+			// time is exactly that — so the question is asked again before the
+			// answer is used.
+			void this.resolveRingPath().then(() => {
+				if (file.path === this.ringFile().path && this.settings.role === 'client') {
+					void this.notifyIfNewer();
+				}
+			});
 		};
 		this.registerEvent(this.app.vault.on('create', noticed));
 		this.registerEvent(this.app.vault.on('modify', noticed));
@@ -195,9 +205,11 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		// sync. Without this the roster was read once at startup and never again —
 		// so a phone that joined afterwards never appeared, and on the host, which
 		// runs none of the client paths above, nothing was ever re-read at all.
-		const rosterFolder = `${this.ringFolder()}/devices`;
+		// Asked for on every event rather than captured here: which folder the
+		// roster is in follows the ring file, and where that is is not settled yet
+		// while onload runs.
 		const rosterTouched = (file: unknown): void => {
-			if (file instanceof TFile && file.path.startsWith(`${rosterFolder}/`)) {
+			if (file instanceof TFile && file.path.startsWith(`${this.ringFolder()}/devices/`)) {
 				this.rosterDirty = true;
 				void this.refreshDevices();
 			}
@@ -207,8 +219,10 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		this.registerEvent(this.app.vault.on('delete', rosterTouched));
 		this.registerEvent(
 			this.app.vault.on('delete', (file) => {
-				if (file instanceof TFile && file.path === this.ringFile().path) {
-					void this.refreshFileVerdict();
+				// Deleting the old file is how the move away from it finishes, so this
+				// re-reads where the ring is as well as what is in it.
+				if (file instanceof TFile && this.ringPathCandidates().includes(file.path)) {
+					void this.resolveRingPath().then(() => this.refreshFileVerdict());
 				}
 			})
 		);
@@ -247,7 +261,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		});
 
 		this.app.workspace.onLayoutReady(() => {
-			void this.keepLegacyRingPath().then(() => this.refreshFileVerdict());
+			void this.resolveRingPath().then(() => this.refreshFileVerdict());
 			this.warnAboutConflictCopies();
 			void this.beat().then(() => this.refreshDevices());
 
@@ -669,10 +683,13 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			.setName(t('ring.settings.file'))
 			.setDesc(t('ring.settings.fileDesc'))
 			.addText((text) =>
-				text.setValue(this.settings.ringFilePath).onChange(async (value) => {
+				text.setValue(this.ringPath).onChange(async (value) => {
 					await this.patchSettings({
 						ringFilePath: value.trim() || DEFAULT_SETTINGS.ringFilePath,
 					});
+					// A typed path is a decision and outranks anything found in the
+					// vault; clearing the box hands the choice back.
+					await this.resolveRingPath();
 				})
 			);
 
@@ -810,7 +827,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		// The ring being joined may have been made while this plugin went by its
 		// old name, in which case its file is at the old path and the default
 		// points somewhere empty.
-		await this.keepLegacyRingPath();
+		await this.resolveRingPath();
 
 		let state = await this.ringFile().read();
 
@@ -1032,6 +1049,11 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			return false;
 		}
 
+		// Where the ring is, before anything is written over it. A device that has
+		// been open since before the file arrived, or since before another device
+		// moved it to the new path, would otherwise publish into the wrong one.
+		await this.resolveRingPath();
+
 		const file = this.ringFile();
 		const state = await file.read();
 
@@ -1090,7 +1112,15 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 				sync: this.plugin.ringLink.contribution(),
 				removed: this.settings.removedIds,
 			});
-			await file.write(await sealSnapshot(secret, snapshot));
+			// Written to every path the ring answers at, not just the one it was read
+			// from: that is what moves a ring off the old name without cutting off a
+			// device still running the build that only knows the old one.
+			const envelope = await sealSnapshot(secret, snapshot);
+			for (const target of await ringWriteTargets(this.settings.ringFilePath, (path) =>
+				this.exists(path)
+			)) {
+				await new RingFile(this.app, target).write(envelope);
+			}
 			count = snapshot.plugins.length;
 		} catch (error) {
 			console.error('Signet: could not write the ring file.', error);
@@ -1102,6 +1132,10 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			);
 			return false;
 		}
+
+		// The publish above may have been the one that created the file at the new
+		// path, in which case this device is now reading from somewhere else.
+		await this.resolveRingPath();
 
 		await this.patchSettings({ lastPublishedSeq: seq });
 		this.refreshUi();
@@ -1245,6 +1279,12 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			return undefined;
 		}
 
+		// Checking is the one thing a client does on purpose, so it is worth the
+		// question: the ring may have moved to the new path since this device was
+		// opened, and "there is no ring file" is a bad answer to give about a file
+		// that is sitting in the vault under the other name.
+		await this.resolveRingPath();
+
 		const state = await this.ringFile().read();
 		if (state.status !== 'ok') {
 			if (!options.quiet) {
@@ -1371,28 +1411,66 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 	private warnedAboutMismatch = false;
 
 	/**
-	 * Notices that this ring still lives at the old path, and stays with it.
+	 * Where the ring file is, as of the last time anything could have moved it.
 	 *
-	 * `ringFilePath` is a per-device setting that the ring does not carry, so a
-	 * device joining an existing ring with a new default would look in a folder
-	 * nobody writes to and conclude the ring has no file. The default only
-	 * applies to rings made from here on.
+	 * Held here rather than worked out on demand because everything that draws —
+	 * the panel, the settings tab — is synchronous, and finding out takes asking
+	 * the vault. Kept current by {@link resolveRingPath}, which runs at startup,
+	 * before anything is written, and whenever a file appears or goes at either
+	 * of the paths this plugin has used.
 	 */
-	private async keepLegacyRingPath(): Promise<void> {
-		if (this.settings.ringFilePath !== DEFAULT_SETTINGS.ringFilePath) {
+	private ringPath = DEFAULT_SETTINGS.ringFilePath;
+
+	/**
+	 * Whether a path holds a file, asked the way the ring file itself asks.
+	 *
+	 * The index first, because that is cheap, then the disk — a sync client can
+	 * drop the ring file in while Obsidian is running, and until it is indexed a
+	 * file that plainly exists is invisible to `getFileByPath`. Deciding where
+	 * the ring lives from the index alone was how a phone that had just synced
+	 * concluded the ring had no file and started a second one.
+	 */
+	private async exists(path: string): Promise<boolean> {
+		if (this.app.vault.getFileByPath(path)) {
+			return true;
+		}
+		try {
+			return await this.app.vault.adapter.exists(path);
+		} catch {
+			return false;
+		}
+	}
+
+	/**
+	 * Works out where the ring file is and remembers the answer.
+	 *
+	 * The path is a property of the ring rather than of this device, so it is
+	 * read from the vault every time it might have changed instead of being
+	 * decided once and stored. The setting is kept in step with it so that what
+	 * the advanced section shows is where the file actually is.
+	 */
+	private async resolveRingPath(): Promise<void> {
+		const path = await locateRingFile(this.settings.ringFilePath, (candidate) =>
+			this.exists(candidate)
+		);
+		if (path === this.ringPath) {
 			return;
 		}
-		if (this.app.vault.getFileByPath(DEFAULT_SETTINGS.ringFilePath)) {
-			return;
+
+		this.ringPath = path;
+		if (this.settings.ringFilePath !== path) {
+			await this.patchSettings({ ringFilePath: path });
 		}
-		if (!this.app.vault.getFileByPath(LEGACY_RING_FILE)) {
-			return;
-		}
-		await this.patchSettings({ ringFilePath: LEGACY_RING_FILE });
+		this.refreshUi();
+	}
+
+	/** The paths a change to could move the ring: where it is, and where it could be. */
+	private ringPathCandidates(): string[] {
+		return [this.ringPath, RING_FILE, LEGACY_RING_FILE];
 	}
 
 	private ringFile(): RingFile {
-		return new RingFile(this.app, this.settings.ringFilePath || DEFAULT_SETTINGS.ringFilePath);
+		return new RingFile(this.app, this.ringPath);
 	}
 
 	private deviceName(): string {

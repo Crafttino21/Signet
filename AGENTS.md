@@ -99,6 +99,9 @@ elsewhere. Three rules are not negotiable:
 - Nothing is installed unless Obsidian's curated community list contains it, the
   release manifest exists, and that manifest declares the same id. An id in a
   snapshot is never on its own a reason to fetch and run code.
+- A run somebody asked for reports back; one that ran on its own does not, unless
+  it failed. A button that works in silence reads as a button that did nothing,
+  and an unattended sync that announces itself is a notice every few seconds.
 - A notice is for something that just happened. A ring file that has not arrived
   yet, a device still waiting for a host: those are states, they belong in the
   panel, and a notice repeats them on every start and every write forever. What

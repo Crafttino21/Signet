@@ -55,6 +55,8 @@ type VaultSyncSettings = {
 	liveSync: boolean;
 	/** Catch up as soon as Obsidian is opened or brought back to the front. */
 	syncOnStart: boolean;
+	/** Say what every unattended run did. Off: with live sync that is constant. */
+	announceRuns: boolean;
 };
 
 const DEFAULT_SETTINGS: VaultSyncSettings = {
@@ -72,6 +74,9 @@ const DEFAULT_SETTINGS: VaultSyncSettings = {
 	// all. It only runs while Obsidian is on screen and costs one parked request.
 	liveSync: true,
 	syncOnStart: true,
+	// Off. A sync nobody asked for reporting back is a notice every few seconds
+	// on a vault being edited, and what it did is in the panel either way.
+	announceRuns: false,
 };
 
 const RING_MODULE_ID = 'plugin-ring';
@@ -599,6 +604,15 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		this.renderServerField(advanced);
 
 		new Setting(advanced)
+			.setName(t('vaultSync.settings.announce'))
+			.setDesc(t('vaultSync.settings.announceDesc'))
+			.addToggle((toggle) =>
+				toggle.setValue(this.settings.announceRuns).onChange(async (value) => {
+					await this.patchSettings({ announceRuns: value });
+				})
+			);
+
+		new Setting(advanced)
 			.setName(t('vaultSync.settings.interval'))
 			.setDesc(t('vaultSync.settings.intervalDesc'))
 			.addText((text) =>
@@ -997,7 +1011,16 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			this.seq = state.baseSeq;
 
 			const summary = describeReport(report);
-			if (!quiet || !isQuiet(report)) {
+			// A run somebody asked for always reports back — a button that does its
+			// work in silence reads as a button that did nothing. A run that started
+			// on its own says nothing unless it went wrong, because with live sync on
+			// it happens every few seconds. Either way the panel and the indicator in
+			// the note header carry the result.
+			if (
+				!quiet ||
+				report.failed.length > 0 ||
+				(this.settings.announceRuns && !isQuiet(report))
+			) {
 				new Notice(summary);
 			}
 			for (const failure of report.failed) {

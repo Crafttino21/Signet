@@ -276,6 +276,9 @@ export const de: Translations = {
 	'vaultSync.settings.confirm': 'Vor Änderungen auf diesem Gerät fragen',
 	'vaultSync.settings.confirmDesc':
 		'Zeigt, was hier ankommt, ersetzt oder in den Papierkorb wandert, und wartet. Beim Hochladen wird nie gefragt.',
+	'vaultSync.settings.announce': 'Jeden automatischen Sync melden',
+	'vaultSync.settings.announceDesc':
+		'Eine Meldung, sobald ein Sync, den niemand angestoßen hat, etwas bewegt. Aus, weil das mit Live-Sync eine Meldung alle paar Sekunden ist. Was ein Lauf getan hat, steht ohnehin im Panel und in der Titelleiste der Notiz, und was fehlschlägt, meldet sich in jedem Fall.',
 	'vaultSync.settings.interval': 'Automatisch synchronisieren alle',
 	'vaultSync.settings.intervalDesc': 'Minuten. 0 schaltet es ab. Wirkt nach einem Neustart.',
 	'vaultSync.settings.excluded': 'Diese Ordner nicht synchronisieren',

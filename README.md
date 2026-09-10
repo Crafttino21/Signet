@@ -233,6 +233,12 @@ reason it is not running.
 
 ### Seeing what it is doing
 
+A sync you asked for reports back. One that ran on its own does not — with
+**Keep open devices in step** on that would be a notice every few seconds — so
+it stays quiet unless something failed. What every run did is in the panel and
+in the note header regardless, and **Report every automatic sync** under
+Advanced turns the notices on if you would rather watch them.
+
 Every open note carries the sync state in its header: idle, working, live, or a
 problem. That is the one place an indicator can live on a phone, where Obsidian has
 no status bar at all — the desktop keeps its status bar item as well. A note being

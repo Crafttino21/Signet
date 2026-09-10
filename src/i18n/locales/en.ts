@@ -275,6 +275,9 @@ export const en = {
 	'vaultSync.settings.confirm': 'Ask before changing files here',
 	'vaultSync.settings.confirmDesc':
 		'Shows what would arrive, be replaced or be trashed on this device, and waits. Uploading never asks.',
+	'vaultSync.settings.announce': 'Report every automatic sync',
+	'vaultSync.settings.announceDesc':
+		'A notice each time a sync nobody asked for moves something. Off, because with live sync on that is a notice every few seconds. What a run did is always in the panel and in the note header, and anything that fails speaks up either way.',
 	'vaultSync.settings.interval': 'Sync automatically every',
 	'vaultSync.settings.intervalDesc': 'Minutes. 0 switches it off. Takes effect after a restart.',
 	'vaultSync.settings.excluded': 'Do not sync these folders',

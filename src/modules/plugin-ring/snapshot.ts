@@ -1,6 +1,7 @@
 import type { App } from 'obsidian';
 import type { PluginApi } from '../../core/obsidian-internals';
 import { readPluginData } from './plugin-data';
+import { isOwnId } from './self';
 import { SNAPSHOT_VERSION } from './types';
 import type { LocalPlugin, RingSnapshot } from './types';
 
@@ -23,13 +24,19 @@ export interface SnapshotOptions {
  * Signet is skipped outright. Its own `data.json` holds the ring secret, so
  * including it would both publish the secret into the snapshot and give a client
  * the means to overwrite its own ring state with the host's.
+ *
+ * Under both its names, which is not tidiness. The move out of the old folder
+ * copies rather than deletes, so a device that has been through the rename still
+ * has `toolbox` sitting under `plugins/` with a manifest — and Obsidian reports
+ * it as installed like any other. Filtering on the current id alone published
+ * the old folder's `data.json`, ring secret included. See `self.ts`.
  */
 export async function collectLocalPlugins(
 	app: App,
 	api: PluginApi,
 	selfId: string
 ): Promise<LocalPlugin[]> {
-	const installed = api.listInstalled().filter((plugin) => plugin.id !== selfId);
+	const installed = api.listInstalled().filter((plugin) => !isOwnId(plugin.id, selfId));
 
 	return Promise.all(
 		installed.map(async (plugin) => ({

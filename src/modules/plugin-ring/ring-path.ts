@@ -47,10 +47,11 @@ export function chosenRingPath(setting: string): string | undefined {
 /**
  * Where this device's ring file is right now.
  *
- * The new path wins when both files are there, because that is the direction the
- * ring is moving in: a host on this build publishes to both (see
- * {@link ringWriteTargets}), so a `Signet/` file is by definition at least as
- * fresh as the `Toolbox/` one beside it.
+ * The new path wins when both files are there, and it is not a close call: the
+ * ring is moved there once and nothing writes the old file afterwards, so a
+ * `Toolbox/` file sitting beside a `Signet/` one is a leftover by definition.
+ * The old path is still looked at, because a device updating late still has its
+ * ring there and nowhere else, and that is the moment this has to work.
  */
 export async function locateRingFile(setting: string, exists: Exists): Promise<string> {
 	const chosen = chosenRingPath(setting);
@@ -67,19 +68,47 @@ export async function locateRingFile(setting: string, exists: Exists): Promise<s
 }
 
 /**
- * Every path a publish has to write.
+ * Every path a publish has to write. One, now.
  *
- * Always the new one, so a ring still living under the old name moves across the
- * first time its host publishes and every device on this build finds it in the
- * same place from then on. Plus the old one, but only while it is already there:
- * a device still running the build called Toolbox reads that file and nothing
- * else, and leaving it to go stale would strand it. The copy stops being written
- * the day the old file is deleted, which is the migration finishing itself.
+ * For a while this also wrote the old path, so that a device still running the
+ * build called Toolbox — which reads that file and nothing else — kept following
+ * the ring. That device has been retired, so the copy stops: writing a second
+ * file nobody reads is how a vault fills up with things that look like they
+ * matter, and every one of them is another chance for the two to disagree.
+ *
+ * Reading the old path did not go with it. A device that updates late still has
+ * its ring under the old name and needs to be found there exactly once — see
+ * {@link locateRingFile}. What changed is that nothing puts anything back.
  */
-export async function ringWriteTargets(setting: string, exists: Exists): Promise<string[]> {
+export function ringWriteTargets(setting: string): string[] {
+	return [chosenRingPath(setting) ?? RING_FILE];
+}
+
+/** The folder a ring file's roster sits in. Bare `devices` for a ring file at the root. */
+export function rosterFolderFor(ringPath: string): string {
+	const slash = ringPath.lastIndexOf('/');
+	return slash < 0 ? 'devices' : `${ringPath.slice(0, slash)}/devices`;
+}
+
+/**
+ * Every folder the roster answers at. The first is the only one written to.
+ *
+ * Written: always the new one, so every device agrees on a single folder whatever
+ * state the ring file happens to be in.
+ *
+ * Read: that one, plus an old folder if it is still lying there. Nothing writes
+ * it any more, so what it holds is the last thing a device said before it was
+ * updated or retired — which is worth showing rather than hiding, because the
+ * roster carries each device's version and that is how a straggler is spotted.
+ * It is never created, and deleting it is how this move ends for good.
+ */
+export async function rosterFolders(setting: string, exists: Exists): Promise<string[]> {
 	const chosen = chosenRingPath(setting);
 	if (chosen) {
-		return [chosen];
+		return [rosterFolderFor(chosen)];
 	}
-	return (await exists(LEGACY_RING_FILE)) ? [RING_FILE, LEGACY_RING_FILE] : [RING_FILE];
+
+	const mine = rosterFolderFor(RING_FILE);
+	const old = rosterFolderFor(LEGACY_RING_FILE);
+	return (await exists(old)) ? [mine, old] : [mine];
 }

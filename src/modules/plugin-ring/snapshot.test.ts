@@ -81,6 +81,40 @@ describe('building a snapshot', () => {
 		expect(snapshot.plugins.map((plugin) => plugin.id)).not.toContain(SELF);
 	});
 
+	it('never publishes the folder it used to live in either', async () => {
+		// The move out of the old folder copies rather than deletes, so `toolbox`
+		// is still sitting under `plugins/` with a manifest and Obsidian reports it
+		// as installed like anything else. Publishing it meant publishing that
+		// folder's data.json — the ring code, the vault id, the content key.
+		const fake = new FakeApp({
+			manifests: [
+				{ id: 'alpha', name: 'Alpha', version: '1.0.0' },
+				{ id: SELF, name: 'Signet', version: '0.1.0' },
+				{ id: 'toolbox', name: 'Toolbox', version: '0.1.18' },
+			],
+			enabled: ['alpha', 'toolbox'],
+			files: {
+				'.obsidian/plugins/alpha/data.json': JSON.stringify({ mode: 'dark' }),
+				'.obsidian/plugins/toolbox/data.json': JSON.stringify({ secret: 'TBX1-…' }),
+			},
+		});
+		const app = fake as unknown as App;
+		const api = PluginApi.detect(app);
+		if (!api) {
+			throw new Error('PluginApi should recognise the fake app');
+		}
+
+		const snapshot = await buildSnapshot(app, api, {
+			selfId: SELF,
+			excludedIds: [],
+			host,
+			seq: 1,
+		});
+
+		expect(snapshot.plugins.map((plugin) => plugin.id)).toEqual(['alpha']);
+		expect(JSON.stringify(snapshot)).not.toContain('TBX1');
+	});
+
 	it('drops the settings of an excluded plugin but keeps the plugin', async () => {
 		const { app, api } = setup();
 

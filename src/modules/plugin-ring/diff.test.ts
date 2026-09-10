@@ -185,3 +185,35 @@ describe('planApply', () => {
 		expect(planApply(forged, snapshot, { selfId: SELF })).toEqual([]);
 	});
 });
+
+describe('the name this plugin used to have', () => {
+	/**
+	 * A leftover `toolbox` folder is reported as an installed plugin, and a device
+	 * still on that build names it in what it publishes. Under the current id
+	 * alone it came back as an ordinary plugin: a client with no such folder was
+	 * told to fetch "toolbox" from a community list that has never contained it,
+	 * and a client that had one got the host's ring code written into it.
+	 */
+	it('is not something to install, switch off or carry settings for', () => {
+		const snapshot = snapshotOf([
+			entry({ id: 'toolbox', enabled: true, settings: { secret: 'TBX1-…' } }),
+			entry({ id: 'alpha' }),
+		]);
+
+		const items = computeDiff([local({ id: 'alpha' })], snapshot, {
+			...options,
+			canInstall: true,
+		});
+
+		expect(items.map((item) => item.id)).not.toContain('toolbox');
+		expect(planApply(items, snapshot, options).map((plan) => plan.id)).not.toContain('toolbox');
+	});
+
+	it('is not reported as an extra when this device still has the folder', () => {
+		// "Extra" is harmless in itself, but it is a line in a list somebody reads
+		// and acts on, about a plugin that is this one.
+		const items = computeDiff([local({ id: 'toolbox' })], snapshotOf([]), options);
+
+		expect(items).toEqual([]);
+	});
+});

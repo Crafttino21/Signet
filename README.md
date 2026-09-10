@@ -402,6 +402,42 @@ Devices are given a made-up name on first run — _Quiet Otter 07_ — because a
 list of three devices all called "Desktop" is not one you can act on. Rename any
 of them in the plugin ring settings; clear the field and a fresh name appears.
 
+## Coming from Toolbox
+
+This was called Toolbox until it grew a sync service of its own and stopped
+being a box of small tools. Obsidian identifies a plugin by the id in its
+manifest and gives it a folder named after that id, so the new name is, as far
+as Obsidian is concerned, a different plugin with an empty folder — and that
+folder is where the ring code lives.
+
+So the first start after the update carries `data.json` and the sync state
+across from `.obsidian/plugins/toolbox/`, switches the old copy off if it is
+still running, and says so. Two copies in one vault is the thing worth avoiding:
+they write two heartbeats under two device ids, both answer a publish, and both
+sync the same notes to the same server. The old folder is copied rather than
+moved, so it is still there to look at; delete it once everything looks right.
+
+The ring file moved from `Toolbox/plugin-ring.json` to `Signet/plugin-ring.json`
+the same way. Where it is is worked out from the vault rather than remembered,
+never decided once and stored — two devices in one vault disagreeing about which
+file is the ring is a ring that shares nothing. A device that still finds it only
+under the old name copies it across at startup, envelope for envelope, before it
+writes anything: same ring, same sequence, nothing republished. From then on
+`Signet/` is the only place anything is written.
+
+Which makes `Toolbox/` disposable, and that is the point — delete it. Nothing
+recreates it and nothing puts anything back. An old roster left inside it is
+still read while it is there, so a device that has not been updated yet is still
+listed with the version it is running, which is how you find the last one.
+
+Two things do not migrate:
+
+- **Custom hotkeys.** Obsidian stores them as `<plugin id>:<command>` in
+  `.obsidian/hotkeys.json`, outside any plugin's folder, so anything bound to
+  `toolbox:…` has to be set again.
+- **The server's container name.** See `packages/server/README.md` — the volume
+  and the environment variables are unchanged, the container is not.
+
 ## Languages
 
 The interface follows Obsidian's own language setting. English and German are

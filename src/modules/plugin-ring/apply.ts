@@ -2,6 +2,7 @@ import type { App } from 'obsidian';
 import type { PluginApi } from '../../core/obsidian-internals';
 import type { InstallOutcome } from './installer';
 import { writePluginData } from './plugin-data';
+import { isOwnId } from './self';
 import type { PluginPlan } from './types';
 
 export interface ApplyFailure {
@@ -74,8 +75,9 @@ export async function applyPlans(
 
 	for (const plan of plans) {
 		// Third and last guard against acting on ourselves. Disabling the plugin
-		// that is running this loop would end the loop silently, mid-way.
-		if (plan.id === deps.selfId) {
+		// that is running this loop would end the loop silently, mid-way — and the
+		// old name is us too, however a plan came to name it.
+		if (isOwnId(plan.id, deps.selfId)) {
 			continue;
 		}
 

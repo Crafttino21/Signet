@@ -1,3 +1,4 @@
+import { isOwnId, ownIds } from './self';
 import type { DiffItem, DiffReason, LocalPlugin, PluginPlan, RingSnapshot } from './types';
 
 export interface DiffOptions {
@@ -56,7 +57,10 @@ export function computeDiff(
 	snapshot: RingSnapshot,
 	options: DiffOptions
 ): DiffItem[] {
-	const ignored = new Set([options.selfId, ...(options.ignoredIds ?? [])]);
+	// Both of this plugin's names, never just the current one: a leftover
+	// `toolbox` folder is reported as installed, and a snapshot from a device
+	// still on that build names it. See `self.ts`.
+	const ignored = new Set([...ownIds(options.selfId), ...(options.ignoredIds ?? [])]);
 	const localById = new Map(
 		local.filter((plugin) => !ignored.has(plugin.id)).map((p) => [p.id, p])
 	);
@@ -156,8 +160,8 @@ export function planApply(
 
 	for (const item of items) {
 		// Second line of defence: Signet must never end up in an operation, no
-		// matter what a snapshot claims.
-		if (!item.actionable || item.id === options.selfId) {
+		// matter what a snapshot claims — under either of its names.
+		if (!item.actionable || isOwnId(item.id, options.selfId)) {
 			continue;
 		}
 

@@ -1,5 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
+import { ensureFolder, pathExists } from '../../core/vault-fs';
 
 /**
  * Who else is in this ring, and when each of them was last here.
@@ -139,24 +140,61 @@ export function buildRoster(beats: readonly Heartbeat[], options: RosterOptions)
 		});
 }
 
-/** The heartbeat files, one per device. */
+/**
+ * The heartbeat files, one per device.
+ *
+ * Given every folder the roster answers at rather than one, because the roster
+ * moved when the ring file did and nothing carried it across: updated devices
+ * beat into `Signet/devices` while anything still on the old build beat into
+ * `Toolbox/devices`, and each half read only its own and concluded it was alone.
+ *
+ * The first folder is this device's own and the only one written to. The rest
+ * are read — and forgotten from, or a device somebody removed would keep coming
+ * back from a copy nobody is maintaining. Nothing is written into them and none
+ * of them is created: they hold what a device said before it was updated, which
+ * is worth showing while it is there and worth losing the moment it is deleted.
+ *
+ * Reading and writing go through the index first and the disk second. The index
+ * is not the disk — a sync client drops files into an open vault and they exist
+ * before Obsidian lists them — and asking the index alone was the second half of
+ * the same bug: `createFolder` throws on a folder that is on disk but not
+ * indexed, `beat()` logged the throw and moved on, and that device wrote no
+ * heartbeat again for as long as it stayed open.
+ */
 export class DeviceRoster {
-	readonly folder: string;
+	readonly folders: string[];
 
 	constructor(
 		private readonly app: App,
-		folder: string
+		folders: readonly string[]
 	) {
-		this.folder = normalizePath(folder);
+		// Deduplicated, because the two names collapse into one as soon as the old
+		// ring file is deleted, and writing the same file twice is not free.
+		this.folders = [...new Set(folders.map((folder) => normalizePath(folder)))];
 	}
 
-	private pathFor(deviceId: string): string {
+	/** Where this device writes itself. The others are kept in step. */
+	get folder(): string {
+		return this.folders[0] ?? normalizePath('devices');
+	}
+
+	private pathIn(folder: string, deviceId: string): string {
 		// Device ids are UUIDs, but a stray separator would escape the folder.
-		return normalizePath(`${this.folder}/${deviceId.replace(/[^\w-]/g, '')}.json`);
+		return normalizePath(`${folder}/${deviceId.replace(/[^\w-]/g, '')}.json`);
 	}
 
+	/**
+	 * Writes this device's heartbeat, into one folder and no other.
+	 *
+	 * The old folder was kept in step for as long as a device was still running
+	 * the build that reads it. None is, so writing there would only recreate a
+	 * folder somebody deleted on purpose and leave a heartbeat nobody reads.
+	 */
 	async write(beat: Heartbeat): Promise<void> {
-		const path = this.pathFor(beat.deviceId);
+		const folder = this.folder;
+		await ensureFolder(this.app, folder);
+
+		const path = this.pathIn(folder, beat.deviceId);
 		const contents = JSON.stringify(beat, null, 2);
 
 		const existing = this.app.vault.getFileByPath(path);
@@ -165,46 +203,102 @@ export class DeviceRoster {
 			return;
 		}
 
-		if (!this.app.vault.getFolderByPath(this.folder)) {
-			await this.app.vault.createFolder(this.folder);
+		// The same gap one level down: `create` refuses a path that is already on
+		// disk, so a heartbeat the index has not caught up with could never be
+		// rewritten and this device would go on looking absent.
+		if (await pathExists(this.app, path)) {
+			await this.app.vault.adapter.write(path, contents);
+			return;
 		}
+
 		await this.app.vault.create(path, contents);
 	}
 
-	/** Every readable heartbeat. Unreadable ones are skipped, not reported. */
+	/**
+	 * Every readable heartbeat, from every folder. Unreadable ones are skipped.
+	 *
+	 * One row per device, because a device that was in the ring before the rename
+	 * has a file under the old name as well as the current one. The newest
+	 * `updatedAt` wins: nothing writes the old folder any more, so what is in it
+	 * can only be older, and a leftover must never make a device that is plainly
+	 * here look like it left.
+	 */
 	async readAll(): Promise<Heartbeat[]> {
-		const folder = this.app.vault.getFolderByPath(this.folder);
-		if (!folder) {
-			return [];
+		const newest = new Map<string, Heartbeat>();
+
+		for (const folder of this.folders) {
+			for (const beat of await this.readFolder(folder)) {
+				const seen = newest.get(beat.deviceId);
+				if (!seen || Date.parse(beat.updatedAt) > Date.parse(seen.updatedAt)) {
+					newest.set(beat.deviceId, beat);
+				}
+			}
 		}
 
+		return [...newest.values()];
+	}
+
+	private async readFolder(folder: string): Promise<Heartbeat[]> {
+		const indexed = this.app.vault.getFolderByPath(folder);
 		const beats: Heartbeat[] = [];
-		for (const file of this.app.vault.getFiles()) {
-			if (file.parent?.path !== folder.path || file.extension !== 'json') {
-				continue;
-			}
-			try {
-				const parsed: unknown = JSON.parse(await this.app.vault.read(file));
-				if (isHeartbeat(parsed)) {
-					beats.push(parsed);
+
+		if (indexed) {
+			for (const file of this.app.vault.getFiles()) {
+				if (file.parent?.path !== indexed.path || file.extension !== 'json') {
+					continue;
 				}
-			} catch {
-				// A file caught mid-write is not news; the next read gets it.
+				const beat = await this.readOne(() => this.app.vault.read(file));
+				if (beat) {
+					beats.push(beat);
+				}
 			}
+			return beats;
+		}
+
+		// Not indexed does not mean not there. A phone that has just been opened
+		// while its sync was landing has a folder full of heartbeats that
+		// `getFolderByPath` knows nothing about, and reporting an empty roster is
+		// how every other device in the ring stopped being listed.
+		try {
+			const listing = await this.app.vault.adapter.list(folder);
+			for (const path of listing.files) {
+				if (!path.endsWith('.json')) {
+					continue;
+				}
+				const beat = await this.readOne(() => this.app.vault.adapter.read(path));
+				if (beat) {
+					beats.push(beat);
+				}
+			}
+		} catch {
+			// No such folder. Nothing has ever beaten here, which is not news.
 		}
 		return beats;
+	}
+
+	private async readOne(read: () => Promise<string>): Promise<Heartbeat | undefined> {
+		try {
+			const parsed: unknown = JSON.parse(await read());
+			return isHeartbeat(parsed) ? parsed : undefined;
+		} catch {
+			// A file caught mid-write is not news; the next read gets it.
+			return undefined;
+		}
 	}
 
 	/**
 	 * Drops a device's heartbeat, so it stops appearing in the roster.
 	 *
-	 * To the trash rather than deleted: it is another device's file, and every
-	 * other removal in this plugin goes the same way.
+	 * From every folder, or the copy under the other name would put it straight
+	 * back. To the trash rather than deleted: it is another device's file, and
+	 * every other removal in this plugin goes the same way.
 	 */
 	async forget(deviceId: string): Promise<void> {
-		const file = this.app.vault.getFileByPath(this.pathFor(deviceId));
-		if (file) {
-			await this.app.fileManager.trashFile(file);
+		for (const folder of this.folders) {
+			const file = this.app.vault.getFileByPath(this.pathIn(folder, deviceId));
+			if (file) {
+				await this.app.fileManager.trashFile(file);
+			}
 		}
 	}
 }

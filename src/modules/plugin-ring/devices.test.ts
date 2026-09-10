@@ -1,13 +1,16 @@
 import { describe, expect, it } from 'vitest';
+import type { App } from 'obsidian';
 import {
 	BEAT_EVERY_MINUTES,
 	buildRoster,
+	DeviceRoster,
 	HERE_WITHIN_MINUTES,
 	isHeartbeat,
 	isHereNow,
 } from './devices';
 import type { DeviceHealth, Heartbeat } from './devices';
 import { randomDeviceName } from '../../core/device-name';
+import { FakeVault } from '../../test/fake-vault';
 
 /**
  * The roster is the list somebody acts on — removes a device, hands the ring
@@ -142,5 +145,157 @@ describe('isHereNow', () => {
 
 	it('does not guess for an unreadable timestamp', () => {
 		expect(isHereNow(device(undefined))).toBe(false);
+	});
+});
+
+/**
+ * Reading and writing the heartbeat files themselves.
+ *
+ * Two bugs met here and emptied the device list on every device at once. The
+ * roster follows the ring file, and the ring file moved out of `Toolbox/`
+ * without it — so half the fleet beat into one folder and read the other. And
+ * everything went through the index, which is not the disk: a folder a sync
+ * client had already created made `createFolder` throw, `beat()` logged it and
+ * carried on, and that device wrote no heartbeat again while it stayed open.
+ */
+
+const NEW = 'Signet/devices';
+const OLD = 'Toolbox/devices';
+
+function heartbeat(id: string, name: string, at: string): Heartbeat {
+	return { deviceId: id, deviceName: name, updatedAt: at };
+}
+
+describe('the heartbeat files', () => {
+	it('reads every folder the roster answers at', async () => {
+		const vault = new FakeVault();
+		vault.put(
+			`${NEW}/phone.json`,
+			JSON.stringify(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'))
+		);
+		vault.put(
+			`${OLD}/laptop.json`,
+			JSON.stringify(heartbeat('laptop', 'Laptop', '2026-09-10T11:00:00.000Z'))
+		);
+
+		const roster = new DeviceRoster(vault.app as App, [NEW, OLD]);
+
+		expect((await roster.readAll()).map((beat) => beat.deviceId).sort()).toEqual([
+			'laptop',
+			'phone',
+		]);
+	});
+
+	it('shows a device once, from whichever copy is newer', async () => {
+		// The same device writes itself into both, and one it wrote before the
+		// rename may still be lying under the old name. A leftover must not make a
+		// device that is plainly here look like it left.
+		const vault = new FakeVault();
+		vault.put(
+			`${OLD}/phone.json`,
+			JSON.stringify(heartbeat('phone', 'Phone', '2026-09-01T09:00:00.000Z'))
+		);
+		vault.put(
+			`${NEW}/phone.json`,
+			JSON.stringify(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'))
+		);
+
+		const beats = await new DeviceRoster(vault.app as App, [NEW, OLD]).readAll();
+
+		expect(beats).toHaveLength(1);
+		expect(beats[0]?.updatedAt).toBe('2026-09-10T11:00:00.000Z');
+	});
+
+	it('reads a folder that is on disk and not in the index', async () => {
+		// What a phone opened while its sync was landing actually has. Reporting an
+		// empty roster here is how every other device stopped being listed.
+		const vault = new FakeVault();
+		vault.hidden.set(
+			`${NEW}/laptop.json`,
+			JSON.stringify(heartbeat('laptop', 'Laptop', '2026-09-10T11:00:00.000Z'))
+		);
+
+		const beats = await new DeviceRoster(vault.app as App, [NEW]).readAll();
+
+		expect(beats.map((beat) => beat.deviceId)).toEqual(['laptop']);
+	});
+
+	it('says nothing rather than throwing when no device has ever beaten', async () => {
+		const vault = new FakeVault();
+
+		await expect(new DeviceRoster(vault.app as App, [NEW]).readAll()).resolves.toEqual([]);
+	});
+
+	it('writes into a folder that is on disk and not in the index', async () => {
+		// `createFolder` throws on exactly this, and the throw was swallowed one
+		// level up — so the device wrote no heartbeat and vanished from every list
+		// including its own.
+		const vault = new FakeVault();
+		vault.hidden.set(`${NEW}/laptop.json`, '{}');
+
+		const roster = new DeviceRoster(vault.app as App, [NEW]);
+		await expect(
+			roster.write(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'))
+		).resolves.toBeUndefined();
+
+		expect((await roster.readAll()).map((beat) => beat.deviceId)).toContain('phone');
+	});
+
+	it('writes into one folder and leaves the old one alone', async () => {
+		// The old folder was kept in step while a device still ran the build that
+		// reads it. None does, so a heartbeat there would only be a file nobody
+		// reads in a folder somebody wants gone.
+		const vault = new FakeVault();
+		vault.put(`${OLD}/laptop.json`, '{}');
+		const roster = new DeviceRoster(vault.app as App, [NEW, OLD]);
+
+		await roster.write(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'));
+
+		expect(vault.text(`${NEW}/phone.json`)).toBeDefined();
+		expect(vault.text(`${OLD}/phone.json`)).toBeUndefined();
+		// And what is already in the old one is still read, so the device that
+		// wrote it is still listed.
+		expect((await roster.readAll()).map((beat) => beat.deviceId)).toContain('phone');
+	});
+
+	it('does not grow the old folder back once it has been deleted', async () => {
+		// The whole point of the old folder is that deleting it ends the move. A
+		// heartbeat that recreates it five minutes later makes that impossible.
+		const vault = new FakeVault();
+		const roster = new DeviceRoster(vault.app as App, [NEW, OLD]);
+
+		await roster.write(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'));
+
+		expect(vault.text(`${NEW}/phone.json`)).toBeDefined();
+		expect(vault.text(`${OLD}/phone.json`)).toBeUndefined();
+		expect(vault.folders.has(OLD)).toBe(false);
+	});
+
+	it('writes once when both names have collapsed into one folder', async () => {
+		const vault = new FakeVault();
+		const roster = new DeviceRoster(vault.app as App, [NEW, NEW]);
+
+		expect(roster.folders).toEqual([NEW]);
+		await expect(
+			roster.write(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'))
+		).resolves.toBeUndefined();
+	});
+
+	it('forgets a device in every folder, or the other copy puts it back', async () => {
+		const vault = new FakeVault();
+		vault.put(
+			`${NEW}/phone.json`,
+			JSON.stringify(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'))
+		);
+		vault.put(
+			`${OLD}/phone.json`,
+			JSON.stringify(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'))
+		);
+
+		const roster = new DeviceRoster(vault.app as App, [NEW, OLD]);
+		await roster.forget('phone');
+
+		expect(vault.trashed.sort()).toEqual([`${NEW}/phone.json`, `${OLD}/phone.json`].sort());
+		await expect(roster.readAll()).resolves.toEqual([]);
 	});
 });

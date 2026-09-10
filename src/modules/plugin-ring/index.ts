@@ -34,9 +34,18 @@ import type { MissingAddress } from './modals';
 import { randomDeviceName } from '../../core/device-name';
 import { BEAT_EVERY_MINUTES, buildRoster, DeviceRoster, isHereNow } from './devices';
 import type { DeviceHealth } from './devices';
+import { pathExists } from '../../core/vault-fs';
 import { classifyRingFile, RingFile } from './ring-file';
 import type { RingFileVerdict } from './ring-file';
-import { LEGACY_RING_FILE, locateRingFile, RING_FILE, ringWriteTargets } from './ring-path';
+import {
+	LEGACY_RING_FILE,
+	locateRingFile,
+	RING_FILE,
+	ringWriteTargets,
+	rosterFolderFor,
+	rosterFolders,
+} from './ring-path';
+import { ownIds } from './self';
 import { collectLocalPlugins, buildSnapshot } from './snapshot';
 import { isRingSnapshot } from './types';
 import type { DiffItem, RingSnapshot } from './types';
@@ -87,15 +96,6 @@ type PluginRingSettings = {
  * seconds, so a quarter of an hour of silence already means it is closed.
  */
 const STALE_AFTER_MINUTES = 15;
-
-/**
- * What this plugin's id used to be, before it stopped being a box of tools.
- *
- * Kept for as long as a device somewhere might still be running that build:
- * its snapshots name it, and its settings folder is where an updating device
- * finds everything it owns.
- */
-const LEGACY_PLUGIN_ID = 'toolbox';
 
 /** How old the roster on screen may be before opening the panel re-reads it. */
 const ROSTER_MAX_AGE_MS = 30_000;
@@ -148,6 +148,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		// soon as it can be — below, once the file index is populated — but until
 		// then the last answer beats no answer.
 		this.ringPath = this.settings.ringFilePath || DEFAULT_SETTINGS.ringFilePath;
+		this.rosterPaths = [rosterFolderFor(this.ringPath)];
 
 		this.addCommand({
 			id: 'ring-create',
@@ -205,11 +206,11 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		// sync. Without this the roster was read once at startup and never again —
 		// so a phone that joined afterwards never appeared, and on the host, which
 		// runs none of the client paths above, nothing was ever re-read at all.
-		// Asked for on every event rather than captured here: which folder the
-		// roster is in follows the ring file, and where that is is not settled yet
-		// while onload runs.
+		// Asked for on every event rather than captured here: which folders the
+		// roster answers at follow the ring file, and where that is is not settled
+		// yet while onload runs.
 		const rosterTouched = (file: unknown): void => {
-			if (file instanceof TFile && file.path.startsWith(`${this.ringFolder()}/devices/`)) {
+			if (file instanceof TFile && this.isRosterPath(file.path)) {
 				this.rosterDirty = true;
 				void this.refreshDevices();
 			}
@@ -218,11 +219,19 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		this.registerEvent(this.app.vault.on('modify', rosterTouched));
 		this.registerEvent(this.app.vault.on('delete', rosterTouched));
 		this.registerEvent(
-			this.app.vault.on('delete', (file) => {
-				// Deleting the old file is how the move away from it finishes, so this
-				// re-reads where the ring is as well as what is in it.
-				if (file instanceof TFile && this.ringPathCandidates().includes(file.path)) {
-					void this.resolveRingPath().then(() => this.refreshFileVerdict());
+			this.app.vault.on('delete', (item) => {
+				// Not `TFile`. Deleting the old folder is how this move is meant to
+				// end, and Obsidian reports that as one event about the folder — not
+				// as an event per file inside it. Watching files alone meant the
+				// deletion was never noticed: this device went on believing the old
+				// folder was there, went on writing a heartbeat into it, and so grew
+				// it straight back. What the user deleted has to be what we act on.
+				if (this.touchesTheRing(item.path)) {
+					void this.resolveRingPath().then(async () => {
+						void this.refreshFileVerdict();
+						this.rosterDirty = true;
+						await this.refreshDevices();
+					});
 				}
 			})
 		);
@@ -261,9 +270,20 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		});
 
 		this.app.workspace.onLayoutReady(() => {
-			void this.resolveRingPath().then(() => this.refreshFileVerdict());
-			this.warnAboutConflictCopies();
-			void this.beat().then(() => this.refreshDevices());
+			// Sequenced, not raced. `beat()` reads the resolved path synchronously,
+			// so starting both at once let the first heartbeat of the session land
+			// in the folder this device was about to leave — invisible to everyone,
+			// including its own panel, until the next beat five minutes later.
+			void this.resolveRingPath().then(async () => {
+				// Before anything is written, so that this device's heartbeat and
+				// everything after it go to the new folder — and so that deleting the
+				// old one is safe from here on.
+				await this.migrateRingFile();
+				void this.refreshFileVerdict();
+				this.warnAboutConflictCopies();
+				await this.beat();
+				await this.refreshDevices();
+			});
 
 			// A snapshot that arrived while this device was closed raises no vault
 			// event: by the time Obsidian starts, the file is simply there and
@@ -1116,9 +1136,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			// from: that is what moves a ring off the old name without cutting off a
 			// device still running the build that only knows the old one.
 			const envelope = await sealSnapshot(secret, snapshot);
-			for (const target of await ringWriteTargets(this.settings.ringFilePath, (path) =>
-				this.exists(path)
-			)) {
+			for (const target of ringWriteTargets(this.settings.ringFilePath)) {
 				await new RingFile(this.app, target).write(envelope);
 			}
 			count = snapshot.plugins.length;
@@ -1338,8 +1356,8 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 	 * by filtering on this device's own plugin id. The rename broke that across a
 	 * mixed fleet: a device still on the old build publishes `toolbox`, which is
 	 * not this device's id any more, so it came back as an ordinary plugin to
-	 * install or switch off. Both names are stripped, and the old one can go once
-	 * no device is running it.
+	 * install or switch off. Which names count as us lives in `self.ts` — this is
+	 * the read side of the same rule the publish side keeps.
 	 */
 	private withoutSelf(snapshot: unknown): unknown {
 		if (typeof snapshot !== 'object' || snapshot === null) {
@@ -1350,7 +1368,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			return snapshot;
 		}
 
-		const mine = new Set([this.plugin.manifest.id, LEGACY_PLUGIN_ID]);
+		const mine = new Set(ownIds(this.plugin.manifest.id));
 		return {
 			...candidate,
 			plugins: candidate.plugins.filter(
@@ -1422,24 +1440,14 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 	private ringPath = DEFAULT_SETTINGS.ringFilePath;
 
 	/**
-	 * Whether a path holds a file, asked the way the ring file itself asks.
+	 * Every folder the roster answers at; the first is the one this device writes.
 	 *
-	 * The index first, because that is cheap, then the disk — a sync client can
-	 * drop the ring file in while Obsidian is running, and until it is indexed a
-	 * file that plainly exists is invisible to `getFileByPath`. Deciding where
-	 * the ring lives from the index alone was how a phone that had just synced
-	 * concluded the ring had no file and started a second one.
+	 * Kept beside {@link ringPath} and refreshed by the same method, because the
+	 * roster sitting next to a ring file that moved without it is what emptied the
+	 * device list. Seeded from the stored path so the panel has an answer before
+	 * the vault has been asked.
 	 */
-	private async exists(path: string): Promise<boolean> {
-		if (this.app.vault.getFileByPath(path)) {
-			return true;
-		}
-		try {
-			return await this.app.vault.adapter.exists(path);
-		} catch {
-			return false;
-		}
-	}
+	private rosterPaths: string[] = [];
 
 	/**
 	 * Works out where the ring file is and remembers the answer.
@@ -1450,9 +1458,18 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 	 * the advanced section shows is where the file actually is.
 	 */
 	private async resolveRingPath(): Promise<void> {
-		const path = await locateRingFile(this.settings.ringFilePath, (candidate) =>
-			this.exists(candidate)
-		);
+		// The index first, then the disk. A sync client can drop the ring file in
+		// while Obsidian is running, and deciding where the ring lives from the
+		// index alone was how a phone that had just synced concluded there was no
+		// ring file and started a second one.
+		const exists = (candidate: string): Promise<boolean> => pathExists(this.app, candidate);
+		const path = await locateRingFile(this.settings.ringFilePath, exists);
+
+		// Always, not only when the ring file moved: the old roster folder joins
+		// and leaves as the old ring file appears and is deleted, which the ring
+		// file's own path does not change for.
+		this.rosterPaths = await rosterFolders(this.settings.ringFilePath, exists);
+
 		if (path === this.ringPath) {
 			return;
 		}
@@ -1464,9 +1481,65 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		this.refreshUi();
 	}
 
+	/**
+	 * Puts the ring file where it belongs, so the old folder can be deleted.
+	 *
+	 * Until now the move happened on the host's next publish, which made deleting
+	 * `Toolbox/` a gamble: on a client, or on a host that had not published since
+	 * updating, that folder held the only copy of the ring, and deleting it took
+	 * the ring with it. The device list went with it, which is exactly how it
+	 * looked from the outside — everything syncing, nothing listed.
+	 *
+	 * This is not a publish and does not pretend to be one. The sealed envelope is
+	 * copied across byte for byte: same ring, same sequence, nothing resealed and
+	 * nothing said. That is why any device may do it rather than only the host —
+	 * two devices doing it at once write identical bytes — and why it can happen
+	 * quietly at startup instead of waiting for somebody to press something.
+	 */
+	private async migrateRingFile(): Promise<void> {
+		// Only for a device that is actually in a ring. A leftover file from a ring
+		// this device left is not ours to copy anywhere.
+		if (this.settings.role === null || this.ringPath !== LEGACY_RING_FILE) {
+			return;
+		}
+		if (await pathExists(this.app, RING_FILE)) {
+			return;
+		}
+
+		const state = await new RingFile(this.app, LEGACY_RING_FILE).read();
+		if (state.status !== 'ok') {
+			// Half-written or not a snapshot. Copying it would only spread the
+			// damage, and the next run will find it healthy or still broken.
+			return;
+		}
+
+		try {
+			await new RingFile(this.app, RING_FILE).write(state.envelope);
+		} catch (error) {
+			console.error('Signet: could not move the ring file to its new home.', error);
+			return;
+		}
+
+		await this.resolveRingPath();
+	}
+
 	/** The paths a change to could move the ring: where it is, and where it could be. */
 	private ringPathCandidates(): string[] {
 		return [this.ringPath, RING_FILE, LEGACY_RING_FILE];
+	}
+
+	/**
+	 * Whether something that was just deleted was part of this ring's furniture.
+	 *
+	 * Three ways it can be: the thing itself, something inside it, or a folder
+	 * that **contained** it — which is the case that matters, because deleting
+	 * `Toolbox` is one event naming `Toolbox` and nothing else.
+	 */
+	private touchesTheRing(path: string): boolean {
+		const ours = [...this.ringPathCandidates(), ...this.rosterPaths];
+		return ours.some(
+			(mine) => mine === path || mine.startsWith(`${path}/`) || path.startsWith(`${mine}/`)
+		);
 	}
 
 	private ringFile(): RingFile {
@@ -1482,15 +1555,13 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 
 	// --- the roster ---------------------------------------------------------
 
-	/** The folder the ring file lives in; the roster sits beside it. */
-	private ringFolder(): string {
-		const path = this.ringFile().path;
-		const slash = path.lastIndexOf('/');
-		return slash < 0 ? '' : path.slice(0, slash);
+	private roster(): DeviceRoster {
+		return new DeviceRoster(this.app, this.rosterPaths);
 	}
 
-	private roster(): DeviceRoster {
-		return new DeviceRoster(this.app, `${this.ringFolder()}/devices`);
+	/** Whether a file that just changed is somebody's heartbeat. */
+	private isRosterPath(path: string): boolean {
+		return this.rosterPaths.some((folder) => path.startsWith(`${folder}/`));
 	}
 
 	/** Writes this device into the roster. Its own file, so nothing can conflict. */
@@ -1514,16 +1585,24 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 
 	/** Re-reads the roster for the panel. Cheap: a handful of small JSON files. */
 	private async refreshDevices(): Promise<void> {
-		this.rosterReadAt = Date.now();
-		this.rosterDirty = false;
-
 		if (this.settings.role === null) {
+			this.rosterReadAt = Date.now();
+			this.rosterDirty = false;
 			this.devices = [];
 			this.refreshPanel();
 			return;
 		}
 
-		this.devices = buildRoster(await this.roster().readAll(), {
+		const beats = await this.roster().readAll();
+
+		// Marked read only once it has been read. Doing this first meant a read
+		// that came back empty pinned that empty list for the next half minute,
+		// and a heartbeat arriving mid-read cleared the dirty flag without ever
+		// being seen.
+		this.rosterReadAt = Date.now();
+		this.rosterDirty = false;
+
+		this.devices = buildRoster(beats, {
 			now: new Date(),
 			staleAfterMinutes: STALE_AFTER_MINUTES,
 			selfId: this.settings.deviceId,

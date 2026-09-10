@@ -261,6 +261,8 @@ export const de: Translations = {
 		'{done} synchronisiert, {failed} fehlgeschlagen. Verloren ist nichts, der Rest wird beim nächsten Mal erneut versucht.',
 
 	'vaultSync.notice.needsRing': 'Zuerst einen Plugin-Ring erstellen oder beitreten.',
+	'vaultSync.notice.addressPublished':
+		'{url} antwortet für diesen Vault und wurde in den Ring veröffentlicht. Jedes Gerät, das seine Adresse aus dem Ring hat, wechselt beim nächsten Sync dorthin.',
 	'vaultSync.notice.portAdded':
 		'Keine Portangabe, deshalb wurde der übliche ergänzt: {url}. Unter „Erweitert“ änderbar, falls dein Server woanders lauscht.',
 	'vaultSync.notice.unreachable':

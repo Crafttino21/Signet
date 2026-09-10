@@ -82,6 +82,9 @@ const DEFAULT_SETTINGS: VaultSyncSettings = {
 
 const RING_MODULE_ID = 'plugin-ring';
 
+/** How long the address field must be quiet before the ring is told. */
+const ADDRESS_SETTLE_MS = 2000;
+
 /**
  * Whether this vault is in a ring at all.
  *
@@ -108,6 +111,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	private seq = 0;
 	private status?: HTMLElement;
 	private indicator?: SyncIndicator;
+	private addressSettling?: number;
 
 	override onload(): void {
 		this.addRibbonIcon('refresh-cw', t('vaultSync.ribbon'), () => void this.sync());
@@ -153,6 +157,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		// Tells the ring that an address is coming, so a code handed out before the
 		// server exists can say so instead of silently carrying nothing.
 		this.register(this.plugin.ringLink.expectServer());
+		this.register(() => {
+			window.clearTimeout(this.addressSettling);
+		});
 
 		// The ring asks for a server before it hands out a code, so that the first
 		// code shown already carries the address.
@@ -653,6 +660,51 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		const url = normaliseServerUrl(value);
 		await this.patchSettings({ serverUrl: url, serverUrlSource: 'user' });
 		this.plugin.ringLink.contribute({ serverUrl: url });
+
+		// The field fires per keystroke and publishing must not, so the ring hears
+		// about it once the typing has stopped.
+		window.clearTimeout(this.addressSettling);
+		this.addressSettling = window.setTimeout(
+			() => void this.offerAddressToRing(),
+			ADDRESS_SETTLE_MS
+		);
+	}
+
+	/**
+	 * Hands a changed address to the other devices, once it is worth handing over.
+	 *
+	 * Moving the server — a name instead of an IP, TLS in front of it — used to
+	 * reach nobody: the address was contributed to the ring but nothing published
+	 * it, so the other devices went on using the old one until some unrelated
+	 * change happened to trigger a publish.
+	 *
+	 * It is checked first, and against the vault rather than merely for a reply.
+	 * Every client that took its address from the ring will follow this one, so
+	 * publishing an address that does not serve this vault would take working
+	 * devices offline — the opposite of what moving a server is meant to do.
+	 */
+	private async offerAddressToRing(): Promise<void> {
+		if (this.ring()?.role !== 'host' || !isUsableServerUrl(this.settings.serverUrl)) {
+			return;
+		}
+
+		const client = await this.client(true);
+		if (!client) {
+			return;
+		}
+		try {
+			if (!(await client.belongs())) {
+				return;
+			}
+		} catch {
+			// Unreachable from here is not an answer about the address, only about
+			// this moment. Saying nothing beats telling every device to move.
+			return;
+		}
+
+		this.plugin.ringLink.contribute({ serverUrl: this.settings.serverUrl });
+		this.plugin.ringLink.requestPublish();
+		new Notice(t('vaultSync.notice.addressPublished', { url: this.settings.serverUrl }));
 	}
 
 	/**

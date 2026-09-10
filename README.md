@@ -213,11 +213,17 @@ between a phone on mobile data and a machine at home.
 
 ### When the server moves
 
-An address that arrived through the ring is replaced when the host publishes a new
-one, so moving the server — a new IP, a port, TLS in front of it — is a job done
-once on the host. An address someone typed on a device is never overwritten: on a
-home network the host's address can be exactly the one that is unreachable from
-there.
+Change the address on the host — a name instead of an IP, TLS in front of it — and
+once the typing settles it is checked and published to the ring. Checked against
+the vault rather than merely for a reply: every device that took its address from
+the ring will follow this one, so an address that answers but does not serve this
+vault would take working devices offline, which is the opposite of the point.
+
+Devices pick the new address up at their next sync. Nobody re-enters anything, and
+the ring code does not change — only the address on the end of it, for anyone who
+joins from now on. An address someone typed on a device by hand is never
+overwritten: on a home network the host's address can be exactly the one that is
+unreachable from there.
 
 There is nothing to negotiate between the devices, and no key exchange to get
 wrong: **every key is derived from the ring code** — the vault id, the access

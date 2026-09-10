@@ -319,14 +319,22 @@ export function addressFromUrl(value: string): JoinAddress | undefined {
 /**
  * The address as something `requestUrl` and `new URL()` both accept.
  *
- * The port is always written out, even when it is the scheme's own default.
- * Leaving it off would be prettier and would lose information: `http://host:80`
- * printed as `http://host` reads, on the device that receives it, as an address
- * with no port at all — and a local address with no port is exactly what gets
- * the sync server's usual port filled in. The port someone typed would quietly
- * become a different one on the next device.
+ * The port is written out for `http`, even when it is 80. Leaving it off would
+ * be prettier and would lose information: `http://host:80` printed as
+ * `http://host` reads, on the device that receives it, as an address with no
+ * port at all — and a plain-http address with no port is exactly the one that
+ * gets the sync server's usual port filled in for it. The port someone typed
+ * would quietly become a different one on the next device.
+ *
+ * `https` on 443 is the one case where that cannot happen, because nothing ever
+ * fills a port in for it, so it is written the way people write it. Which also
+ * makes the address identical on the device that typed it and the device that
+ * received it, rather than the same server under two spellings.
  */
 export function addressToUrl(address: JoinAddress): string {
+	if (address.scheme === 'https' && address.port === 443) {
+		return `https://${address.host}`;
+	}
 	return `${address.scheme}://${address.host}:${String(address.port)}`;
 }
 

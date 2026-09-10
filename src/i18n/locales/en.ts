@@ -263,6 +263,8 @@ export const en = {
 		'{done} synced, {failed} failed. Nothing was lost, and the rest is tried again next time.',
 
 	'vaultSync.notice.needsRing': 'Create or join a plugin ring first.',
+	'vaultSync.notice.addressPublished':
+		'{url} answers for this vault, so it has been published to the ring. Every device that took its address from the ring moves to it at its next sync.',
 	'vaultSync.notice.portAdded':
 		'No port given, so the usual one was added: {url}. Change it under Advanced if your server listens elsewhere.',
 	'vaultSync.notice.unreachable':

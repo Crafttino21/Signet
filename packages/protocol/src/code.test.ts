@@ -47,7 +47,7 @@ describe('join code', () => {
 			'http://10.112.156.244:8787',
 			'https://10.112.156.244:8787',
 			'http://192.168.1.10:9000',
-			'https://sync.example.com:443',
+			'https://sync.example.com',
 			'http://nas.local:8787',
 			'https://sync.example.com:8443',
 			'http://localhost:3000',
@@ -68,7 +68,15 @@ describe('join code', () => {
 		// with no port is precisely what gets 8787 filled in on the next device.
 		// The port someone typed became a different one, one hop later.
 		const secret = generateRingSecret();
-		for (const url of ['http://10.0.0.1:80', 'https://10.0.0.1:443']) {
+		const parsed = parseJoinCode(formatJoinCode(secret, addressFromUrl('http://10.0.0.1:80')));
+		expect(addressToUrl(parsed.address as JoinAddress)).toBe('http://10.0.0.1:80');
+	});
+
+	it('writes an ordinary https address the way people write it', () => {
+		// 443 is the one default nothing ever fills in, so spelling it out would
+		// only mean the same server appearing under two names across devices.
+		const secret = generateRingSecret();
+		for (const url of ['https://sync.weepingangel.dev', 'https://10.0.0.1']) {
 			const parsed = parseJoinCode(formatJoinCode(secret, addressFromUrl(url)));
 			expect(addressToUrl(parsed.address as JoinAddress), url).toBe(url);
 		}

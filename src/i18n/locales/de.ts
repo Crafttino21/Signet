@@ -308,6 +308,8 @@ export const de: Translations = {
 
 	'rename.movedIn':
 		'Dieses Plugin hieß bis eben Toolbox. Deine Einstellungen, dein Ring und der Sync-Stand dieses Geräts wurden aus „{from}“ übernommen — den Ordner kannst du löschen, sobald alles stimmt.',
+	'rename.movedInAndOff':
+		'Dieses Plugin hieß bis eben Toolbox. Deine Einstellungen, dein Ring und der Sync-Stand dieses Geräts wurden aus „{from}“ übernommen, und die alte Kopie wurde abgeschaltet, damit nicht beide denselben Tresor gegeneinander synchronisieren. Den Ordner kannst du löschen, sobald alles stimmt.',
 	'panel.title': 'Signet',
 	'panel.open': 'Signet-Leiste öffnen',
 	'panel.available': 'In den Einstellungen einschaltbar: {names}.',

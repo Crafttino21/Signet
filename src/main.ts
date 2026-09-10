@@ -3,11 +3,17 @@ import { initI18n, t } from './i18n';
 import { LiveEditingRegistry } from './core/live-editing';
 import { ModuleRegistry } from './core/registry';
 import { RingLink } from './core/ring-link';
-import { SIGNET_PANEL_TYPE, SignetPanelView } from './core/panel-view';
+import {
+	LEGACY_PANEL_TYPE,
+	PANEL_TYPES,
+	SIGNET_PANEL_TYPE,
+	SignetPanelView,
+} from './core/panel-view';
 import { migrateSettings } from './core/settings';
 import type { SignetSettings } from './core/settings';
 import { SignetSettingTab } from './core/settings-tab';
 import { SetupModal } from './core/setup';
+import { PluginApi } from './core/obsidian-internals';
 import { adoptLegacyFolder } from './core/rename';
 import { registerViewOnce } from './core/view';
 import { SIGNET_MODULES } from './modules';
@@ -45,7 +51,15 @@ export default class SignetPlugin extends Plugin {
 		// Before the settings are read, because this is what there is to read: a
 		// device updating from the version called Toolbox has everything in a
 		// folder named after the old id, which Obsidian treats as another plugin.
-		const moved = await adoptLegacyFolder(this.app, this.folder());
+		const plugins = PluginApi.detect(this.app);
+		const moved = await adoptLegacyFolder(
+			this.app,
+			this.folder(),
+			plugins && {
+				isEnabled: (id) => plugins.isEnabled(id),
+				disable: (id) => plugins.disable(id),
+			}
+		);
 
 		this.settings = migrateSettings(await this.loadData(), SIGNET_MODULES);
 		this.registry = new ModuleRegistry(this, SIGNET_MODULES);
@@ -54,6 +68,14 @@ export default class SignetPlugin extends Plugin {
 		this.addSettingTab(this.settingTab);
 
 		registerViewOnce(this, SIGNET_PANEL_TYPE, (leaf) => new SignetPanelView(leaf, this));
+		// The name the panel had before the rename. A vault that had it open still
+		// has a leaf of that type in its workspace, and nothing registering it is
+		// an empty pane where the panel used to be.
+		registerViewOnce(
+			this,
+			LEGACY_PANEL_TYPE,
+			(leaf) => new SignetPanelView(leaf, this, LEGACY_PANEL_TYPE)
+		);
 		this.addRibbonIcon('wrench', t('panel.open'), () => void this.openPanel());
 		this.addCommand({
 			id: 'open-panel',
@@ -73,7 +95,11 @@ export default class SignetPlugin extends Plugin {
 		// Said once, after everything is up, because it explains why the plugin
 		// looks set up already and where the old folder went.
 		if (moved) {
-			new Notice(t('rename.movedIn', { from: moved.from }));
+			new Notice(
+				t(moved.switchedOff ? 'rename.movedInAndOff' : 'rename.movedIn', {
+					from: moved.from,
+				})
+			);
 		}
 	}
 
@@ -104,7 +130,7 @@ export default class SignetPlugin extends Plugin {
 	async openPanel(): Promise<void> {
 		const { workspace } = this.app;
 
-		const existing = workspace.getLeavesOfType(SIGNET_PANEL_TYPE)[0];
+		const existing = PANEL_TYPES.flatMap((type) => workspace.getLeavesOfType(type))[0];
 		if (existing) {
 			await workspace.revealLeaf(existing);
 			return;
@@ -131,7 +157,9 @@ export default class SignetPlugin extends Plugin {
 	 * away from whatever the user was in the middle of pressing.
 	 */
 	refreshPanel(): void {
-		for (const leaf of this.app.workspace.getLeavesOfType(SIGNET_PANEL_TYPE)) {
+		for (const leaf of PANEL_TYPES.flatMap((type) =>
+			this.app.workspace.getLeavesOfType(type)
+		)) {
 			const view = leaf.view;
 			if (view instanceof SignetPanelView) {
 				view.render();

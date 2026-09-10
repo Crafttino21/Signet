@@ -20,6 +20,12 @@ import type { App } from 'obsidian';
  * with nothing of its own. Copied rather than moved: if this turns out to have
  * gone wrong, the old folder is still there to look at.
  *
+ * The old plugin is switched off in the same breath, because leaving it running
+ * is worse than leaving it lying there. Two copies in one vault write two
+ * heartbeats under two device ids, both answer a publish, and both sync the same
+ * notes to the same server — a vault arguing with itself. Switched off rather
+ * than deleted: the files stay for anyone who wants to check what was carried.
+ *
  * Which folder this plugin is in has to be asked rather than assumed. The id
  * and the folder name match by convention and stopped matching here: an install
  * updated in place keeps the folder it had while the new manifest declares the
@@ -39,6 +45,8 @@ export interface RenameReport {
 	carried: string[];
 	/** Where it came from, for the message that says so. */
 	from: string;
+	/** Whether the old plugin was running and has now been switched off. */
+	switchedOff: boolean;
 }
 
 /**
@@ -50,7 +58,13 @@ export interface RenameReport {
  */
 export async function adoptLegacyFolder(
 	app: App,
-	pluginFolder: string
+	pluginFolder: string,
+	/**
+	 * Switches the old plugin off, if this Obsidian lets us. Passed in rather
+	 * than reached for: `app.plugins` is undocumented and belongs to
+	 * `core/obsidian-internals.ts` alone.
+	 */
+	legacy?: { isEnabled: (id: string) => boolean; disable: (id: string) => Promise<void> }
 ): Promise<RenameReport | undefined> {
 	const adapter = app.vault.adapter;
 	const here = normalizePath(pluginFolder);
@@ -80,7 +94,25 @@ export async function adoptLegacyFolder(
 			carried.push(name);
 		}
 
-		return carried.length > 0 ? { carried, from: there } : undefined;
+		if (carried.length === 0) {
+			return undefined;
+		}
+
+		// Only if it is actually running. Asking Obsidian to disable a plugin that
+		// is already off writes the config file for nothing.
+		let switchedOff = false;
+		if (legacy?.isEnabled(LEGACY_ID) === true) {
+			try {
+				await legacy.disable(LEGACY_ID);
+				switchedOff = true;
+			} catch (error) {
+				// Not fatal: the settings are already across, and a vault with two
+				// copies running is a mess the user can undo by hand.
+				console.error('Signet: could not switch the previous plugin off.', error);
+			}
+		}
+
+		return { carried, from: there, switchedOff };
 	} catch (error) {
 		// A failed move must not stop the plugin loading. Starting empty is
 		// recoverable — the ring code can be typed in again — and a plugin that

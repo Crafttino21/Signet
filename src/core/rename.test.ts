@@ -82,3 +82,64 @@ describe('adoptLegacyFolder', () => {
 		expect(report?.carried).toEqual(['data.json']);
 	});
 });
+
+describe('the copy that is still running', () => {
+	/**
+	 * Two copies of this plugin in one vault is worse than a stale folder. They
+	 * write two heartbeats under two device ids, both answer a publish, and both
+	 * sync the same notes to the same server — a vault arguing with itself.
+	 */
+	function switcher(enabled: string[]) {
+		const off: string[] = [];
+		return {
+			off,
+			legacy: {
+				isEnabled: (id: string) => enabled.includes(id),
+				disable: (id: string) => {
+					off.push(id);
+					return Promise.resolve();
+				},
+			},
+		};
+	}
+
+	it('switches the old plugin off once its settings are across', async () => {
+		const vault = new FakeVault();
+		vault.hidden.set(`${OLD}/data.json`, '{"version":3}');
+		const { off, legacy } = switcher(['toolbox']);
+
+		const report = await adoptLegacyFolder(app(vault), NEW, legacy);
+
+		expect(off).toEqual(['toolbox']);
+		expect(report?.switchedOff).toBe(true);
+		// Switched off, not deleted: the files stay for anyone who wants to check
+		// what was carried.
+		expect(vault.hidden.get(`${OLD}/data.json`)).toBe('{"version":3}');
+	});
+
+	it('leaves one that is already off alone', async () => {
+		const vault = new FakeVault();
+		vault.hidden.set(`${OLD}/data.json`, '{"version":3}');
+		const { off, legacy } = switcher([]);
+
+		const report = await adoptLegacyFolder(app(vault), NEW, legacy);
+
+		expect(off).toEqual([]);
+		expect(report?.switchedOff).toBe(false);
+	});
+
+	it('still reports what it carried when switching off fails', async () => {
+		// An Obsidian that will not disable it is not a reason to lose the ring
+		// code that has already been copied across.
+		const vault = new FakeVault();
+		vault.hidden.set(`${OLD}/data.json`, '{"version":3}');
+
+		const report = await adoptLegacyFolder(app(vault), NEW, {
+			isEnabled: () => true,
+			disable: () => Promise.reject(new Error('nope')),
+		});
+
+		expect(report?.carried).toEqual(['data.json']);
+		expect(report?.switchedOff).toBe(false);
+	});
+});

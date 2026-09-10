@@ -308,6 +308,8 @@ export const en = {
 
 	'rename.movedIn':
 		'This plugin was called Toolbox until now. Your settings, your ring and what this device had already synced were carried over from "{from}", which you can delete once everything looks right.',
+	'rename.movedInAndOff':
+		'This plugin was called Toolbox until now. Your settings, your ring and what this device had already synced were carried over from "{from}", and the old copy has been switched off so the two do not sync the same vault against each other. You can delete that folder once everything looks right.',
 	'panel.title': 'Signet',
 	'panel.open': 'Open the Signet panel',
 	'panel.available': 'Ready to switch on in the settings: {names}.',

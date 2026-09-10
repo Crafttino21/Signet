@@ -6,6 +6,22 @@ import type SignetPlugin from '../main';
 export const SIGNET_PANEL_TYPE = 'signet-panel';
 
 /**
+ * What the panel's view type was called before the rename.
+ *
+ * A workspace remembers the type of every open leaf, so a vault that had the
+ * panel open when this plugin was still Toolbox reopens a leaf of a type nobody
+ * registers any more — an empty pane with an error in it, in the place the panel
+ * used to be. `main.ts:onunload` leaves leaves attached on purpose so they
+ * survive an update, which is exactly what makes this worth answering: the type
+ * is registered as a second name for the same view, and a leaf that comes back
+ * under it draws the panel as it always did.
+ */
+export const LEGACY_PANEL_TYPE = 'toolbox-panel';
+
+/** Both names the panel answers to. The first is the one new leaves are opened as. */
+export const PANEL_TYPES = [SIGNET_PANEL_TYPE, LEGACY_PANEL_TYPE];
+
+/**
  * The one place to manage everything Signet does.
  *
  * The panel does not know what any feature is. It walks the modules that are
@@ -18,13 +34,19 @@ export const SIGNET_PANEL_TYPE = 'signet-panel';
 export class SignetPanelView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private readonly plugin: SignetPlugin
+		private readonly plugin: SignetPlugin,
+		/**
+		 * Which of its names this leaf was opened under. A leaf restored from a
+		 * workspace written before the rename has to keep answering to the name it
+		 * was saved as, or Obsidian will not match the view to the leaf.
+		 */
+		private readonly type: string = SIGNET_PANEL_TYPE
 	) {
 		super(leaf);
 	}
 
 	getViewType(): string {
-		return SIGNET_PANEL_TYPE;
+		return this.type;
 	}
 
 	getDisplayText(): string {

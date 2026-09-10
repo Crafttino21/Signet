@@ -64,7 +64,8 @@ export const de: Translations = {
 	'ring.notice.publishFailed': 'Ring-Datei „{path}“ konnte nicht geschrieben werden: {message}',
 	'ring.notice.foreignFileHost':
 		'Die Datei „{path}“ gehört zu einem anderen Ring. Drücke „Jetzt veröffentlichen“, um sie beiseitezulegen und diesen Ring zu schreiben.',
-	'ring.notice.codeMismatch': 'Dieser Code gehört nicht zum Ring in diesem Vault.',
+	'ring.notice.codeMismatch':
+		'Die Datei „{path}“ gehört zu einem anderen Ring als dieser Code. Beides ist heil — es sind schlicht zwei verschiedene Ringe, und dieser Vault kann an diesem Pfad nur einen halten. Tritt erneut bei und lass die alte Datei beiseitelegen, oder nimm den Code, der zu ihr gehört.',
 	'ring.notice.wrongRing':
 		'Dieser Snapshot gehört nicht zu deinem Ring oder wurde nachträglich verändert.',
 	'ring.notice.joined': 'Dem Ring von „{host}“ beigetreten.',
@@ -314,6 +315,8 @@ export const de: Translations = {
 		'Warte darauf, dass der Snapshot des Hosts hierher synchronisiert wird.',
 	'ring.panel.noFileHost':
 		'Keine Ring-Datei unter „{path}“. Veröffentliche, damit die anderen Geräte etwas zum Beitreten haben.',
+	'ring.panel.foreignFileClient':
+		'Die Datei „{path}“ gehört zu einem anderen Ring als dem, dem dieses Gerät beigetreten ist. Tritt mit dem richtigen Code erneut bei und lass sie beiseitelegen.',
 	'ring.panel.foreignFile':
 		'Die Datei „{path}“ gehört zu einem anderen Ring. Beim Veröffentlichen wird angeboten, sie beiseitezulegen.',
 	'ring.panel.corruptFile':

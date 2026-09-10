@@ -1,7 +1,7 @@
 {
 	"id": "signet",
 	"name": "Signet",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"minAppVersion": "1.8.7",
 	"description": "Keeps several devices in step: their plugins, their notes, and a note two of them have open at once. Encrypted, against a server you run.",
 	"author": "WeepingAngel",

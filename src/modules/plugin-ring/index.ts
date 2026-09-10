@@ -361,7 +361,9 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 							? t('ring.panel.noFileHost', { path })
 							: t('ring.notice.noRingFileYet', { path })
 						: this.fileVerdict === 'foreign'
-							? t('ring.panel.foreignFile', { path })
+							? role === 'host'
+								? t('ring.panel.foreignFile', { path })
+								: t('ring.panel.foreignFileClient', { path })
 							: t('ring.panel.corruptFile', { path }),
 			});
 		}
@@ -756,7 +758,12 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		this.plugin.ringLink.ringChanged();
 		this.lastSeen = undefined;
 
-		const state = await this.ringFile().read();
+		// The ring being joined may have been made while this plugin went by its
+		// old name, in which case its file is at the old path and the default
+		// points somewhere empty.
+		await this.keepLegacyRingPath();
+
+		let state = await this.ringFile().read();
 
 		if (state.status === 'unreadable') {
 			new Notice(state.message);
@@ -790,8 +797,48 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			return;
 		}
 
+		// A file from another ring is the one refusal that used to be a dead end:
+		// the code is right, the ring is right, and this vault happens to hold
+		// somebody else's snapshot at the same path. Publishing offers to move
+		// such a file aside; joining now does the same, because a device that
+		// cannot join and cannot be told why is a device nobody can help.
 		if ((await deriveRingId(secret)) !== state.envelope.ring) {
-			new Notice(t('ring.notice.codeMismatch'));
+			const file = this.ringFile();
+			const replace = await RingFileConflictModal.ask(this.app, {
+				path: file.path,
+				kind: 'foreign',
+			});
+			if (!replace) {
+				new Notice(t('ring.notice.codeMismatch', { path: file.path }));
+				return;
+			}
+			if (!(await file.trashExisting())) {
+				new Notice(t('ring.notice.ringFileBusy', { path: file.path }));
+				return;
+			}
+			new Notice(t('ring.notice.replacedRingFile', { path: file.path }));
+
+			// Now the ordinary case: nothing at the path, so this device joins and
+			// waits for the host's snapshot exactly as a fresh one would.
+			state = await file.read();
+		}
+
+		if (state.status !== 'ok') {
+			await this.patchSettings({
+				code: formatRingCode(secret),
+				role: 'client',
+				hostId: null,
+				lastAppliedSeq: 0,
+			});
+			announceAddress();
+			void this.beat();
+			void this.refreshFileVerdict();
+			this.refreshUi();
+			new Notice(
+				address
+					? t('ring.notice.joinedWithServer')
+					: t('ring.notice.joinedWaiting', { path: this.ringFile().path })
+			);
 			return;
 		}
 
@@ -1030,7 +1077,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		if (state.envelope.ring !== (await deriveRingId(secret))) {
 			if (!this.warnedAboutMismatch) {
 				this.warnedAboutMismatch = true;
-				new Notice(t('ring.notice.codeMismatch'));
+				new Notice(t('ring.notice.codeMismatch', { path: this.ringFile().path }));
 			}
 			return;
 		}
@@ -1148,7 +1195,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 				new Notice(
 					this.settings.role === 'host'
 						? t('ring.notice.foreignFileHost', { path: this.ringFile().path })
-						: t('ring.notice.codeMismatch')
+						: t('ring.notice.codeMismatch', { path: this.ringFile().path })
 				);
 			}
 			return undefined;

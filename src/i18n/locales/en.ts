@@ -68,7 +68,8 @@ export const en = {
 	'ring.notice.publishFailed': 'Could not write the ring file "{path}": {message}',
 	'ring.notice.foreignFileHost':
 		'The file at "{path}" belongs to a different ring. Press publish to move it aside and write this ring instead.',
-	'ring.notice.codeMismatch': 'That code does not match the ring in this vault.',
+	'ring.notice.codeMismatch':
+		'The file at "{path}" belongs to a different ring than that code. Both are intact — they are simply two different rings, and this vault can only hold one at that path. Join again and choose to move the old file aside, or use the code that belongs to it.',
 	'ring.notice.wrongRing': 'This snapshot does not belong to your ring, or it was altered.',
 	'ring.notice.joined': 'Joined the ring hosted by "{host}".',
 	'ring.notice.joinedWithServer':
@@ -313,6 +314,8 @@ export const en = {
 	'ring.panel.waitingForHost': "Waiting for the host's snapshot to sync to this device.",
 	'ring.panel.noFileHost':
 		'No ring file at "{path}". Publish, so the other devices have something to join.',
+	'ring.panel.foreignFileClient':
+		'The file at "{path}" belongs to a different ring than this device joined. Join again with the right code and choose to move it aside.',
 	'ring.panel.foreignFile':
 		'The file at "{path}" belongs to a different ring. Publishing will offer to move it aside.',
 	'ring.panel.corruptFile': 'The ring file at "{path}" will not open. It may be damaged.',

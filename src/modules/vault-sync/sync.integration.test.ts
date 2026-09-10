@@ -47,7 +47,7 @@ class Device {
 	}
 
 	private store(): SyncStateStore {
-		return new SyncStateStore(this.vault.app as App, 'signet');
+		return new SyncStateStore(this.vault.app as App, '.obsidian/plugins/signet');
 	}
 
 	/** One full run, remembering the resulting state the way the module does. */

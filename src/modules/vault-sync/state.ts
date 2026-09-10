@@ -30,15 +30,22 @@ export function emptyState(deviceId: string): SyncState {
 }
 
 export class SyncStateStore {
+	/**
+	 * @param pluginDir Where this plugin actually lives, from `manifest.dir`.
+	 *
+	 * Not built from the plugin id, which is only the folder name by convention.
+	 * They came apart when the plugin was renamed: an install updated in place
+	 * keeps the old folder while the manifest declares the new id, and a state
+	 * file written to a folder Obsidian is not loading from is a state file
+	 * nobody reads — every sync would start again from no base.
+	 */
 	constructor(
 		private readonly app: App,
-		private readonly pluginId: string
+		private readonly pluginDir: string
 	) {}
 
 	private path(): string {
-		return normalizePath(
-			`${this.app.vault.configDir}/plugins/${this.pluginId}/vault-sync-state.json`
-		);
+		return normalizePath(`${this.pluginDir}/vault-sync-state.json`);
 	}
 
 	async load(deviceId: string): Promise<SyncState> {

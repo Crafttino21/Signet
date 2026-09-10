@@ -26,7 +26,7 @@ describe('adoptLegacyFolder', () => {
 		vault.hidden.set(`${OLD}/data.json`, '{"version":3}');
 		vault.hidden.set(`${OLD}/vault-sync-state.json`, '{"baseSeq":7}');
 
-		const report = await adoptLegacyFolder(app(vault), 'signet');
+		const report = await adoptLegacyFolder(app(vault), NEW);
 
 		expect(report?.carried).toEqual(['data.json', 'vault-sync-state.json']);
 		expect(vault.hidden.get(`${NEW}/data.json`)).toBe('{"version":3}');
@@ -37,7 +37,7 @@ describe('adoptLegacyFolder', () => {
 		const vault = new FakeVault();
 		vault.hidden.set(`${OLD}/data.json`, '{"version":3}');
 
-		await adoptLegacyFolder(app(vault), 'signet');
+		await adoptLegacyFolder(app(vault), NEW);
 
 		expect(vault.hidden.get(`${OLD}/data.json`)).toBe('{"version":3}');
 	});
@@ -49,21 +49,27 @@ describe('adoptLegacyFolder', () => {
 		vault.hidden.set(`${OLD}/data.json`, '{"version":3,"stale":true}');
 		vault.hidden.set(`${NEW}/data.json`, '{"version":4,"current":true}');
 
-		const report = await adoptLegacyFolder(app(vault), 'signet');
+		const report = await adoptLegacyFolder(app(vault), NEW);
 
 		expect(report).toBeUndefined();
 		expect(vault.hidden.get(`${NEW}/data.json`)).toBe('{"version":4,"current":true}');
 	});
 
 	it('says nothing on a fresh install', async () => {
-		await expect(adoptLegacyFolder(app(new FakeVault()), 'signet')).resolves.toBeUndefined();
+		await expect(adoptLegacyFolder(app(new FakeVault()), NEW)).resolves.toBeUndefined();
 	});
 
-	it('does nothing at all if the id never changed', async () => {
+	it('does nothing when the plugin is still running from the old folder', async () => {
+		// What an install updated in place looks like: the folder keeps its name
+		// while the manifest declares the new id. Obsidian reads the settings from
+		// that folder, so there is nothing to move — and writing a copy into the
+		// folder named after the id would leave a stale one for a later move to
+		// adopt as though it were current.
 		const vault = new FakeVault();
 		vault.hidden.set(`${OLD}/data.json`, '{"version":3}');
 
-		await expect(adoptLegacyFolder(app(vault), 'toolbox')).resolves.toBeUndefined();
+		await expect(adoptLegacyFolder(app(vault), OLD)).resolves.toBeUndefined();
+		expect(vault.hidden.has(`${NEW}/data.json`)).toBe(false);
 	});
 
 	it('carries what is there when the sync state is missing', async () => {
@@ -71,7 +77,7 @@ describe('adoptLegacyFolder', () => {
 		const vault = new FakeVault();
 		vault.hidden.set(`${OLD}/data.json`, '{"version":3}');
 
-		const report = await adoptLegacyFolder(app(vault), 'signet');
+		const report = await adoptLegacyFolder(app(vault), NEW);
 
 		expect(report?.carried).toEqual(['data.json']);
 	});

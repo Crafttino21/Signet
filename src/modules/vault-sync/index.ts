@@ -1093,7 +1093,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	}
 
 	private stateStore(): SyncStateStore {
-		return new SyncStateStore(this.app, this.plugin.manifest.id);
+		return new SyncStateStore(this.app, this.plugin.folder());
 	}
 
 	private async client(quiet = false): Promise<SyncClient | undefined> {

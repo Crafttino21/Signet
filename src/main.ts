@@ -45,7 +45,7 @@ export default class SignetPlugin extends Plugin {
 		// Before the settings are read, because this is what there is to read: a
 		// device updating from the version called Toolbox has everything in a
 		// folder named after the old id, which Obsidian treats as another plugin.
-		const moved = await adoptLegacyFolder(this.app, this.manifest.id);
+		const moved = await adoptLegacyFolder(this.app, this.folder());
 
 		this.settings = migrateSettings(await this.loadData(), SIGNET_MODULES);
 		this.registry = new ModuleRegistry(this, SIGNET_MODULES);
@@ -81,6 +81,19 @@ export default class SignetPlugin extends Plugin {
 		// Deliberately empty. Obsidian unloads child components — and therefore every
 		// module — on its own, and leaves are left attached on purpose: detaching them
 		// here would break their restoration after a plugin update.
+	}
+
+	/**
+	 * Where this plugin's files actually are.
+	 *
+	 * `manifest.dir` rather than a path built from the id: the two are the same
+	 * by convention and came apart when the plugin was renamed. An install
+	 * updated in place keeps its old folder name while the manifest declares the
+	 * new id, and anything written to the guessed path lands in a folder
+	 * Obsidian never loads from.
+	 */
+	folder(): string {
+		return this.manifest.dir ?? `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
 	}
 
 	async saveSettings(): Promise<void> {

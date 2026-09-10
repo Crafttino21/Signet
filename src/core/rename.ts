@@ -19,6 +19,14 @@ import type { App } from 'obsidian';
  * So both are copied across, once, the first time the renamed plugin starts
  * with nothing of its own. Copied rather than moved: if this turns out to have
  * gone wrong, the old folder is still there to look at.
+ *
+ * Which folder this plugin is in has to be asked rather than assumed. The id
+ * and the folder name match by convention and stopped matching here: an install
+ * updated in place keeps the folder it had while the new manifest declares the
+ * new id. Reading `manifest.dir` means such an install is correctly recognised
+ * as needing nothing, instead of having a copy of its own settings written into
+ * a folder Obsidian is not loading from — which the next real move would then
+ * adopt as though it were current.
  */
 
 const LEGACY_ID = 'toolbox';
@@ -42,15 +50,17 @@ export interface RenameReport {
  */
 export async function adoptLegacyFolder(
 	app: App,
-	pluginId: string
+	pluginFolder: string
 ): Promise<RenameReport | undefined> {
-	if (pluginId === LEGACY_ID) {
+	const adapter = app.vault.adapter;
+	const here = normalizePath(pluginFolder);
+	const there = normalizePath(`${app.vault.configDir}/plugins/${LEGACY_ID}`);
+
+	// Already running out of the old folder, which is what an in-place update
+	// looks like. There is nothing to move and nowhere to move it.
+	if (here === there) {
 		return undefined;
 	}
-
-	const { adapter, configDir } = { adapter: app.vault.adapter, configDir: app.vault.configDir };
-	const here = normalizePath(`${configDir}/plugins/${pluginId}`);
-	const there = normalizePath(`${configDir}/plugins/${LEGACY_ID}`);
 
 	try {
 		if (await adapter.exists(normalizePath(`${here}/data.json`))) {

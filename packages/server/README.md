@@ -124,12 +124,31 @@ The registration secret is only needed once per vault, when a device first
 creates it. Everyday syncing authenticates with a token derived from your ring
 code, which never reaches the server — only its hash does.
 
+### Upgrading a server set up before the rename
+
+This project was called Toolbox, and two names survive from then because they
+identify data rather than describe it: the environment variables still work
+spelled `TOOLBOX_*` — read as a fallback behind `SIGNET_*`, so an existing `.env`
+needs no editing — and the Docker volume is still `toolbox-data`, because
+renaming it would leave the notes in the old volume and start the server on an
+empty new one.
+
+The container is the one thing that did change name, from `toolbox-sync` to
+`signet-sync`. Bring the old one down as you bring the new one up, or it keeps
+port 8787 and the new container cannot start:
+
+```bash
+docker compose up -d --build --remove-orphans
+```
+
+`install.sh` does this for you. Nothing about the volume or the data changes.
+
 ## Backups
 
 The data directory is the whole state. Back up the Docker volume:
 
 ```bash
-docker run --rm -v toolbox-data:/data -v "$PWD:/backup" alpine \
+docker run --rm -v server_toolbox-data:/data -v "$PWD:/backup" alpine \
 	tar czf /backup/signet-sync-backup.tar.gz -C /data .
 ```
 

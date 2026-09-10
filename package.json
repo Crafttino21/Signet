@@ -19,7 +19,7 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"check": "npm run typecheck && npm run lint && npm run test",
-		"server:up": "docker compose -f packages/server/docker-compose.yml up -d --build",
+		"server:up": "docker compose -f packages/server/docker-compose.yml up -d --build --remove-orphans",
 		"server:down": "docker compose -f packages/server/docker-compose.yml down",
 		"server:logs": "docker compose -f packages/server/docker-compose.yml logs -f --tail 100",
 		"server:status": "docker compose -f packages/server/docker-compose.yml ps"

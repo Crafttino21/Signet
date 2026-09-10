@@ -155,7 +155,10 @@ fi
 
 step "Bauen und starten"
 
-$DOCKER compose up -d --build
+# --remove-orphans: der Dienst hieß einmal toolbox-sync. Ohne das läuft der alte
+# Container weiter, hält Port 8787 belegt und der neue kann gar nicht erst
+# starten. Das Volume bleibt davon unberührt — es gehört nicht dem Container.
+$DOCKER compose up -d --build --remove-orphans
 
 # --- 5. Wait until it actually answers ---------------------------------------
 

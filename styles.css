@@ -63,6 +63,14 @@
 	overflow-wrap: anywhere;
 }
 
+.toolbox-ring__actions {
+	grid-column: 1 / -1;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--size-4-2);
+	margin: var(--size-4-1) 0 var(--size-4-2);
+}
+
 .toolbox-ring__detail,
 .toolbox-ring__reason {
 	grid-column: 1 / -1;
@@ -411,7 +419,8 @@
 /* Every button this plugin puts on screen, raw or built by the Setting API. */
 .toolbox-panel button,
 .toolbox-settings button,
-.toolbox-modal button {
+.toolbox-modal button,
+.toolbox-ring__actions button {
 	min-width: 0;
 	max-width: 100%;
 	height: auto;
@@ -428,7 +437,8 @@
  */
 @media (max-width: 600px) {
 	.toolbox-panel__buttons,
-	.toolbox-sync__actions {
+	.toolbox-sync__actions,
+	.toolbox-ring__actions {
 		flex-direction: column;
 		align-items: stretch;
 	}
@@ -460,7 +470,8 @@
 }
 
 body.is-mobile .toolbox-panel__buttons,
-body.is-mobile .toolbox-sync__actions {
+body.is-mobile .toolbox-sync__actions,
+body.is-mobile .toolbox-ring__actions {
 	flex-direction: column;
 	align-items: stretch;
 }

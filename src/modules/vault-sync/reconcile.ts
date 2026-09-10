@@ -131,8 +131,8 @@ export function touchesLocalFiles(actions: readonly SyncAction[]): SyncAction[] 
  * The name a pulled version gets when both sides changed.
  *
  * Deliberately shaped like the conflict copies other sync tools leave behind, so
- * the sync guardian in this same plugin already knows how to find them and offer
- * a side-by-side comparison.
+ * `patterns.ts` in this same module already knows how to find them and the panel
+ * can count them. A copy nobody looks at is the same as a lost edit.
  */
 export function conflictPath(path: string, when: Date): string {
 	const stamp = when.toISOString().slice(0, 19).replace('T', ' ').replace(/:/g, '');

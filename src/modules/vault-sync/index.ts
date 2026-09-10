@@ -14,6 +14,7 @@ import type { ConnectAttempt, ConnectResult } from './connect-modal';
 import { isQuiet, planSync, runSync } from './engine';
 import type { SyncDeps } from './engine';
 import { LiveSession } from './live';
+import { matchConflictName } from './patterns';
 import { touchesLocalFiles } from './reconcile';
 import { SyncIndicator } from './indicator';
 import type { SyncState } from './indicator';
@@ -401,6 +402,19 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			return;
 		}
 
+		// Conflicted copies are this module's own doing — it makes them rather than
+		// merging when both sides changed — so it is the one that has to surface
+		// them. Left uncounted they pile up in folders nobody opens.
+		const conflicts = this.app.vault
+			.getFiles()
+			.filter((file) => matchConflictName(file.path) !== undefined).length;
+		if (conflicts > 0) {
+			containerEl.createEl('p', {
+				cls: 'toolbox-panel__state toolbox-panel__state--warn',
+				text: t('vaultSync.panel.conflicts', { count: conflicts }),
+			});
+		}
+
 		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
 		buttons
 			.createEl('button', { text: t('vaultSync.command.sync'), cls: 'mod-cta' })
@@ -408,18 +422,6 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		buttons
 			.createEl('button', { text: t('vaultSync.command.preview') })
 			.addEventListener('click', () => void this.preview());
-		buttons
-			.createEl('button', {
-				text: this.settings.liveSync
-					? t('vaultSync.panel.live')
-					: t('vaultSync.panel.liveOff'),
-			})
-			.addEventListener('click', () => {
-				void this.patchSettings({ liveSync: !this.settings.liveSync }).then(() => {
-					new Notice(t('vaultSync.notice.restartNeeded'));
-					this.refreshPanel();
-				});
-			});
 	}
 
 	/**

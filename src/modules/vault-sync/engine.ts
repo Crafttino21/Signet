@@ -168,7 +168,7 @@ async function applyLocally(
 				report.downloaded.push(action.path);
 			} else if (action.kind === 'conflict') {
 				// The local file is left exactly as it is. The incoming version lands
-				// next to it, named the way the sync guardian already recognises.
+				// next to it, named the way `patterns.ts` already recognises.
 				const target = conflictPath(action.path, now);
 				await writeFile(deps.app, target, await download(deps, contentKey, action.remote));
 				report.conflicts.push(target);

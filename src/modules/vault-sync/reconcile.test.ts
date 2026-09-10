@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { VaultManifest } from '@toolbox/protocol';
 import { conflictPath, reconcile, touchesLocalFiles } from './reconcile';
 import type { IndexEntry } from './reconcile';
-import { matchConflictName } from '../sync-health/patterns';
+import { matchConflictName } from './patterns';
 
 /**
  * The decisions these tests pin down are the ones that cost notes when they are
@@ -186,7 +186,7 @@ describe('touchesLocalFiles', () => {
 describe('conflictPath', () => {
 	const when = new Date('2026-09-09T13:30:00.000Z');
 
-	it('names the copy so the sync guardian recognises it', () => {
+	it('names the copy so it is recognisable as one', () => {
 		const path = conflictPath('Arbeit/Notiz.md', when);
 
 		expect(path).toBe('Arbeit/Notiz (conflicted copy 2026-09-09 133000).md');

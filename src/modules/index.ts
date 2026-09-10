@@ -1,6 +1,5 @@
 import type { ModuleDescriptor } from '../core/module';
 import { pluginRingModule } from './plugin-ring';
-import { syncHealthModule } from './sync-health';
 import { liveCollabModule } from './live-collab';
 import { vaultSyncModule } from './vault-sync';
 
@@ -12,5 +11,4 @@ export const TOOLBOX_MODULES: readonly ModuleDescriptor[] = [
 	pluginRingModule,
 	vaultSyncModule,
 	liveCollabModule,
-	syncHealthModule,
 ];

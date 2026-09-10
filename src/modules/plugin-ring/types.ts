@@ -29,6 +29,15 @@ export interface RingSnapshot {
 	 * and a snapshot written by an older version will not have the field at all.
 	 */
 	sync?: { serverUrl?: string };
+	/**
+	 * Devices the host has removed from the ring.
+	 *
+	 * Cooperative, and only that: a device holding the ring code can still read
+	 * everything the ring holds, because the code is the key. What this does is
+	 * tell a device that it is no longer wanted, and a device that reads its own
+	 * id here leaves. Actually revoking access means a new ring and a new code.
+	 */
+	removed?: string[];
 }
 
 export interface LocalPlugin {

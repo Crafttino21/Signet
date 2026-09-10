@@ -339,3 +339,57 @@ export class RingDiffModal extends Modal {
 		return item.hostVersion ?? item.localVersion ?? '';
 	}
 }
+
+/**
+ * A yes-or-no question with the safe answer under the cursor.
+ *
+ * Used for the two things one device can do to another — remove it from the
+ * ring, hand the ring to it — because both are seen only by the person pressing
+ * the button, and the device they affect finds out later or not at all.
+ */
+export class ConfirmModal extends Modal {
+	private confirmed = false;
+
+	private constructor(
+		app: App,
+		private readonly context: { title: string; body: string; confirm: string },
+		private readonly done: (confirmed: boolean) => void
+	) {
+		super(app);
+	}
+
+	static ask(
+		app: App,
+		context: { title: string; body: string; confirm: string }
+	): Promise<boolean> {
+		return new Promise((resolve) => {
+			new ConfirmModal(app, context, resolve).open();
+		});
+	}
+
+	override onOpen(): void {
+		this.contentEl.addClass('toolbox-modal');
+		this.setTitle(this.context.title);
+		this.contentEl.createEl('p', { text: this.context.body });
+
+		new Setting(this.contentEl)
+			.addButton((button) =>
+				button
+					.setButtonText(t('common.cancel'))
+					.setCta()
+					.onClick(() => this.close())
+			)
+			.addButton((button) => {
+				button.setButtonText(this.context.confirm).onClick(() => {
+					this.confirmed = true;
+					this.close();
+				});
+				button.buttonEl.addClass('mod-warning');
+			});
+	}
+
+	override onClose(): void {
+		this.contentEl.empty();
+		this.done(this.confirmed);
+	}
+}

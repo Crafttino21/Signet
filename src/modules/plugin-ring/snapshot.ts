@@ -11,6 +11,8 @@ export interface SnapshotOptions {
 	excludedIds: readonly string[];
 	host: { id: string; name: string };
 	seq: number;
+	/** Device ids the host has removed. Carried forward on every publish. */
+	removed?: readonly string[];
 	/** What else the ring should carry, such as where the sync server is. */
 	sync?: { serverUrl?: string };
 }
@@ -60,6 +62,7 @@ export async function buildSnapshot(
 		// Left out entirely rather than written as empty, so a ring without a server
 		// carries no field at all.
 		...(options.sync?.serverUrl ? { sync: { serverUrl: options.sync.serverUrl } } : {}),
+		...(options.removed && options.removed.length > 0 ? { removed: [...options.removed] } : {}),
 		plugins: local.map((plugin) => ({
 			id: plugin.id,
 			name: plugin.name,

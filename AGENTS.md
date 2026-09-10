@@ -113,26 +113,32 @@ elsewhere. Three rules are not negotiable:
   ours that merely looks broken is left alone — a sync client caught mid-write
   looks exactly the same.
 
-## Sync guardian
+## The device roster
 
-It watches the user's sync; it never syncs anything itself. Three rules:
+`src/modules/plugin-ring/devices.ts`. One file per device under
+`<ring folder>/devices`, named after the device id — a single writer per file,
+so the roster cannot become a source of conflicts. Ordinary vault files, so they
+travel by the sync and measure it.
 
-- Never resolve a conflict without showing the two versions first.
-- Removing a file means `fileManager.trashFile()`, never a delete — the sync
-  problems this module reports have already cost users content.
-- Never merge conflict markers automatically. Open the note at the marker and let
-  the user decide.
-
-The double-sync check reads folder names above the vault. That is access outside
-the vault, so it stays desktop-only, reads listings only, is switchable off, and is
-disclosed in the README — the developer policy requires that disclosure.
+- Removing a device and handing over the host are **cooperative**, and the
+  wording must keep saying so. The ring code is the key: a removed device that
+  keeps the code can still read the ring, and only a new ring revokes anything.
+  Never write "revoke", "block" or "kick" about either.
+- Removal travels in the snapshot's `removed` list and the host carries it
+  forward on every publish. A device that reads its own id there leaves.
+- A handover is published before the old host steps down. Stepping down first
+  would leave a ring nobody is publishing.
+- A device's own heartbeat is the only file it writes there, and another
+  device's goes to the trash rather than being deleted.
 
 ## Vault sync
 
 The rules the reconciler and engine must keep, in `src/modules/vault-sync`:
 
 - Never merge and never overwrite when both sides changed. Keep both, naming the
-  incoming one so the sync guardian recognises it.
+  incoming one so it is recognisable as a conflicted copy — `patterns.ts` is what
+  recognises them, and the panel counts them, because a copy nobody looks at is
+  the same as a lost edit.
 - A remote deletion goes through `trashFile()`, never a hard delete, and never at
   all if this device edited the file since it last synced.
 - Never infer a deletion without a base. A device with no sync state is missing

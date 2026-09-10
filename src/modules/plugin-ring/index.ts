@@ -23,8 +23,17 @@ import {
 import type { Bytes } from '@toolbox/protocol';
 import { deriveRingId, openSnapshot, RingDecryptionError, sealSnapshot } from '@toolbox/protocol';
 import { computeDiff, planApply } from './diff';
-import { JoinRingModal, RingDiffModal, RingFileConflictModal, ShowCodeModal } from './modals';
+import {
+	ConfirmModal,
+	JoinRingModal,
+	RingDiffModal,
+	RingFileConflictModal,
+	ShowCodeModal,
+} from './modals';
 import type { MissingAddress } from './modals';
+import { randomDeviceName } from '../../core/device-name';
+import { buildRoster, DeviceRoster } from './devices';
+import type { DeviceHealth } from './devices';
 import { classifyRingFile, RingFile } from './ring-file';
 import type { RingFileVerdict } from './ring-file';
 import { collectLocalPlugins, buildSnapshot } from './snapshot';
@@ -54,6 +63,8 @@ type PluginRingSettings = {
 	deviceName: string;
 	/** Device id of the host we trust; a change is worth warning about. */
 	hostId: string | null;
+	/** Devices this host has removed. Republished with every snapshot. */
+	removedIds: string[];
 	ringFilePath: string;
 	/** Last sequence this host published — its half of the concurrency check. */
 	lastPublishedSeq: number;
@@ -67,12 +78,25 @@ type PluginRingSettings = {
 	installMissing: boolean;
 };
 
+/**
+ * How long a device may be away before the roster says so.
+ *
+ * Short, because this is a list of who is here now rather than a report on the
+ * last few days: with live sync a device that is running checks in every few
+ * seconds, so a quarter of an hour of silence already means it is closed.
+ */
+const STALE_AFTER_MINUTES = 15;
+
+/** How often this device writes itself into the roster. */
+const BEAT_EVERY_MINUTES = 5;
+
 const DEFAULT_SETTINGS: PluginRingSettings = {
 	code: null,
 	role: null,
 	deviceId: '',
 	deviceName: '',
 	hostId: null,
+	removedIds: [],
 	ringFilePath: 'Toolbox/plugin-ring.json',
 	lastPublishedSeq: 0,
 	lastAppliedSeq: 0,
@@ -174,9 +198,14 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		// The file index is not populated yet during onload, so this has to wait for
 		// the layout to settle or it would always find nothing.
+		this.registerInterval(
+			window.setInterval(() => void this.beat(), BEAT_EVERY_MINUTES * 60 * 1000)
+		);
+
 		this.app.workspace.onLayoutReady(() => {
 			this.warnAboutConflictCopies();
 			void this.refreshFileVerdict();
+			void this.beat().then(() => this.refreshDevices());
 
 			// A snapshot that arrived while this device was closed raises no vault
 			// event: by the time Obsidian starts, the file is simply there and
@@ -313,6 +342,136 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			button(t('ring.settings.checkNow'), () => void this.check());
 		}
 		button(t('ring.settings.leave'), () => void this.leave());
+
+		this.renderDevices(containerEl);
+	}
+
+	/**
+	 * Who is in this ring, and what can be done about them.
+	 *
+	 * The two actions are the host's, and both are cooperative: the other device
+	 * finds out the next time it reads a snapshot. Neither is enforcement — the
+	 * ring code is the key, and a device that keeps it can still read the ring —
+	 * so the wording says removal rather than revocation, and the dialog spells
+	 * out what actually revoking access takes.
+	 */
+	private renderDevices(containerEl: HTMLElement): void {
+		containerEl.createEl('h4', { text: t('ring.panel.devices') });
+
+		if (this.devices.length === 0) {
+			containerEl.createEl('p', {
+				cls: 'toolbox-panel__state',
+				text: t('ring.panel.noDevices'),
+			});
+			return;
+		}
+
+		const isHost = this.settings.role === 'host';
+		const list = containerEl.createEl('ul', { cls: 'toolbox-ring__list' });
+
+		for (const device of this.devices) {
+			const row = list.createEl('li', { cls: 'toolbox-ring__row' });
+			row.createSpan({ cls: 'toolbox-ring__name', text: device.deviceName });
+			row.createSpan({
+				cls:
+					device.status === 'fresh' || device.isSelf
+						? 'toolbox-ring__kind'
+						: 'toolbox-ring__kind toolbox-panel__state--warn',
+				text: describeSeen(device),
+			});
+
+			const tags: string[] = [];
+			if (device.isSelf) {
+				tags.push(t('ring.panel.thisDevice'));
+			}
+			if (device.isHost) {
+				tags.push(t('ring.panel.isHost'));
+			}
+			if (device.version !== undefined) {
+				tags.push(t('panel.version', { version: device.version }));
+			}
+			if (tags.length > 0) {
+				row.createSpan({ cls: 'toolbox-ring__detail', text: tags.join(' · ') });
+			}
+
+			// Only the host can act, and never on itself: handing the ring to the
+			// device already holding it does nothing, and removing yourself is what
+			// "Leave" is for.
+			if (!isHost || device.isSelf) {
+				continue;
+			}
+
+			const actions = row.createDiv({ cls: 'toolbox-ring__actions' });
+			actions
+				.createEl('button', { text: t('ring.panel.makeHost') })
+				.addEventListener('click', () => void this.handOver(device));
+			actions
+				.createEl('button', { text: t('ring.panel.remove') })
+				.addEventListener('click', () => void this.removeDevice(device));
+		}
+	}
+
+	/**
+	 * Tells a device it is no longer part of the ring.
+	 *
+	 * A message, not a lock. It is published in the snapshot, the device reads it
+	 * the next time it syncs, and it leaves. A device that never syncs again
+	 * never finds out — and one that keeps the code can still read the ring,
+	 * because the code is the key. Revoking access is a new ring and a new code,
+	 * which the dialog says.
+	 */
+	private async removeDevice(device: DeviceHealth): Promise<void> {
+		const confirmed = await ConfirmModal.ask(this.app, {
+			title: t('ring.remove.title', { name: device.deviceName }),
+			body: t('ring.remove.body'),
+			confirm: t('ring.panel.remove'),
+		});
+		if (!confirmed) {
+			return;
+		}
+
+		await this.patchSettings({
+			removedIds: [...new Set([...this.settings.removedIds, device.deviceId])],
+		});
+		await this.roster().forget(device.deviceId);
+		await this.publish();
+		await this.refreshDevices();
+	}
+
+	/**
+	 * Hands the ring to another device.
+	 *
+	 * Published first, demoted second: the snapshot naming the new host is what
+	 * makes it one, and this device stepping down before that would leave a ring
+	 * nobody is publishing. The new host picks it up when it next reads a
+	 * snapshot, and continues the sequence from the file rather than from its own
+	 * settings — which the publish path already works out for a host whose
+	 * settings are behind its own file.
+	 */
+	private async handOver(device: DeviceHealth): Promise<void> {
+		const confirmed = await ConfirmModal.ask(this.app, {
+			title: t('ring.handOver.title', { name: device.deviceName }),
+			body: t('ring.handOver.body', { name: device.deviceName }),
+			confirm: t('ring.panel.makeHost'),
+		});
+		if (!confirmed) {
+			return;
+		}
+
+		if (!(await this.publish({ id: device.deviceId, name: device.deviceName }))) {
+			return;
+		}
+
+		await this.patchSettings({
+			role: 'client',
+			hostId: device.deviceId,
+			lastAppliedSeq: this.settings.lastPublishedSeq,
+		});
+		this.lastSeen = undefined;
+		await this.beat();
+		this.refreshUi();
+		await this.refreshDevices();
+		new Notice(t('ring.notice.handedOver', { name: device.deviceName }));
 	}
 
 	override displaySettings(containerEl: HTMLElement): void {
@@ -378,7 +537,11 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			.setDesc(t('ring.settings.deviceDesc'))
 			.addText((text) =>
 				text.setValue(this.settings.deviceName).onChange(async (value) => {
-					await this.patchSettings({ deviceName: value });
+					await this.patchSettings({ deviceName: value.trim() || randomDeviceName() });
+					// Straight into the roster, so the other devices see the new name
+					// at their next sync rather than at this one's next heartbeat.
+					await this.beat();
+					await this.refreshDevices();
 				})
 			);
 
@@ -674,17 +837,17 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	 * leave a host convinced it had a ring while the other devices find no file to
 	 * join — which is exactly how it looks from the phone.
 	 */
-	private async publish(): Promise<boolean> {
+	private async publish(host?: { id: string; name: string }): Promise<boolean> {
 		// Whatever happens below, the panel should end up describing the file as it
 		// is now rather than as it was before the button was pressed.
 		try {
-			return await this.publishOnce();
+			return await this.publishOnce(host);
 		} finally {
 			void this.refreshFileVerdict();
 		}
 	}
 
-	private async publishOnce(): Promise<boolean> {
+	private async publishOnce(hostOverride?: { id: string; name: string }): Promise<boolean> {
 		const secret = this.secret();
 		if (!secret || !this.api) {
 			new Notice(t('ring.notice.notInRing'));
@@ -746,11 +909,12 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			const snapshot = await buildSnapshot(this.app, this.api, {
 				selfId: this.plugin.manifest.id,
 				excludedIds: this.settings.excludedIds,
-				host: { id: this.settings.deviceId, name: this.deviceName() },
+				host: hostOverride ?? { id: this.settings.deviceId, name: this.deviceName() },
 				seq,
 				// Whatever the sync module has put in — the ring itself knows nothing
 				// about servers, it only carries what it is given.
 				sync: this.plugin.ringLink.contribution(),
+				removed: this.settings.removedIds,
 			});
 			await file.write(await sealSnapshot(secret, snapshot));
 			count = snapshot.plugins.length;
@@ -819,6 +983,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			return;
 		}
 		this.announce(snapshot);
+		await this.applyMembership(snapshot);
+		void this.refreshDevices();
 
 		// Seeing the host's snapshot is what "waiting for the host" was waiting
 		// for. It used to end only when a plugin change was applied, which for a
@@ -934,6 +1100,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		const snapshot = await this.decrypt(secret, state.envelope, options.quiet);
 		if (snapshot) {
 			this.announce(snapshot);
+			await this.applyMembership(snapshot);
 		}
 		return snapshot;
 	}
@@ -987,6 +1154,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	}
 
 	private fileVerdict: RingFileVerdict | undefined;
+	/** The roster, as last read. The panel draws from this rather than the disk. */
+	private devices: DeviceHealth[] = [];
 	/** The ciphertext last read, so an unchanged file is not read again. */
 	private lastSeen: string | undefined;
 	/** A mismatched code is a fact, not an event: worth saying once per session. */
@@ -1003,9 +1172,95 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		);
 	}
 
+	// --- the roster ---------------------------------------------------------
+
+	private roster(): DeviceRoster {
+		const path = this.ringFile().path;
+		const slash = path.lastIndexOf('/');
+		return new DeviceRoster(this.app, `${slash < 0 ? '' : path.slice(0, slash)}/devices`);
+	}
+
+	/** Writes this device into the roster. Its own file, so nothing can conflict. */
+	private async beat(): Promise<void> {
+		if (this.settings.role === null) {
+			return;
+		}
+		try {
+			await this.roster().write({
+				deviceId: this.settings.deviceId,
+				deviceName: this.deviceName(),
+				updatedAt: new Date().toISOString(),
+				role: this.settings.role,
+				version: this.plugin.manifest.version,
+			});
+		} catch (error) {
+			console.error('Toolbox: could not write this device into the ring roster.', error);
+		}
+	}
+
+	/** Re-reads the roster for the panel. Cheap: a handful of small JSON files. */
+	private async refreshDevices(): Promise<void> {
+		if (this.settings.role === null) {
+			this.devices = [];
+			this.refreshPanel();
+			return;
+		}
+
+		this.devices = buildRoster(await this.roster().readAll(), {
+			now: new Date(),
+			staleAfterMinutes: STALE_AFTER_MINUTES,
+			selfId: this.settings.deviceId,
+			hostId: this.settings.role === 'host' ? this.settings.deviceId : this.settings.hostId,
+		});
+		this.refreshPanel();
+	}
+
+	/**
+	 * What a snapshot says about this device's own membership.
+	 *
+	 * Both answers are cooperative, and deliberately so. Removal is a message,
+	 * not a lock: the ring code is the key, and a device that keeps it can still
+	 * read everything. What it buys is a device that stops syncing when told to,
+	 * which is the ordinary case — an old laptop, a phone that was replaced.
+	 */
+	private async applyMembership(snapshot: RingSnapshot): Promise<void> {
+		if (snapshot.removed?.includes(this.settings.deviceId) === true) {
+			await this.patchSettings({
+				code: null,
+				role: null,
+				hostId: null,
+				lastAppliedSeq: 0,
+				lastPublishedSeq: 0,
+			});
+			this.lastSeen = undefined;
+			this.plugin.ringLink.ringChanged();
+			this.refreshUi();
+			new Notice(t('ring.notice.removedFromRing', { host: snapshot.host.name }));
+			return;
+		}
+
+		// The host handed the ring over. Only the named device may take it, and it
+		// takes it by publishing next — the seq in the file is already ours to
+		// continue from, which the publish path works out on its own.
+		if (snapshot.host.id === this.settings.deviceId && this.settings.role !== 'host') {
+			await this.patchSettings({ role: 'host', hostId: this.settings.deviceId });
+			this.refreshUi();
+			new Notice(t('ring.notice.becameHost'));
+		}
+	}
+
 	private async ensureDeviceIdentity(): Promise<void> {
+		const patch: Partial<PluginRingSettings> = {};
 		if (!this.settings.deviceId) {
-			await this.patchSettings({ deviceId: crypto.randomUUID() });
+			patch.deviceId = crypto.randomUUID();
+		}
+		// A roster of three devices all called "Desktop" is a list nobody can act
+		// on, and acting on it is what it is for.
+		if (!this.settings.deviceName.trim()) {
+			patch.deviceName = randomDeviceName();
+		}
+		if (Object.keys(patch).length > 0) {
+			await this.patchSettings(patch);
 		}
 	}
 
@@ -1034,3 +1289,23 @@ export const pluginRingModule: ModuleDescriptor<PluginRingSettings> = {
 	defaultSettings: DEFAULT_SETTINGS,
 	create: (plugin: ToolboxPlugin) => new PluginRingModule(plugin, pluginRingModule),
 };
+
+/** How long ago a device was last here, in words. */
+function describeSeen(device: DeviceHealth): string {
+	if (device.isSelf) {
+		return t('ring.device.now');
+	}
+	if (device.ageMinutes === undefined) {
+		return t('ring.device.unknownTime');
+	}
+	if (device.ageMinutes < 2) {
+		return t('ring.device.now');
+	}
+	if (device.ageMinutes < 60) {
+		return t('ring.device.minutes', { count: device.ageMinutes });
+	}
+	const hours = Math.floor(device.ageMinutes / 60);
+	return hours < 24
+		? t('ring.device.hours', { count: hours })
+		: t('ring.device.days', { count: Math.floor(hours / 24) });
+}

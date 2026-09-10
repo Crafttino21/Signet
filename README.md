@@ -4,11 +4,11 @@ An Obsidian plugin that collects several small quality-of-life tools in one plac
 each one switchable on its own.
 
 Every feature is a **module**: a self-contained unit with its own settings that can
-be turned on and off at runtime without restarting Obsidian. The ring, the sync and
-live editing start switched on — they do nothing at all until there is a ring, and
-having to find three switches before anything can happen is not a safety feature.
-The sync guardian starts off, because its double-sync check looks at folders above
-the vault.
+be turned on and off at runtime without restarting Obsidian. Only the ring starts
+switched on, because it is where everything begins. The sync appears once there is
+a ring and live editing once a server answers, and each switches itself on the
+first time that happens — pasting a code that carries a server is asking for the
+sync, not asking to be shown a switch.
 
 **Getting started** takes one command: _Set up Toolbox_. It walks the handful of
 decisions in the order they depend on each other — a ring first, because its code
@@ -16,10 +16,10 @@ is the key to everything else, then the server. The panel shows how many steps a
 left until it works, and the prompt disappears once none are.
 
 Everything is managed from one place. The wrench in the ribbon opens a side panel
-where each switched-on module draws its own state and its own buttons — the ring,
-the sync, the conflict report. On the desktop a small indicator in the status bar
-says whether sync is idle, working, live or in trouble, and clicking it opens the
-panel. Mobile has no status bar, so there the panel carries that on its own.
+listing every device in the ring — what each is called, when it was last here, and
+which one is the host — with the ring's and the sync's own state above it. Every
+open note carries the sync state in its header, which is the one indicator that
+exists on a phone; the desktop keeps a status bar item as well.
 
 Settings that exist for unusual setups rather than everyday use sit behind an
 **Advanced** fold that starts closed, so the two or three that matter are not
@@ -298,42 +298,32 @@ Two details are worth knowing, because they are where a naive version loses text
 The server relays and stores these updates without being able to read any of them.
 It cannot tell an edit from a cursor position.
 
-## Sync guardian
+## The devices in a ring
 
-Watches whatever sync you already use instead of replacing it. Three things go
-wrong with vault sync, and all three are invisible from inside Obsidian:
+Every device writes one small file into `Toolbox/devices`, named after its own
+id. One writer per file, so the roster can never become a source of the
+conflicts the sync exists to prevent — and because they are ordinary vault
+files, they travel by the sync itself and are therefore a measurement of it. A
+device that stops appearing is either closed or not syncing, and those look the
+same here on purpose: both mean its notes are not moving.
 
-- **Conflicting copies** pile up in folders nobody opens
-  (`Note (conflicted copy 2026-08-28 093612).md`, Syncthing's `.sync-conflict-…`).
-- **Conflict markers written into a note** — some tools do not create a second
-  file, they put both versions into the original between `<<<<<<<` and `>>>>>>>`.
-  The file count never changes and the note looks completely normal in the file
-  tree. This is the dangerous one.
-- **A device quietly stops syncing** and nothing says so.
+The **Toolbox panel** lists them: name, when each was last here, which one you
+are looking from, which one is the host, and what version each is running. On
+the host, every other row offers two things.
 
-The report lists all of it. Every conflicting copy can be compared side by side
-with the file it came from before you decide which one to keep — and the one you
-drop goes to the **trash**, never straight to deletion. Notes with markers are only
-opened at the right line; merging is never done for you, because a merge can
-destroy text.
+**Remove** tells a device it is no longer wanted. It leaves the ring the next
+time it syncs. This is a message, not a lock — the ring code is the key, so a
+device that still holds the code can go on reading the ring. Taking access away
+means creating a new ring and handing the new code only to the devices that
+should keep it. The dialog says so rather than letting anyone assume otherwise.
 
-Devices report in through one small file each under `Toolbox/health/`. One writer
-per file, so these can never conflict with each other — and because they travel
-through your normal sync, a heartbeat that stops arriving _is_ the symptom.
+**Make host** hands the ring over. The named device becomes the one that
+publishes; this one follows the ring like any other. It takes effect when that
+device next syncs, and it can be handed back the same way.
 
-### Two sync tools on one vault
-
-The single most common cause of conflicts nobody caused. Obsidian's own
-documentation is blunt: _"Avoid syncing the same vault across multiple services …
-to prevent data conflicts or corruption."_ If a desktop sync client manages a
-folder above your vault while a sync plugin runs inside Obsidian, both write the
-same files and each sees the other's writes as an outside change.
-
-The guardian detects this and says so. **Disclosure:** that check reads the names
-of entries in the folders _above_ your vault, looking for markers like
-`.nextcloudsync.log`, `.dropbox` or `.stfolder`. It reads directory listings only,
-never file contents, runs on desktop only, and can be switched off in the module's
-settings. Nothing leaves your machine — the plugin makes no network requests at all.
+Devices are given a made-up name on first run — _Quiet Otter 07_ — because a
+list of three devices all called "Desktop" is not one you can act on. Rename any
+of them in the plugin ring settings; clear the field and a fresh name appears.
 
 ## Languages
 
@@ -478,10 +468,10 @@ src/
     obsidian-internals.ts  the one file that touches Obsidian's internal API
   modules/
     index.ts               the module list — the only file a new feature touches
-    plugin-ring/           keeps plugins in step across devices
+    plugin-ring/           keeps plugins in step across devices, owns the roster
+      devices.ts           who is in the ring, and when each was last here
     vault-sync/            syncs notes with your own server, encrypted
     live-collab/           editing one note on two devices at once
-    sync-health/           finds sync conflicts, watches device heartbeats
   i18n/
     index.ts               t() and locale selection
     locales/               en.ts is the base, one file per language

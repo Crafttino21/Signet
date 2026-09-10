@@ -37,6 +37,14 @@ export type Bytes = Uint8Array<ArrayBuffer>;
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const SECRET_BYTES = 15;
 const CODE_CHARS = 24; // 15 bytes * 8 bits / 5 bits per char
+/**
+ * Says `TBX` because it prefixes codes people have already written down.
+ *
+ * One step out from the HKDF labels and for the same reason: this is part of the
+ * wire format, not a title. Changing it would make every code anybody has copied
+ * onto a phone or a piece of paper unrecognisable. The `1` is the version, and
+ * that is the part that may move.
+ */
 const PREFIX = 'TBX1';
 const GROUP = 6;
 

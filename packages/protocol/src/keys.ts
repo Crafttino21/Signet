@@ -15,6 +15,15 @@ import type { Bytes } from './code';
  *   lands under different blob ids and cannot be correlated.
  */
 
+/**
+ * These say `toolbox` because that is what they are, not what this is called.
+ *
+ * An HKDF `info` string is an input to the derivation, so renaming one derives a
+ * different key from the same secret. Every ring id would change, every vault id
+ * on every server, every content key — which is to say every ring code anybody
+ * has would stop opening anything. The project was renamed; these were not,
+ * deliberately, and they never can be.
+ */
 const VAULT_ID_INFO = 'toolbox:vault-sync:vault-id:v1';
 const AUTH_TOKEN_INFO = 'toolbox:vault-sync:auth-token:v1';
 const CONTENT_KEY_INFO = 'toolbox:vault-sync:content-key:v1';

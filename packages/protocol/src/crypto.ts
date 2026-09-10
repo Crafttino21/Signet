@@ -19,6 +19,15 @@
 
 import type { Bytes } from './code';
 
+/**
+ * These say `toolbox` because that is what they are, not what this is called.
+ *
+ * An HKDF `info` string is an input to the derivation, so renaming one derives a
+ * different key from the same secret. Every ring id would change, every vault id
+ * on every server, every content key — which is to say every ring code anybody
+ * has would stop opening anything. The project was renamed; these were not,
+ * deliberately, and they never can be.
+ */
 const KEY_INFO = 'toolbox:plugin-ring:aes-key:v1';
 const RING_ID_INFO = 'toolbox:plugin-ring:ring-id:v1';
 const IV_BYTES = 12; // The size AES-GCM is specified for.

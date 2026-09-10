@@ -37,6 +37,19 @@ export interface ModuleDescriptor<S = unknown> {
 	 * and rebuilt as its prerequisite comes and goes.
 	 */
 	available?(plugin: ToolboxPlugin): boolean;
+	/**
+	 * Switch this on by itself the first time it becomes available. Defaults to
+	 * false.
+	 *
+	 * For a module whose whole purpose is the thing that just appeared: joining a
+	 * ring whose code carries a server is asking for the sync, and making someone
+	 * find a switch afterwards is asking them to confirm what they already said.
+	 *
+	 * It happens once per module, ever, recorded in `autoEnabled`. Switching it
+	 * off afterwards is a decision, and decisions are not undone by a prerequisite
+	 * coming back.
+	 */
+	readonly enableWhenAvailable?: boolean;
 	create(plugin: ToolboxPlugin): ToolboxModule<S>;
 }
 
@@ -186,7 +199,6 @@ export abstract class ToolboxModule<S = unknown> extends Component {
 	 * out of any text field being typed into.
 	 */
 	protected refreshUi(): void {
-		this.plugin.refreshPanel();
-		this.plugin.refreshSettings();
+		this.plugin.reconcileModules();
 	}
 }

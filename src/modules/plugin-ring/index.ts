@@ -451,6 +451,22 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		}
 
 		const code = formatRingCode(generateRingSecret());
+
+		// Before anything is offered a server: a new code is a new vault, and an
+		// old registration left standing against it is a device talking to a vault
+		// whose key no longer exists.
+		this.plugin.ringLink.ringChanged();
+
+		// The server comes first, so that the very first code shown already carries
+		// its address. A code handed out before the server exists carries none, and
+		// every device that joins with it is stranded — which is not something the
+		// person handing it out can see.
+		const outcome = await this.plugin.ringLink.setUpServer(code);
+		if (outcome === 'cancelled') {
+			new Notice(t('ring.notice.createCancelled'));
+			return;
+		}
+
 		await this.patchSettings({
 			code,
 			role: 'host',
@@ -516,6 +532,11 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				this.plugin.ringLink.announce({ serverUrl: addressToUrl(address) });
 			}
 		};
+
+		// A different code is a different vault, so anything this device thought it
+		// had on the old one goes before the new one is adopted.
+		this.plugin.ringLink.ringChanged();
+		this.lastSeen = undefined;
 
 		const state = await this.ringFile().read();
 
@@ -589,6 +610,11 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			lastPublishedSeq: 0,
 		});
 		this.fileVerdict = undefined;
+		this.lastSeen = undefined;
+		// The vault id and every key came out of the code that just went away. A
+		// sync still calling itself registered would be talking to a vault it can
+		// no longer open, which arrives as an error about something else entirely.
+		this.plugin.ringLink.ringChanged();
 		this.refreshUi();
 		new Notice(t('ring.notice.left'));
 	}

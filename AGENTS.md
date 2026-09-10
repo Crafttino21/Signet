@@ -33,8 +33,11 @@ outside it should be what someone actually needs on the first day.
 A module that cannot do anything yet is not shown at all. `available()` on the
 descriptor is that gate — the vault sync appears once there is a ring, live
 editing once a server has answered — and it governs the settings tab, the panel
-and the guided setup alike. A module arrives switched off; the panel names what
-has become available so nobody has to go looking. Availability is display only:
+and the guided setup alike. `enableWhenAvailable` then switches it on the first
+time that happens, once ever, recorded in `autoEnabled`: pasting a code that
+carries a server is asking for the sync, and a prerequisite reappearing must not
+overrule someone who later switched it off. The panel names anything available
+and still off, so nobody has to go looking. Availability is display only:
 whether a module runs is the user's switch, and one that is on but not yet
 relevant sits idle rather than being torn down and rebuilt as its prerequisite
 comes and goes.
@@ -147,6 +150,14 @@ snapshot announces what it found.
 
 - Only the host publishes. A request to publish from elsewhere is a no-op on every
   other device, which is why the request is a broadcast rather than a call.
+- The server is connected before the ring is committed, through
+  `RingLink.setUpServer()`. A code shown before the server exists carries no
+  address, and every device that joined with one is stranded — so the first code
+  anyone sees is already the complete one.
+- The ring code is the vault's identity. When it changes or goes away,
+  `RingLink.ringChanged()` says so and the sync drops its registration: the vault
+  id, the token and every key came out of the code that just left, and a device
+  still calling itself registered talks to a vault it cannot open.
 - An address a person typed is never replaced by the ring; one that came from the
   ring is. On a home network the host's address can be the unreachable one, so a
   typed answer stands — but a server that moves must not need a visit to every

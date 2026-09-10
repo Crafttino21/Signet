@@ -42,6 +42,32 @@ export class ModuleRegistry {
 		return this.active.get(id);
 	}
 
+	/**
+	 * Switches on anything that has just become available and asked to be.
+	 *
+	 * Once per module, ever. A prerequisite appearing is a reason to offer a
+	 * feature; it is not a reason to overrule someone who switched it off.
+	 */
+	async reconcileAvailability(): Promise<void> {
+		const settings = this.plugin.settings;
+		const turnOn = this.descriptors.filter(
+			(descriptor) =>
+				descriptor.enableWhenAvailable === true &&
+				(descriptor.available?.(this.plugin) ?? true) &&
+				!settings.autoEnabled.includes(descriptor.id) &&
+				!this.isEnabled(descriptor.id)
+		);
+
+		if (turnOn.length === 0) {
+			return;
+		}
+
+		for (const descriptor of turnOn) {
+			settings.autoEnabled.push(descriptor.id);
+			await this.setEnabled(descriptor.id, true);
+		}
+	}
+
 	/** Brings running modules in line with the stored settings. */
 	syncWithSettings(): Promise<void> {
 		return this.enqueue(() => {

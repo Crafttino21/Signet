@@ -422,6 +422,7 @@ export const liveCollabModule: ModuleDescriptor<LiveCollabSettings> = {
 	// itself as unavailable, which is a worse thing to read than nothing.
 	available: (plugin) => isSyncRegistered(plugin),
 	enabledByDefault: false,
+	enableWhenAvailable: true,
 	get name() {
 		return t('collab.name');
 	},

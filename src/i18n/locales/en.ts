@@ -76,6 +76,7 @@ export const en = {
 		'Joined. The code carried the server address, so this device is contacting it now.',
 	'ring.notice.joinedWaiting':
 		'Code accepted. Waiting for the host\'s snapshot to arrive at "{path}" — this device will say so once it does.',
+	'ring.notice.createCancelled': 'No ring was created. Nothing on this device changed.',
 	'ring.notice.left': 'Left the ring. Nothing installed was changed.',
 	'ring.notice.raced':
 		'The ring was changed by "{host}" since this device last published. Nothing was overwritten.',
@@ -235,6 +236,18 @@ export const en = {
 
 	'vaultSync.settings.needsRing':
 		'Create or join a plugin ring first. The ring code is what encrypts your notes and identifies your vault to the server.',
+	'vaultSync.connect.title': 'Connect your sync server',
+	'vaultSync.connect.hint':
+		'The ring code is about to be created, and it carries this address to every other device. Setting the server up first is what makes joining a one-step affair everywhere else.',
+	'vaultSync.connect.serverDesc':
+		'On a home network something like http://192.168.1.10:8787. The port matters: without one it means port 80, where nothing is listening.',
+	'vaultSync.connect.secretDesc':
+		'From the server, needed once to create the vault. It never leaves this device and is not stored.',
+	'vaultSync.connect.connect': 'Connect',
+	'vaultSync.connect.working': 'Connecting…',
+	'vaultSync.connect.without': 'Without a server',
+	'vaultSync.connect.withoutHint':
+		'Without a server the ring still keeps plugins in step across your devices. You can connect one later, but the codes handed out before then will not carry the address.',
 	'vaultSync.settings.status': 'Status',
 	'vaultSync.settings.statusReady': 'Set up. This device can sync.',
 	'vaultSync.settings.statusNotSetUp': 'Not set up yet on this server.',

@@ -72,6 +72,8 @@ export const de: Translations = {
 		'Beigetreten. Der Code enthielt die Serveradresse, dieses Gerät verbindet sich gerade damit.',
 	'ring.notice.joinedWaiting':
 		'Code übernommen. Warte darauf, dass der Snapshot des Hosts unter „{path}“ ankommt — dieses Gerät meldet sich, sobald er da ist.',
+	'ring.notice.createCancelled':
+		'Es wurde kein Ring erstellt. Auf diesem Gerät hat sich nichts geändert.',
 	'ring.notice.left': 'Ring verlassen. An den installierten Plugins wurde nichts geändert.',
 	'ring.notice.raced':
 		'Der Ring wurde von „{host}“ geändert, seit dieses Gerät zuletzt veröffentlicht hat. Es wurde nichts überschrieben.',
@@ -235,6 +237,18 @@ export const de: Translations = {
 
 	'vaultSync.settings.needsRing':
 		'Zuerst einen Plugin-Ring erstellen oder beitreten. Der Ring-Code verschlüsselt deine Notizen und weist deinen Vault gegenüber dem Server aus.',
+	'vaultSync.connect.title': 'Sync-Server verbinden',
+	'vaultSync.connect.hint':
+		'Der Ring-Code wird gleich erstellt und trägt diese Adresse zu jedem anderen Gerät. Den Server zuerst einzurichten ist das, was den Beitritt überall sonst zu einem einzigen Schritt macht.',
+	'vaultSync.connect.serverDesc':
+		'Im Heimnetz etwa http://192.168.1.10:8787. Der Port zählt: ohne ihn bedeutet die Adresse Port 80, wo nichts lauscht.',
+	'vaultSync.connect.secretDesc':
+		'Vom Server, einmalig nötig, um den Vault anzulegen. Er verlässt dieses Gerät nicht und wird nicht gespeichert.',
+	'vaultSync.connect.connect': 'Verbinden',
+	'vaultSync.connect.working': 'Verbinde…',
+	'vaultSync.connect.without': 'Ohne Server',
+	'vaultSync.connect.withoutHint':
+		'Ohne Server hält der Ring weiterhin die Plugins deiner Geräte im Gleichschritt. Du kannst später einen verbinden — die vorher weitergegebenen Codes tragen die Adresse dann aber nicht.',
 	'vaultSync.settings.status': 'Status',
 	'vaultSync.settings.statusReady': 'Eingerichtet. Dieses Gerät kann synchronisieren.',
 	'vaultSync.settings.statusNotSetUp': 'Auf diesem Server noch nicht eingerichtet.',

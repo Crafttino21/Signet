@@ -16,6 +16,16 @@
 
 import { DEFAULT_SYNC_PORT } from '@toolbox/protocol';
 
+/**
+ * The example in every address field.
+ *
+ * It shows a port on purpose. The server listens on 8787 and nothing listens on
+ * 80, so an address without one is refused by the machine rather than by this
+ * plugin — which arrives as "connection refused" for a server that is plainly
+ * running, and is the single easiest way to lose an evening to this.
+ */
+export const SERVER_PLACEHOLDER = 'http://192.168.1.10:8787';
+
 /** Who put the current address there. */
 export type ServerUrlSource = 'user' | 'ring';
 

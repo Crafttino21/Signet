@@ -48,7 +48,12 @@ const brokenModule: ModuleDescriptor = {
 };
 
 class TestPlugin extends Plugin {
-	settings: ToolboxSettings = { version: 1, enabledModules: {}, moduleSettings: {} };
+	settings: ToolboxSettings = {
+		version: 1,
+		enabledModules: {},
+		moduleSettings: {},
+		autoEnabled: [],
+	};
 	saveSettings = vi.fn(() => Promise.resolve());
 }
 
@@ -136,5 +141,73 @@ describe('ModuleRegistry', () => {
 		expect(registry.isEnabled('test')).toBe(true);
 		expect(registry.getActive('test')).toBeDefined();
 		expect(events).toEqual(['onload', 'onDisable', 'cleanup', 'onunload', 'onload']);
+	});
+});
+
+/**
+ * A module that follows its prerequisite in.
+ *
+ * Joining a ring whose code carries a server is asking for the sync; making
+ * someone find a switch afterwards asks them to confirm what they already said.
+ * It happens once, though — switching it off afterwards is a decision, and a
+ * prerequisite reappearing must not overrule it.
+ */
+describe('switching on what has just become available', () => {
+	let ready = false;
+
+	const follower: ModuleDescriptor = {
+		id: 'follower',
+		name: 'Follower',
+		description: 'Comes along once its prerequisite is there',
+		defaultSettings: {},
+		available: () => ready,
+		enableWhenAvailable: true,
+		create: (plugin) => new TestModule(plugin, follower),
+	};
+
+	beforeEach(() => {
+		ready = false;
+	});
+
+	it('stays off while its prerequisite is missing', async () => {
+		const { plugin, registry } = setup([follower]);
+
+		await registry.reconcileAvailability();
+
+		expect(registry.isEnabled('follower')).toBe(false);
+		expect(plugin.settings.autoEnabled).toEqual([]);
+	});
+
+	it('switches itself on the moment the prerequisite appears', async () => {
+		const { plugin, registry } = setup([follower]);
+		ready = true;
+
+		await registry.reconcileAvailability();
+
+		expect(registry.isEnabled('follower')).toBe(true);
+		expect(registry.getActive('follower')).toBeDefined();
+		expect(plugin.settings.autoEnabled).toEqual(['follower']);
+	});
+
+	it('never does it twice, so a later off stays off', async () => {
+		const { plugin, registry } = setup([follower]);
+		ready = true;
+		await registry.reconcileAvailability();
+
+		await registry.setEnabled('follower', false);
+		await registry.reconcileAvailability();
+
+		expect(registry.isEnabled('follower')).toBe(false);
+		expect(plugin.settings.autoEnabled).toEqual(['follower']);
+	});
+
+	it('leaves alone a module that never asked', async () => {
+		const { plugin, registry } = setup([testModule]);
+		ready = true;
+
+		await registry.reconcileAvailability();
+
+		expect(registry.isEnabled('test')).toBe(false);
+		expect(plugin.settings.autoEnabled).toEqual([]);
 	});
 });

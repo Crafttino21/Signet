@@ -34,6 +34,8 @@ export default class ToolboxPlugin extends Plugin {
 	 */
 	readonly ringLink = new RingLink();
 	private settingTab!: ToolboxSettingTab;
+	/** Guards against a module's own load calling back into reconciliation. */
+	private reconciling = false;
 
 	override async onload(): Promise<void> {
 		// Before anything renders a label.
@@ -123,6 +125,31 @@ export default class ToolboxPlugin extends Plugin {
 	 */
 	refreshSettings(): void {
 		this.settingTab.refresh();
+	}
+
+	/**
+	 * After a deliberate change of state: switch on anything that just became
+	 * relevant, then redraw both surfaces.
+	 *
+	 * Joining a ring whose code carries a server is the case this exists for. The
+	 * sync module becomes available at that moment, and having asked for it by
+	 * pasting that code, the user should not then have to go and find a switch.
+	 */
+	reconcileModules(): void {
+		if (this.reconciling) {
+			return;
+		}
+		this.reconciling = true;
+		void this.registry
+			.reconcileAvailability()
+			.catch((error: unknown) => {
+				console.error('Toolbox: could not switch on a newly available module.', error);
+			})
+			.finally(() => {
+				this.reconciling = false;
+				this.refreshPanel();
+				this.refreshSettings();
+			});
 	}
 
 	/** Called when another device changes data.json underneath us (e.g. via sync). */

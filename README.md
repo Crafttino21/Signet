@@ -129,21 +129,27 @@ say yes. Uploading never asks — it cannot cost you anything.
    The compose file lives in that folder, not at the repository root — from the
    root, `npm run server:up` points at it, and `npm run server:status` says
    whether it is up and on which address.
-2. Create a ring. The ring code is the key to everything.
-3. Enter the server address and the registration secret, then press **Set up**. The
-   registration secret creates the vault and is cleared straight afterwards; it is
-   a server-wide credential, not a login, and it never travels to another device.
+2. Press **Create ring**. Before any code exists, it asks for the server address
+   and the registration secret. The secret creates the vault and is used on the
+   spot — it is never stored and never travels to another device.
+3. The ring code appears, with the address already in it.
 4. Press **Show what a sync would do** before the first real run.
 
-**On every other device**: join the ring with the code. That is the whole setup —
-there is no address to type and no registration secret to carry around, and the
-settings do not ask for either. The registration secret is a server-wide
-credential; it is used once, on the device that creates the vault, and never
-travels.
+The order is deliberate. The code carries the address, so a code shown before the
+server is connected carries none — and every device that joined with one is
+stranded, which is not something the person handing it out can see. Asking first
+means the very first code is already the complete one. You can still answer
+**Without a server**: the ring then keeps plugins in step and nothing else, which
+is a perfectly good thing for it to be.
+
+**On every other device**: paste the code. That is the whole setup. The device
+takes the address out of it, derives its own keys, registers itself with the
+server and switches the sync on by itself — there is nothing to type and no
+registration secret to carry around.
 
 ### The code carries the address
 
-Once the host has a server, **Show code** hands out a slightly longer code:
+**Show code** hands out a slightly longer code:
 
 ```
 TBX1-K3M9PQ-R7XZ2W-8HTVBN-4CDFG5-019R9S-X0

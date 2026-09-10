@@ -19,6 +19,13 @@
  * and a copy that lags is a copy that syncs to the wrong place.
  */
 
+/**
+ * What came of asking the sync module to connect a server while a ring is being
+ * created. `none` means nothing offered to — a ring without a sync module is an
+ * ordinary ring that keeps plugins in step.
+ */
+export type ServerSetupOutcome = 'connected' | 'skipped' | 'cancelled' | 'none';
+
 /** The part of a snapshot that is not about plugins. */
 export interface RingInfo {
 	/**
@@ -34,6 +41,8 @@ export class RingLink {
 	private heard: RingInfo | undefined;
 	private readonly listeners = new Set<(info: RingInfo) => void>();
 	private readonly publishers = new Set<() => void>();
+	private readonly ringListeners = new Set<() => void>();
+	private serverSetup: ((ringCode: string) => Promise<ServerSetupOutcome>) | undefined;
 
 	/**
 	 * What this device would tell the ring about itself.
@@ -111,5 +120,51 @@ export class RingLink {
 	onPublishRequest(handler: () => void): () => void {
 		this.publishers.add(handler);
 		return () => this.publishers.delete(handler);
+	}
+
+	/**
+	 * Asks whoever can to connect a server for a ring that is being created.
+	 *
+	 * The ring is not committed yet, so the code is handed over rather than read
+	 * from settings — everything the sync needs to register a vault derives from
+	 * it, and it is the one thing that cannot be looked up while it does not yet
+	 * exist anywhere.
+	 *
+	 * This ordering is the point. Registering after the code has been handed out
+	 * means every code already given away carries no address, and every device
+	 * that used one is stranded. Doing it first means the first code shown is
+	 * already the complete one.
+	 */
+	async setUpServer(ringCode: string): Promise<ServerSetupOutcome> {
+		const handler = this.serverSetup;
+		return handler ? handler(ringCode) : 'none';
+	}
+
+	onServerSetup(handler: (ringCode: string) => Promise<ServerSetupOutcome>): () => void {
+		this.serverSetup = handler;
+		return () => {
+			if (this.serverSetup === handler) {
+				this.serverSetup = undefined;
+			}
+		};
+	}
+
+	/**
+	 * The ring this device belongs to has changed, or gone.
+	 *
+	 * Everything the sync knows is derived from the ring code: the vault id, the
+	 * token, the keys. A different code is a different vault, and an old
+	 * "registered" left standing against it is a device confidently talking to a
+	 * vault that does not exist. Leaving a ring has exactly the same effect.
+	 */
+	ringChanged(): void {
+		for (const listener of this.ringListeners) {
+			listener();
+		}
+	}
+
+	onRingChanged(listener: () => void): () => void {
+		this.ringListeners.add(listener);
+		return () => this.ringListeners.delete(listener);
 	}
 }

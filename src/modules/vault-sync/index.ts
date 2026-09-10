@@ -4,10 +4,13 @@ import type { Bytes } from '@toolbox/protocol';
 import { ToolboxModule } from '../../core/module';
 import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
+import type { ServerSetupOutcome } from '../../core/ring-link';
 import type { SetupStep } from '../../core/setup';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
 import { isSyncServerAt, SyncClient, SyncServerError } from './client';
+import { ConnectServerModal } from './connect-modal';
+import type { ConnectAttempt, ConnectResult } from './connect-modal';
 import { isQuiet, planSync, runSync } from './engine';
 import type { SyncDeps } from './engine';
 import { LiveSession } from './live';
@@ -18,6 +21,7 @@ import {
 	completeServerUrl,
 	isUsableServerUrl,
 	normaliseServerUrl,
+	SERVER_PLACEHOLDER,
 	shouldAdopt,
 	withDefaultPort,
 } from './server-url';
@@ -71,16 +75,6 @@ const DEFAULT_SETTINGS: VaultSyncSettings = {
 };
 
 const RING_MODULE_ID = 'plugin-ring';
-
-/**
- * The example in every address field.
- *
- * It shows a port on purpose. The server listens on 8787 and nothing listens on
- * 80, so an address without one is refused by the machine rather than by this
- * plugin — which arrives as "connection refused" for a server that is plainly
- * running, and is the single easiest way to lose an evening to this.
- */
-const SERVER_PLACEHOLDER = 'http://192.168.1.10:8787';
 
 /**
  * Whether this vault is in a ring at all.
@@ -155,6 +149,21 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		// Tells the ring that an address is coming, so a code handed out before the
 		// server exists can say so instead of silently carrying nothing.
 		this.register(this.plugin.ringLink.expectServer());
+
+		// The ring asks for a server before it hands out a code, so that the first
+		// code shown already carries the address.
+		this.register(
+			this.plugin.ringLink.onServerSetup((ringCode) => this.connectForNewRing(ringCode))
+		);
+
+		// A different ring code is a different vault. Whatever this device knew
+		// about the old one has to go, or it talks confidently to a vault that is
+		// not there.
+		this.register(
+			this.plugin.ringLink.onRingChanged(() => {
+				void this.forgetTheVault();
+			})
+		);
 
 		this.status = this.addStatusBarItem();
 		this.status?.addClass('toolbox-status');
@@ -699,6 +708,81 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		this.plugin.ringLink.contribute({ serverUrl: url });
 	}
 
+	/**
+	 * Connects a server for a ring that is still being created.
+	 *
+	 * The ring code exists but is not stored yet, so nothing here may read it
+	 * from the settings — it arrives as an argument, and every key needed to
+	 * register a vault comes out of it.
+	 */
+	private async connectForNewRing(ringCode: string): Promise<ServerSetupOutcome> {
+		let secret: Bytes;
+		try {
+			secret = parseRingCode(ringCode);
+		} catch {
+			return 'cancelled';
+		}
+
+		return ConnectServerModal.ask(this.app, (attempt) => this.register_(secret, attempt));
+	}
+
+	/** One attempt at creating the vault, reported rather than thrown. */
+	private async register_(secret: Bytes, attempt: ConnectAttempt): Promise<ConnectResult> {
+		const url = completeServerUrl(attempt.serverUrl);
+		if (!isUsableServerUrl(url)) {
+			return { ok: false, message: t('vaultSync.notice.badServerUrl') };
+		}
+		if (!attempt.registrationSecret.trim()) {
+			return { ok: false, message: t('vaultSync.notice.needsRegistrationSecret') };
+		}
+
+		const client = new SyncClient(
+			url,
+			await deriveVaultId(secret),
+			await deriveAuthToken(secret)
+		);
+		try {
+			await client.register(
+				attempt.registrationSecret.trim(),
+				await hashAuthToken(await deriveAuthToken(secret))
+			);
+		} catch (error) {
+			// The registration secret never reaches the settings on this path: it is
+			// used here and forgotten with the modal.
+			return { ok: false, message: await this.diagnose(error, url) };
+		}
+
+		await this.patchSettings({
+			serverUrl: url,
+			serverUrlSource: 'user',
+			registered: true,
+			registrationSecret: '',
+		});
+		this.plugin.ringLink.contribute({ serverUrl: url });
+		this.setState('idle');
+		this.refreshUi();
+		return { ok: true };
+	}
+
+	/**
+	 * Forgets a vault this device can no longer open.
+	 *
+	 * Everything the sync uses is derived from the ring code, so a code that
+	 * changed or went away leaves `registered` pointing at a vault whose key is
+	 * gone. The address stays — it is the same machine, and the next ring will
+	 * very likely live on it too.
+	 */
+	private async forgetTheVault(): Promise<void> {
+		if (!this.settings.registered) {
+			return;
+		}
+		await this.patchSettings({ registered: false });
+		this.seq = 0;
+		this.lastSummary = undefined;
+		this.setState('off');
+		this.refreshUi();
+	}
+
 	private async setUp(): Promise<void> {
 		if (!(await this.readyToConnect())) {
 			return;
@@ -750,13 +834,13 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	 * different problem, and probing elsewhere would be answering a question
 	 * nobody asked.
 	 */
-	private async diagnose(error: unknown): Promise<string> {
-		const explained = this.explain(error);
+	private async diagnose(error: unknown, url = this.settings.serverUrl): Promise<string> {
+		const explained = this.explain(error, url);
 		if (error instanceof SyncServerError) {
 			return explained;
 		}
 
-		const candidate = withDefaultPort(this.settings.serverUrl);
+		const candidate = withDefaultPort(url);
 		if (candidate && (await isSyncServerAt(candidate))) {
 			return `${explained} ${t('vaultSync.notice.foundOnDefaultPort', { url: candidate })}`;
 		}
@@ -1050,12 +1134,12 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	 * message names the address for that reason: "connection refused" says nothing
 	 * about which of the two it is until you can see what was dialled.
 	 */
-	private explain(error: unknown): string {
+	private explain(error: unknown, url = this.settings.serverUrl): string {
 		if (error instanceof SyncServerError) {
 			return `${t('vaultSync.notice.failed')} ${error.message}`;
 		}
 		return t('vaultSync.notice.unreachable', {
-			url: this.settings.serverUrl || '—',
+			url: url || '—',
 			message: error instanceof Error ? error.message : String(error),
 		});
 	}
@@ -1067,6 +1151,9 @@ export const vaultSyncModule: ModuleDescriptor<VaultSyncSettings> = {
 	// say. It appears the moment a ring does, switched off, as a thing to turn on.
 	available: (plugin) => hasRing(plugin),
 	enabledByDefault: false,
+	// Joining a ring is asking for the sync. Having pasted the code, nobody
+	// should then have to find a switch to make it do anything.
+	enableWhenAvailable: true,
 	get name() {
 		return t('vaultSync.name');
 	},

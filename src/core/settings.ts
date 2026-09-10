@@ -12,6 +12,11 @@ export interface ToolboxSettings {
 	enabledModules: Record<string, boolean>;
 	/** Module id -> that module's own settings object. */
 	moduleSettings: Record<string, unknown>;
+	/**
+	 * Modules already switched on by themselves once. Never switched on again, so
+	 * that a later "off" is a decision and stays one.
+	 */
+	autoEnabled: string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -145,5 +150,9 @@ export function migrateSettings(
 		}
 	}
 
-	return { version: SETTINGS_VERSION, enabledModules, moduleSettings };
+	const autoEnabled = Array.isArray(migrated.autoEnabled)
+		? migrated.autoEnabled.filter((id): id is string => typeof id === 'string')
+		: [];
+
+	return { version: SETTINGS_VERSION, enabledModules, moduleSettings, autoEnabled };
 }

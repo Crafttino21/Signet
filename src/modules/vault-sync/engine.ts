@@ -1,5 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App, TFile } from 'obsidian';
+import { ensureFolder, parentFolder } from '../../core/vault-fs';
 import {
 	deriveBlobId,
 	deriveContentKey,
@@ -105,21 +106,16 @@ export async function planSync(deps: SyncDeps): Promise<SyncPlan> {
 	};
 }
 
-/** Creates any missing parent folders for a path about to be written. */
-async function ensureFolder(app: App, path: string): Promise<void> {
-	const slash = path.lastIndexOf('/');
-	if (slash < 0) {
-		return;
-	}
-
-	const folder = path.slice(0, slash);
-	if (!app.vault.getFolderByPath(folder)) {
-		try {
-			await app.vault.createFolder(folder);
-		} catch {
-			// Another write in the same run may have created it first.
-		}
-	}
+/**
+ * Creates any missing parent folders for a path about to be written.
+ *
+ * Through the shared helper, which asks the disk as well as the index. Asking
+ * the index alone turned a folder another sync client had already created into
+ * an exception, and swallowing that exception only hid it — the write that
+ * followed then failed on its own.
+ */
+async function ensureParent(app: App, path: string): Promise<void> {
+	await ensureFolder(app, parentFolder(path));
 }
 
 async function writeFile(app: App, path: string, bytes: Bytes): Promise<void> {
@@ -131,7 +127,7 @@ async function writeFile(app: App, path: string, bytes: Bytes): Promise<void> {
 		await app.vault.modifyBinary(existing, buffer);
 		return;
 	}
-	await ensureFolder(app, normalised);
+	await ensureParent(app, normalised);
 	await app.vault.createBinary(normalised, buffer);
 }
 

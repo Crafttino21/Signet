@@ -1,5 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
+import { ensureFolder, parentFolder, pathExists } from '../../core/vault-fs';
 import { t } from '../../i18n';
 import { deriveRingId, isRingEnvelope, openSnapshot } from '@signet/protocol';
 import type { Bytes, RingEnvelope } from '@signet/protocol';
@@ -106,7 +107,7 @@ export class RingFile {
 
 		// Same gap the other way round: `create` refuses a path that is already on
 		// disk, so a host whose index has not caught up could never publish again.
-		if (await this.app.vault.adapter.exists(this.path)) {
+		if (await pathExists(this.app, this.path)) {
 			await this.app.vault.adapter.write(this.path, contents);
 			return;
 		}
@@ -140,21 +141,10 @@ export class RingFile {
 	}
 
 	private async ensureParentFolder(): Promise<void> {
-		const lastSlash = this.path.lastIndexOf('/');
-		if (lastSlash < 0) {
-			return;
-		}
-
-		const folder = this.path.slice(0, lastSlash);
-		if (this.app.vault.getFolderByPath(folder)) {
-			return;
-		}
-		// `createFolder` throws on a folder that is on disk but not indexed, which
-		// is the same staleness the file itself has to cope with.
-		if (await this.app.vault.adapter.exists(folder)) {
-			return;
-		}
-		await this.app.vault.createFolder(folder);
+		// `ensureFolder` carries the reason: `createFolder` throws on a folder that
+		// is on disk but not indexed, which is the same staleness the file itself
+		// has to cope with.
+		await ensureFolder(this.app, parentFolder(this.path));
 	}
 }
 

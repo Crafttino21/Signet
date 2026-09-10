@@ -82,6 +82,29 @@ export class FakeVault {
 					)
 			),
 		mkdir: (): Promise<void> => Promise.resolve(),
+		/** Everything directly inside a folder, indexed or not — the disk's view. */
+		list: (path: string): Promise<{ files: string[]; folders: string[] }> => {
+			const prefix = path === '' ? '' : `${path}/`;
+			const files = new Set<string>();
+			const folders = new Set<string>();
+
+			for (const other of [...this.hidden.keys(), ...this.files.keys()]) {
+				if (!other.startsWith(prefix)) {
+					continue;
+				}
+				const rest = other.slice(prefix.length);
+				const slash = rest.indexOf('/');
+				if (slash < 0) {
+					files.add(other);
+				} else {
+					folders.add(`${prefix}${rest.slice(0, slash)}`);
+				}
+			}
+
+			return files.size + folders.size === 0 && !this.folders.has(path)
+				? Promise.reject(new Error(`No such folder: ${path}`))
+				: Promise.resolve({ files: [...files].sort(), folders: [...folders].sort() });
+		},
 	};
 
 	readonly fileManager = {
@@ -132,7 +155,21 @@ export class FakeVault {
 			this.files.has(path) ? this.toFile(path) : null,
 		getFolderByPath: (path: string): { path: string } | null =>
 			this.folders.has(path) ? { path } : null,
+		/**
+		 * Throws on a folder that is already there, the way Obsidian does —
+		 * including one that is on disk and not in the index, which is the case
+		 * that stopped heartbeats being written at all.
+		 */
 		createFolder: (path: string): Promise<{ path: string }> => {
+			if (this.folders.has(path)) {
+				return Promise.reject(new Error(`Folder already exists: ${path}`));
+			}
+			const onDisk = [...this.hidden.keys(), ...this.files.keys()].some((other) =>
+				other.startsWith(`${path}/`)
+			);
+			if (onDisk) {
+				return Promise.reject(new Error(`Folder already exists: ${path}`));
+			}
 			this.folders.add(path);
 			return Promise.resolve({ path });
 		},

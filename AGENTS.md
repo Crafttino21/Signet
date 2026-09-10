@@ -144,6 +144,10 @@ travel by the sync and measure it.
   forward on every publish. A device that reads its own id there leaves.
 - A handover is published before the old host steps down. Stepping down first
   would leave a ring nobody is publishing.
+- A host leaving does not dissolve the ring and must not be made to. The notes
+  are keyed by the ring code, not by the publisher, so dissolving it would stop
+  a sync that has no reason to stop. A client takes over instead, continuing the
+  sequence from the file — starting a second one is how a ring loses history.
 - A device's own heartbeat is the only file it writes there, and another
   device's goes to the trash rather than being deleted.
 - Anything that reads presence off a heartbeat derives its threshold from

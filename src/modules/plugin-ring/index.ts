@@ -36,6 +36,7 @@ import { BEAT_EVERY_MINUTES, buildRoster, DeviceRoster, isHereNow } from './devi
 import type { DeviceHealth } from './devices';
 import { classifyRingFile, RingFile } from './ring-file';
 import type { RingFileVerdict } from './ring-file';
+import { LEGACY_RING_FILE, locateRingFile, RING_FILE, ringWriteTargets } from './ring-path';
 import { collectLocalPlugins, buildSnapshot } from './snapshot';
 import { isRingSnapshot } from './types';
 import type { DiffItem, RingSnapshot } from './types';
@@ -96,9 +97,6 @@ const STALE_AFTER_MINUTES = 15;
  */
 const LEGACY_PLUGIN_ID = 'toolbox';
 
-/** The ring file lived here while the plugin went by its old name. */
-const LEGACY_RING_FILE = 'Toolbox/plugin-ring.json';
-
 /** How old the roster on screen may be before opening the panel re-reads it. */
 const ROSTER_MAX_AGE_MS = 30_000;
 
@@ -112,7 +110,7 @@ const DEFAULT_SETTINGS: PluginRingSettings = {
 	deviceName: '',
 	hostId: null,
 	removedIds: [],
-	ringFilePath: 'Signet/plugin-ring.json',
+	ringFilePath: RING_FILE,
 	lastPublishedSeq: 0,
 	lastAppliedSeq: 0,
 	excludedIds: [],
@@ -389,6 +387,18 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		} else {
 			button(t('ring.settings.checkNow'), () => void this.check());
 		}
+		// A ring whose host has left still syncs — nothing about the notes depends
+		// on a publisher — but no plugin change can reach anyone until a device
+		// picks the job up. Offered only when the host is demonstrably not here:
+		// it writes no heartbeat, so it is not in the roster at all.
+		if (
+			role === 'client' &&
+			this.devices.length > 0 &&
+			!this.devices.some((device) => device.isHost)
+		) {
+			button(t('ring.panel.takeOver'), () => void this.takeOver());
+		}
+
 		button(t('ring.settings.leave'), () => void this.leave());
 
 		this.renderDevices(containerEl);
@@ -491,6 +501,45 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		await this.roster().forget(device.deviceId);
 		await this.publish();
 		await this.refreshDevices();
+	}
+
+	/**
+	 * Picks up a ring whose host has gone.
+	 *
+	 * Only for a snapshot this device can actually read: taking over a ring means
+	 * becoming the one that publishes it, and publishing over something
+	 * unreadable is how a ring loses its history. The sequence continues from the
+	 * file rather than from this device's own count, which is what stops the
+	 * first publish after a takeover reading as a race against the departed host.
+	 */
+	private async takeOver(): Promise<void> {
+		const snapshot = await this.loadSnapshot({ quiet: false });
+		if (!snapshot) {
+			return;
+		}
+
+		const go = await ConfirmModal.ask(this.app, {
+			title: t('ring.takeOver.title'),
+			body: t('ring.takeOver.body', { host: snapshot.host.name }),
+			confirm: t('ring.panel.takeOver'),
+		});
+		if (!go) {
+			return;
+		}
+
+		await this.patchSettings({
+			role: 'host',
+			hostId: this.settings.deviceId,
+			lastPublishedSeq: snapshot.seq,
+			lastAppliedSeq: snapshot.seq,
+		});
+		if (!(await this.publish())) {
+			return;
+		}
+		await this.beat();
+		this.refreshUi();
+		await this.refreshDevices();
+		new Notice(t('ring.notice.tookOver'));
 	}
 
 	/**
@@ -868,7 +917,28 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		await this.check();
 	}
 
+	/**
+	 * Leaves the ring.
+	 *
+	 * Leaving does not dissolve it, and must not: the ring code is what every key
+	 * comes from, so the other devices go on syncing their notes with the server
+	 * exactly as before — the vault there is keyed by the code, not by whoever
+	 * happens to publish. What stops is publishing, which is worth saying out
+	 * loud before it happens rather than leaving a ring nobody can update.
+	 */
 	private async leave(): Promise<void> {
+		const others = this.devices.filter((device) => !device.isSelf);
+		if (this.settings.role === 'host' && others.length > 0) {
+			const go = await ConfirmModal.ask(this.app, {
+				title: t('ring.leave.title'),
+				body: t('ring.leave.body', { count: others.length }),
+				confirm: t('ring.settings.leave'),
+			});
+			if (!go) {
+				return;
+			}
+		}
+
 		await this.patchSettings({
 			code: null,
 			role: null,

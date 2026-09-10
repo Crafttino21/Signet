@@ -82,6 +82,7 @@ export const en = {
 	'ring.notice.becameHost': 'This device is now the host of the ring.',
 	'ring.notice.handedOver':
 		'The ring now belongs to "{name}". This device follows it from now on.',
+	'ring.notice.tookOver': 'This device is now the host and publishes the ring from here on.',
 	'ring.notice.left': 'Left the ring. Nothing installed was changed.',
 	'ring.notice.raced':
 		'The ring was changed by "{host}" since this device last published. Nothing was overwritten.',
@@ -128,6 +129,12 @@ export const en = {
 	'ring.join.placeholder': 'Paste your ring code',
 	'ring.join.submit': 'Join',
 
+	'ring.leave.title': 'Leave the ring as its host?',
+	'ring.leave.body':
+		'The ring is not dissolved by this, and the other {count} device(s) go on syncing their notes exactly as before — the vault on the server is keyed by the ring code, not by whoever publishes. What stops is publishing: no plugin change reaches anyone until a device takes the job over, which any of them can offer to do once this one is gone. Handing the ring over first, from the list below, avoids the gap entirely.',
+	'ring.takeOver.title': 'Take over the ring?',
+	'ring.takeOver.body':
+		'"{host}" is no longer writing itself into the roster, so nothing has been published for a while. This device becomes the host and continues the ring from where that one left it. Do it on one device only — two hosts publishing is a race, and the loser is told rather than overwritten, but it is a mess worth not making.',
 	'ring.remove.title': 'Remove "{name}" from the ring?',
 	'ring.remove.body':
 		'It disappears from this list, and the next time it syncs it leaves the ring on its own. That is a message rather than a lock: the ring code is the key, so a device that still has the code can go on reading the ring. To actually take access away, create a new ring and hand the new code only to the devices that should keep it.',
@@ -324,6 +331,7 @@ export const en = {
 	'ring.panel.thisDevice': 'this device',
 	'ring.panel.isHost': 'host',
 	'ring.panel.makeHost': 'Make host',
+	'ring.panel.takeOver': 'Take over the ring',
 	'ring.panel.remove': 'Remove',
 	'ring.panel.nothingPublished':
 		'Nothing published yet — the other devices have no ring file to join. Press "Publish now".',

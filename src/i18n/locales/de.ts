@@ -79,6 +79,7 @@ export const de: Translations = {
 		'„{host}“ hat dieses Gerät aus dem Ring entfernt. An den installierten Plugins wurde nichts geändert.',
 	'ring.notice.becameHost': 'Dieses Gerät ist jetzt Host des Rings.',
 	'ring.notice.handedOver': 'Der Ring gehört jetzt „{name}“. Dieses Gerät folgt ihm von nun an.',
+	'ring.notice.tookOver': 'Dieses Gerät ist jetzt Host und veröffentlicht den Ring von hier an.',
 	'ring.notice.left': 'Ring verlassen. An den installierten Plugins wurde nichts geändert.',
 	'ring.notice.raced':
 		'Der Ring wurde von „{host}“ geändert, seit dieses Gerät zuletzt veröffentlicht hat. Es wurde nichts überschrieben.',
@@ -127,6 +128,12 @@ export const de: Translations = {
 	'ring.join.placeholder': 'Ring-Code einfügen',
 	'ring.join.submit': 'Beitreten',
 
+	'ring.leave.title': 'Den Ring als sein Host verlassen?',
+	'ring.leave.body':
+		'Der Ring wird dadurch nicht aufgelöst, und die anderen {count} Gerät(e) synchronisieren ihre Notizen unverändert weiter — der Vault auf dem Server hängt am Ring-Code, nicht daran, wer veröffentlicht. Was aufhört, ist das Veröffentlichen: keine Plugin-Änderung erreicht mehr jemanden, bis ein Gerät die Aufgabe übernimmt, was jedes von ihnen anbieten kann, sobald dieses weg ist. Den Ring vorher aus der Liste unten zu übergeben erspart die Lücke ganz.',
+	'ring.takeOver.title': 'Ring übernehmen?',
+	'ring.takeOver.body':
+		'„{host}“ trägt sich nicht mehr in die Geräteliste ein, es wurde also eine Weile nichts veröffentlicht. Dieses Gerät wird Host und führt den Ring dort weiter, wo jenes ihn gelassen hat. Nur auf einem Gerät machen — zwei Hosts, die veröffentlichen, sind ein Wettlauf; der Verlierer wird benachrichtigt statt überschrieben, aber die Unordnung muss nicht sein.',
 	'ring.remove.title': '„{name}“ aus dem Ring entfernen?',
 	'ring.remove.body':
 		'Es verschwindet aus dieser Liste und verlässt den Ring beim nächsten Sync von selbst. Das ist eine Mitteilung, kein Schloss: der Ring-Code ist der Schlüssel, ein Gerät mit dem Code kann den Ring also weiterhin lesen. Um den Zugriff wirklich zu entziehen, erstelle einen neuen Ring und gib den neuen Code nur an die Geräte, die bleiben sollen.',
@@ -326,6 +333,7 @@ export const de: Translations = {
 	'ring.panel.thisDevice': 'dieses Gerät',
 	'ring.panel.isHost': 'Host',
 	'ring.panel.makeHost': 'Zum Host machen',
+	'ring.panel.takeOver': 'Ring übernehmen',
 	'ring.panel.remove': 'Entfernen',
 	'ring.panel.nothingPublished':
 		'Noch nichts veröffentlicht — die anderen Geräte finden keine Ring-Datei. Auf „Jetzt veröffentlichen“ drücken.',

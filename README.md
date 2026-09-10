@@ -390,6 +390,14 @@ should keep it. The dialog says so rather than letting anyone assume otherwise.
 publishes; this one follows the ring like any other. It takes effect when that
 device next syncs, and it can be handed back the same way.
 
+**A host leaving does not dissolve the ring.** Every key comes from the ring
+code, and the vault on the server is keyed by that code rather than by whoever
+publishes — so the other devices go on syncing their notes exactly as before.
+What stops is publishing, and any device can pick that up: once the host is no
+longer writing itself into the roster, the others offer **Take over the ring**,
+which continues the sequence from the file rather than starting a second one.
+Leaving as host says all this first, and points at handing over instead.
+
 Devices are given a made-up name on first run — _Quiet Otter 07_ — because a
 list of three devices all called "Desktop" is not one you can act on. Rename any
 of them in the plugin ring settings; clear the field and a fresh name appears.

@@ -126,6 +126,9 @@ say yes. Uploading never asks — it cannot cost you anything.
 **On one device**, once:
 
 1. Run the server: see [`packages/server/README.md`](packages/server/README.md).
+   The compose file lives in that folder, not at the repository root — from the
+   root, `npm run server:up` points at it, and `npm run server:status` says
+   whether it is up and on which address.
 2. Create a ring. The ring code is the key to everything.
 3. Enter the server address and the registration secret, then press **Set up**. The
    registration secret creates the vault and is cleared straight afterwards; it is

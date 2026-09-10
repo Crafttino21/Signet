@@ -42,6 +42,18 @@ openssl rand -hex 32   # paste into TOOLBOX_REGISTRATION_SECRET in .env
 docker compose up -d --build
 ```
 
+The `cd` is not optional: the compose file lives here, not at the repository
+root, and `docker compose up` one directory too high answers `no configuration
+file provided: not found`. From the root there are scripts that point at it, so
+there is nothing to remember:
+
+```bash
+npm run server:up       # build and start
+npm run server:status   # is it running, and on which address
+npm run server:logs     # follow the log
+npm run server:down     # stop it
+```
+
 Check it:
 
 ```bash

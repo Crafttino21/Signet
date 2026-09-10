@@ -324,8 +324,15 @@ device that stops appearing is either closed or not syncing, and those look the
 same here on purpose: both mean its notes are not moving.
 
 The **Toolbox panel** lists them: name, when each was last here, which one you
-are looking from, which one is the host, and what version each is running. On
-the host, every other row offers two things.
+are looking from, which one is the host, and what version each is running. A
+device writes itself every five minutes and again whenever it comes to the
+front, and counts as here for a whole beat cycle plus a margin for the trip and
+for the couple of minutes two clocks routinely disagree by. The error that
+leaves is the harmless one — a device just closed goes on looking present for a
+few minutes — rather than the one that makes the list useless, which is calling
+a device away while somebody is typing on it.
+
+On the host, every other row offers two things.
 
 **Remove** tells a device it is no longer wanted. It leaves the ring the next
 time it syncs. This is a message, not a lock — the ring code is the key, so a

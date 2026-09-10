@@ -32,7 +32,7 @@ import {
 } from './modals';
 import type { MissingAddress } from './modals';
 import { randomDeviceName } from '../../core/device-name';
-import { buildRoster, DeviceRoster } from './devices';
+import { BEAT_EVERY_MINUTES, buildRoster, DeviceRoster, isHereNow } from './devices';
 import type { DeviceHealth } from './devices';
 import { classifyRingFile, RingFile } from './ring-file';
 import type { RingFileVerdict } from './ring-file';
@@ -87,11 +87,11 @@ type PluginRingSettings = {
  */
 const STALE_AFTER_MINUTES = 15;
 
-/** How often this device writes itself into the roster. */
-const BEAT_EVERY_MINUTES = 5;
-
 /** How old the roster on screen may be before opening the panel re-reads it. */
 const ROSTER_MAX_AGE_MS = 30_000;
+
+/** The shortest gap between two heartbeats written because the app came forward. */
+const FORWARD_BEAT_THROTTLE_MS = 60_000;
 
 const DEFAULT_SETTINGS: PluginRingSettings = {
 	code: null,
@@ -219,6 +219,22 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		this.registerInterval(
 			window.setInterval(() => void this.beat(), BEAT_EVERY_MINUTES * 60 * 1000)
 		);
+
+		// The timer alone means the newest heartbeat can be five minutes old at any
+		// moment, including on the device somebody is looking at. Coming to the
+		// front is the cheapest sign of life there is, throttled so that switching
+		// windows does not write a file every time.
+		const cameForward = (): void => {
+			if (Date.now() - this.lastBeatAt >= FORWARD_BEAT_THROTTLE_MS) {
+				void this.beat();
+			}
+		};
+		this.registerDomEvent(window, 'focus', cameForward);
+		this.registerDomEvent(document, 'visibilitychange', () => {
+			if (!document.hidden) {
+				cameForward();
+			}
+		});
 
 		this.app.workspace.onLayoutReady(() => {
 			this.warnAboutConflictCopies();
@@ -1186,6 +1202,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	/** The roster, as last read. The panel draws from this rather than the disk. */
 	private devices: DeviceHealth[] = [];
 	private rosterReadAt = 0;
+	private lastBeatAt = 0;
 	private rosterDirty = false;
 	/** The ciphertext last read, so an unchanged file is not read again. */
 	private lastSeen: string | undefined;
@@ -1221,6 +1238,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		if (this.settings.role === null) {
 			return;
 		}
+		this.lastBeatAt = Date.now();
 		try {
 			await this.roster().write({
 				deviceId: this.settings.deviceId,
@@ -1332,14 +1350,11 @@ export const pluginRingModule: ModuleDescriptor<PluginRingSettings> = {
 
 /** How long ago a device was last here, in words. */
 function describeSeen(device: DeviceHealth): string {
-	if (device.isSelf) {
+	if (isHereNow(device)) {
 		return t('ring.device.now');
 	}
 	if (device.ageMinutes === undefined) {
 		return t('ring.device.unknownTime');
-	}
-	if (device.ageMinutes < 2) {
-		return t('ring.device.now');
 	}
 	if (device.ageMinutes < 60) {
 		return t('ring.device.minutes', { count: device.ageMinutes });

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildRoster, isHeartbeat } from './devices';
-import type { Heartbeat } from './devices';
+import {
+	BEAT_EVERY_MINUTES,
+	buildRoster,
+	HERE_WITHIN_MINUTES,
+	isHeartbeat,
+	isHereNow,
+} from './devices';
+import type { DeviceHealth, Heartbeat } from './devices';
 import { randomDeviceName } from '../../core/device-name';
 
 /**
@@ -96,5 +102,45 @@ describe('randomDeviceName', () => {
 		// landing on the same one would defeat it.
 		const names = new Set(Array.from({ length: 50 }, () => randomDeviceName()));
 		expect(names.size).toBeGreaterThan(45);
+	});
+});
+
+/**
+ * A device that is sitting there open must not read as absent.
+ *
+ * It writes itself every five minutes, so at any moment the newest heartbeat
+ * is up to five minutes old — and while "here now" meant "under two minutes",
+ * a device in active use looked away for three minutes out of every five.
+ */
+describe('isHereNow', () => {
+	function device(ageMinutes: number | undefined, isSelf = false): DeviceHealth {
+		return {
+			deviceId: 'a',
+			deviceName: 'A',
+			status: 'fresh',
+			ageMinutes,
+			isSelf,
+			isHost: false,
+		};
+	}
+
+	it('covers a whole beat cycle, with room for the trip and the clocks', () => {
+		expect(HERE_WITHIN_MINUTES).toBeGreaterThan(BEAT_EVERY_MINUTES);
+		for (let age = 0; age <= BEAT_EVERY_MINUTES; age += 1) {
+			expect(isHereNow(device(age)), `age ${String(age)}`).toBe(true);
+		}
+	});
+
+	it('stops claiming presence for a device that really has been away', () => {
+		expect(isHereNow(device(HERE_WITHIN_MINUTES))).toBe(false);
+		expect(isHereNow(device(60))).toBe(false);
+	});
+
+	it('always counts this device, which needs no heartbeat to be here', () => {
+		expect(isHereNow(device(undefined, true))).toBe(true);
+	});
+
+	it('does not guess for an unreadable timestamp', () => {
+		expect(isHereNow(device(undefined))).toBe(false);
 	});
 });

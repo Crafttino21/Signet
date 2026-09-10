@@ -58,6 +58,37 @@ export interface RosterOptions {
 
 const MINUTE = 60 * 1000;
 
+/**
+ * How often a device writes itself into the roster.
+ *
+ * Every write is a file the sync then carries, so this is as often as it can be
+ * without turning the roster into the busiest thing in the vault.
+ */
+export const BEAT_EVERY_MINUTES = 5;
+
+/**
+ * Below this, a device counts as here rather than as last seen.
+ *
+ * It has to be at least one beat, or a device that is plainly sitting there
+ * open reads as absent for most of every cycle — which is precisely what it did
+ * while this was two minutes and the beat was five. The margin on top absorbs
+ * the time the heartbeat spends travelling and the couple of minutes two
+ * devices' clocks routinely disagree by.
+ *
+ * The error it can make now is the harmless one: a device that has just been
+ * closed goes on looking present for a few minutes. Claiming a device is away
+ * while its owner is typing on it is the one that makes the list useless.
+ */
+export const HERE_WITHIN_MINUTES = BEAT_EVERY_MINUTES + 3;
+
+/** Whether this device should be shown as here rather than as last seen. */
+export function isHereNow(device: DeviceHealth): boolean {
+	return (
+		device.isSelf ||
+		(device.ageMinutes !== undefined && device.ageMinutes < HERE_WITHIN_MINUTES)
+	);
+}
+
 export function isHeartbeat(value: unknown): value is Heartbeat {
 	if (typeof value !== 'object' || value === null) {
 		return false;

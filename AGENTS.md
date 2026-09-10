@@ -130,6 +130,10 @@ travel by the sync and measure it.
   would leave a ring nobody is publishing.
 - A device's own heartbeat is the only file it writes there, and another
   device's goes to the trash rather than being deleted.
+- Anything that reads presence off a heartbeat derives its threshold from
+  `BEAT_EVERY_MINUTES`. A window shorter than one beat reports a device in
+  active use as absent for most of every cycle, and the roster is worth nothing
+  if it is wrong about the device you are holding.
 - Another device's heartbeat arrives as an ordinary file write, so the roster is
   re-read on vault events in that folder and when the panel finds it stale. The
   host runs none of the client paths, so without that it read the roster once at

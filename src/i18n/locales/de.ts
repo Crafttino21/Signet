@@ -116,6 +116,8 @@ export const de: Translations = {
 	'ring.join.submit': 'Beitreten',
 
 	'ring.code.title': 'Dein Ring-Code',
+	'ring.code.noServerYet':
+		'Dieser Code enthält keine Serveradresse, weil noch keine eingerichtet ist. Richte zuerst den Sync-Server ein und zeig den Code dann erneut — jedes Gerät, das damit beitritt, braucht danach nichts weiter. Einem Gerät, das mit diesem Code schon beigetreten ist, musst du die Adresse von Hand nennen.',
 	'ring.code.includeServer': 'Serveradresse mitgeben',
 	'ring.code.includeServerDesc':
 		'Ausschalten, wenn das andere Gerät den Server unter einer anderen Adresse erreicht — über ein VPN oder unter einem Namen, den dieses Netz nicht kennt.',
@@ -237,6 +239,10 @@ export const de: Translations = {
 	'vaultSync.settings.server': 'Serveradresse',
 	'vaultSync.settings.serverDesc':
 		'Kommt normalerweise aus dem Ring und muss nicht angefasst werden. Nur ändern, wenn dieses Gerät den Server unter einer anderen Adresse erreicht.',
+	'vaultSync.settings.strandedClient':
+		'Es kommt nichts mehr. Dieses Gerät ist mit einem Code beigetreten, der von vor der Servereinrichtung stammt — es hat nie erfahren, wo der Server steht.',
+	'vaultSync.settings.strandedServerDesc':
+		'Zwei Wege, beide in Ordnung: hol dir einen frischen Code vom Host — der enthält jetzt die Adresse — und tritt damit erneut bei, oder trag die Adresse hier ein.',
 	'vaultSync.settings.connect': 'Server verbinden',
 	'vaultSync.settings.connectDesc':
 		'Nur auf diesem Gerät und nur einmal. Alle anderen Geräte im Ring bekommen die Adresse von hier. Im Heimnetz ist das eine Adresse wie http://192.168.1.10:8787; bitte https, sobald der Server von außen erreichbar ist, denn die Notizen sind verschlüsselt, das Zugriffstoken nicht.',
@@ -348,6 +354,8 @@ export const de: Translations = {
 	'vaultSync.panel.title': 'Vault-Sync',
 	'vaultSync.panel.waitingForRing':
 		'Richtet sich über den Ring selbst ein — hier ist nichts zu tun.',
+	'vaultSync.panel.strandedClient':
+		'Keine Serveradresse. Tritt mit einem frischen Code erneut bei, oder trag die Adresse in den Einstellungen ein.',
 	'vaultSync.panel.notSetUp': 'Noch nicht eingerichtet.',
 	'vaultSync.panel.ready': 'Bereit · Stand {seq}',
 	'vaultSync.panel.live': 'Live',

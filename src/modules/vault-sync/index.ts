@@ -152,6 +152,9 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		if (this.settings.serverUrl) {
 			this.plugin.ringLink.contribute({ serverUrl: this.settings.serverUrl });
 		}
+		// Tells the ring that an address is coming, so a code handed out before the
+		// server exists can say so instead of silently carrying nothing.
+		this.register(this.plugin.ringLink.expectServer());
 
 		this.status = this.addStatusBarItem();
 		this.status?.addClass('toolbox-status');
@@ -340,8 +343,11 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			text: ready
 				? t('vaultSync.panel.ready', { seq: this.seq })
 				: this.ring()?.role === 'client'
-					? // Not something to fix — something that is on its way.
-						t('vaultSync.panel.waitingForRing')
+					? // Something on its way, unless nothing is coming — a device that
+						// joined before the host had a server hears nothing ever again.
+						this.settings.serverUrl
+						? t('vaultSync.panel.waitingForRing')
+						: t('vaultSync.panel.strandedClient')
 					: t('vaultSync.panel.notSetUp'),
 		});
 		containerEl.createEl('p', {
@@ -410,13 +416,21 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	 * for either again would be asking someone to re-enter what they have.
 	 */
 	private renderWaiting(containerEl: HTMLElement): void {
+		// A device that joined with a code from before the server existed has
+		// nothing coming: the address travels in the code or in a snapshot, and it
+		// has neither. Telling it to wait is telling it to wait forever, so the
+		// field it needs goes here rather than under Advanced.
+		if (!this.settings.serverUrl) {
+			new Setting(containerEl)
+				.setName(t('vaultSync.settings.fromRing'))
+				.setDesc(t('vaultSync.settings.strandedClient'));
+			this.renderServerField(containerEl, t('vaultSync.settings.strandedServerDesc'));
+			return;
+		}
+
 		new Setting(containerEl)
 			.setName(t('vaultSync.settings.fromRing'))
-			.setDesc(
-				this.settings.serverUrl
-					? t('vaultSync.settings.fromRingWaiting', { url: this.settings.serverUrl })
-					: t('vaultSync.settings.fromRingNoServer')
-			)
+			.setDesc(t('vaultSync.settings.fromRingWaiting', { url: this.settings.serverUrl }))
 			.addButton((button) =>
 				button
 					.setButtonText(t('vaultSync.setup.checkAgain'))
@@ -468,10 +482,10 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 	 * device is set up, and again while it is not, because a wrong address is the
 	 * likeliest reason it is not.
 	 */
-	private renderServerField(containerEl: HTMLElement): void {
-		new Setting(containerEl)
+	private renderServerField(containerEl: HTMLElement, description?: string): void {
+		const setting = new Setting(containerEl)
 			.setName(t('vaultSync.settings.server'))
-			.setDesc(t('vaultSync.settings.serverDesc'))
+			.setDesc(description ?? t('vaultSync.settings.serverDesc'))
 			.addText((text) =>
 				text
 					.setPlaceholder(SERVER_PLACEHOLDER)
@@ -480,6 +494,16 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 						await this.setServerUrl(value);
 					})
 			);
+
+		// Only while there is something to find out. Once this device is set up the
+		// same button sits under Run, and two of them read as two different checks.
+		if (!this.settings.registered) {
+			setting.addButton((button) =>
+				button
+					.setButtonText(t('vaultSync.settings.test'))
+					.onClick(() => void this.testConnection())
+			);
+		}
 	}
 
 	/** A sync nobody asked for: never prompts, and stays quiet when nothing happened. */
@@ -525,9 +549,11 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 				cls: 'toolbox-ring__hint',
 				text: t('vaultSync.settings.moreAfterSetup'),
 			});
-			// The one exception, because it is the way out when the address itself is
-			// what is wrong.
-			this.renderServerField(advancedSection(containerEl));
+			// Not repeated for a client that has no address: it just got the field
+			// above, and offering it twice reads as two different settings.
+			if (this.settings.serverUrl || ring.role !== 'client') {
+				this.renderServerField(advancedSection(containerEl));
+			}
 			return;
 		}
 

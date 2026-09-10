@@ -170,6 +170,21 @@ the address by hand.
 A device that joins with a plain code still picks the address up from the snapshot
 when one arrives, as before.
 
+**Set the server up before you hand the code out.** The code is built when it is
+shown, so it carries whatever address exists at that moment — and a code shown
+before the server exists carries none. Showing one says so rather than letting
+you find out from the other device, and a device that already joined with such a
+code is offered the address field directly instead of being told to wait for
+something that is not coming.
+
+There is no way around this ordering, and it is worth saying why: two devices
+that know only the ring code have nowhere to meet. Every key is derived from the
+code, so once they can both reach the server they need no introduction at all —
+but reaching it is the one thing the code cannot derive. That is what those eight
+characters are for. The alternative, devices finding each other on the network by
+themselves, is not something an Obsidian plugin can do, and could not work at all
+between a phone on mobile data and a machine at home.
+
 ### When the server moves
 
 An address that arrived through the ring is replaced when the host publishes a new

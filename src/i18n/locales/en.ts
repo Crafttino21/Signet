@@ -118,6 +118,8 @@ export const en = {
 	'ring.join.submit': 'Join',
 
 	'ring.code.title': 'Your ring code',
+	'ring.code.noServerYet':
+		'This code carries no server address, because none is set up yet. Set the sync server up first, then show the code again — every device that joins with it then needs nothing else. A device that already joined with this code has to be told the address by hand.',
 	'ring.code.includeServer': 'Include the server address',
 	'ring.code.includeServerDesc':
 		'Switch off if the other device reaches the server at a different address — over a VPN, or by a name this network does not know.',
@@ -237,6 +239,10 @@ export const en = {
 	'vaultSync.settings.server': 'Server address',
 	'vaultSync.settings.serverDesc':
 		'Normally comes from the ring and needs no attention. Change it only if this device reaches the server at a different address.',
+	'vaultSync.settings.strandedClient':
+		'Nothing is on its way. This device joined with a code from before the server was set up, so it was never told where the server is.',
+	'vaultSync.settings.strandedServerDesc':
+		'Two ways out, and either is fine: get a fresh code from the host — it carries the address now — and join again with it, or type the address here.',
 	'vaultSync.settings.connect': 'Connect a server',
 	'vaultSync.settings.connectDesc':
 		'Only on this device, and only once. Every other device in the ring gets the address from here. On a home network that is an address like http://192.168.1.10:8787; use https as soon as the server is reachable from outside, because the notes are encrypted but the access token is not.',
@@ -344,6 +350,8 @@ export const en = {
 
 	'vaultSync.panel.title': 'Vault sync',
 	'vaultSync.panel.waitingForRing': 'Setting itself up from the ring — nothing to do here.',
+	'vaultSync.panel.strandedClient':
+		'No server address. Join again with a fresh code, or enter the address in the settings.',
 	'vaultSync.panel.notSetUp': 'Not set up yet.',
 	'vaultSync.panel.ready': 'Ready · commit {seq}',
 	'vaultSync.panel.live': 'Live',

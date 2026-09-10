@@ -30,6 +30,7 @@ export interface RingInfo {
 
 export class RingLink {
 	private local: RingInfo = {};
+	private expecting = 0;
 	private heard: RingInfo | undefined;
 	private readonly listeners = new Set<(info: RingInfo) => void>();
 	private readonly publishers = new Set<() => void>();
@@ -46,6 +47,30 @@ export class RingLink {
 
 	contribution(): RingInfo {
 		return { ...this.local };
+	}
+
+	/**
+	 * Says that a module intends to publish a server address once it has one.
+	 *
+	 * Deliberately separate from {@link contribute}: this is about what is going
+	 * to be said, not about what is said, and it must not end up inside a
+	 * published snapshot. What it buys is the difference between "this ring keeps
+	 * plugins in step and wants no server" and "the server is not set up yet" —
+	 * two states that look identical from here and need opposite advice, because
+	 * a code handed out in the second one carries no address and strands whoever
+	 * joins with it.
+	 *
+	 * Returns the undo, so switching the module off takes the claim with it.
+	 */
+	expectServer(): () => void {
+		this.expecting += 1;
+		return () => {
+			this.expecting -= 1;
+		};
+	}
+
+	isServerExpected(): boolean {
+		return this.expecting > 0;
 	}
 
 	/** What the host's snapshot said. Called by the ring after reading one. */

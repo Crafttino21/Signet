@@ -598,7 +598,12 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			new Notice(t('ring.notice.notInRing'));
 			return;
 		}
-		new ShowCodeModal(this.app, { ringCode, joinCode: this.joinCode(ringCode) }).open();
+		const joinCode = this.joinCode(ringCode);
+		new ShowCodeModal(this.app, {
+			ringCode,
+			joinCode,
+			missingServer: joinCode === ringCode && this.plugin.ringLink.isServerExpected(),
+		}).open();
 	}
 
 	/**

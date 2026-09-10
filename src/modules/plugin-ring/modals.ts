@@ -51,7 +51,7 @@ export class ShowCodeModal extends Modal {
 
 	constructor(
 		app: App,
-		private readonly codes: { ringCode: string; joinCode: string }
+		private readonly codes: { ringCode: string; joinCode: string; missingServer: boolean }
 	) {
 		super(app);
 	}
@@ -74,6 +74,17 @@ export class ShowCodeModal extends Modal {
 			cls: 'toolbox-ring__hint',
 			text: carries && this.withAddress ? t('ring.code.hintWithServer') : t('ring.code.hint'),
 		});
+
+		// A code handed out before the server exists carries no address, and every
+		// device that joins with it is stranded until someone types one by hand.
+		// Saying so here is the only moment it can still be avoided.
+		if (this.codes.missingServer) {
+			this.contentEl.createEl('p', {
+				cls: 'toolbox-ring__warning',
+				text: t('ring.code.noServerYet'),
+			});
+		}
+
 		this.contentEl.createDiv({ cls: 'toolbox-ring__code', text: this.shown });
 
 		// Only offered when there is something to leave out. The short code is for

@@ -96,6 +96,11 @@ elsewhere. Three rules are not negotiable:
 - Nothing is installed unless Obsidian's curated community list contains it, the
   release manifest exists, and that manifest declares the same id. An id in a
   snapshot is never on its own a reason to fetch and run code.
+- A notice is for something that just happened. A ring file that has not arrived
+  yet, a device still waiting for a host: those are states, they belong in the
+  panel, and a notice repeats them on every start and every write forever. What
+  a client reaches without anybody pressing anything says nothing unless it is
+  both new and actionable — and says it once.
 - A ring file that will not open is classified before anything is written over it
   (`classifyRingFile`). Only a file whose ring id is demonstrably not ours may be
   moved aside, and it goes to the trash rather than being overwritten. A file of

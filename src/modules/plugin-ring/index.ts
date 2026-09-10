@@ -739,18 +739,65 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 	// --- client -------------------------------------------------------------
 
+	/**
+	 * What a client does when the ring file appears, changes, or is looked for.
+	 *
+	 * Everything here is reached without anybody pressing anything — at startup
+	 * and on every write to that path — so the bar for saying something out loud
+	 * is high. A file that has not arrived yet is the ordinary state of a device
+	 * that joined a minute ago; the panel says so for as long as it is true, and
+	 * a notice would say it again on every start and every write forever.
+	 */
 	private async notifyIfNewer(): Promise<void> {
-		// A device that joined before the snapshot had synced has had no chance to
-		// find out that the code was mistyped. This is that chance, so it is not
-		// kept quiet the way a routine update is.
-		const waiting = this.settings.hostId === null;
-
+		const state = await this.ringFile().read();
 		void this.refreshFileVerdict();
-		const snapshot = await this.loadSnapshot({ quiet: !waiting });
-		if (snapshot && snapshot.seq > this.settings.lastAppliedSeq) {
-			new Notice(t('ring.notice.hasChanges'));
-			this.refreshUi();
+
+		if (state.status !== 'ok') {
+			return;
 		}
+
+		// The vault sync writes the ring file like any other file, and every write
+		// raises an event that lands here. Without this, reading the file leads to
+		// announcing it, which leads to a sync, which writes it again.
+		if (state.envelope.data === this.lastSeen) {
+			return;
+		}
+		this.lastSeen = state.envelope.data;
+
+		const secret = this.secret();
+		if (!secret) {
+			return;
+		}
+
+		// The one outcome worth interrupting for: a code that does not match the
+		// ring will never catch up on its own, and no amount of waiting fixes it.
+		// Once per session, because it is a fact rather than an event.
+		if (state.envelope.ring !== (await deriveRingId(secret))) {
+			if (!this.warnedAboutMismatch) {
+				this.warnedAboutMismatch = true;
+				new Notice(t('ring.notice.codeMismatch'));
+			}
+			return;
+		}
+
+		const snapshot = await this.decrypt(secret, state.envelope, true);
+		if (!snapshot) {
+			return;
+		}
+		this.announce(snapshot);
+
+		// Seeing the host's snapshot is what "waiting for the host" was waiting
+		// for. It used to end only when a plugin change was applied, which for a
+		// ring with nothing to change never happened — so the device went on
+		// describing itself as waiting for something that had already arrived.
+		if (this.settings.hostId === null) {
+			await this.patchSettings({ hostId: snapshot.host.id });
+		}
+
+		if (snapshot.seq > this.settings.lastAppliedSeq) {
+			new Notice(t('ring.notice.hasChanges'));
+		}
+		this.refreshUi();
 	}
 
 	private async check(): Promise<void> {
@@ -906,6 +953,10 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	}
 
 	private fileVerdict: RingFileVerdict | undefined;
+	/** The ciphertext last read, so an unchanged file is not read again. */
+	private lastSeen: string | undefined;
+	/** A mismatched code is a fact, not an event: worth saying once per session. */
+	private warnedAboutMismatch = false;
 
 	private ringFile(): RingFile {
 		return new RingFile(this.app, this.settings.ringFilePath || DEFAULT_SETTINGS.ringFilePath);

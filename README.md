@@ -126,10 +126,18 @@ say yes. Uploading never asks — it cannot cost you anything.
 
 **On one device**, once:
 
-1. Run the server: see [`packages/server/README.md`](packages/server/README.md).
-   The compose file lives in that folder, not at the repository root — from the
-   root, `npm run server:up` points at it, and `npm run server:status` says
-   whether it is up and on which address.
+1. Run the server. On the machine that should hold the notes:
+
+    ```bash
+    git clone https://github.com/Crafttino21/ObsidianToolbox.git
+    ObsidianToolbox/packages/server/install.sh
+    ```
+
+    That installs Docker if needed, generates the registration secret, offers to
+    open the port, and prints the address and the secret to type in below. See
+    [`packages/server/README.md`](packages/server/README.md) for doing it by hand
+    and for putting TLS in front of it.
+
 2. Press **Create ring**. Before any code exists, it asks for the server address
    and the registration secret. The secret creates the vault and is used on the
    spot — it is never stored and never travels to another device.
@@ -505,7 +513,23 @@ src/
 packages/
   protocol/                wire format and cryptography, shared with the server
   server/                  the sync server you run yourself
+    install.sh             sets one up on a fresh machine
 ```
+
+Three TypeScript projects rather than one, and the split is not cosmetic:
+
+| Project                           | Libraries    | Node types |
+| --------------------------------- | ------------ | ---------- |
+| `tsconfig.json` (the plugin)      | DOM          | **no**     |
+| `packages/protocol/tsconfig.json` | DOM          | no         |
+| `packages/server/tsconfig.json`   | ES2022 + DOM | yes        |
+
+The plugin having no Node types is the point. Obsidian on a phone is not Node,
+so a plugin that reaches for `node:fs` compiles happily and then fails on
+exactly the device that is hardest to debug on — without those types in scope it
+is a compile error instead. The server keeps DOM because the shared protocol is
+written against Web Crypto, which TypeScript describes in `lib.dom` and nowhere
+else.
 
 In both modules the files without an Obsidian import — `code.ts`, `crypto.ts`,
 `diff.ts`, `patterns.ts`, `health.ts` — hold the logic worth testing, and that is

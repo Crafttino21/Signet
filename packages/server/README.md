@@ -24,16 +24,25 @@ as an implementation detail.
 It has **no runtime dependencies**: `node:http` and the filesystem. There is no
 framework to keep patched on a machine that holds your notes.
 
-## Installing on Debian
+## Installing
 
-Requires Docker and the Compose plugin:
+Two commands on the machine that should hold the notes:
 
 ```bash
-sudo apt update
-sudo apt install -y docker.io docker-compose-plugin
+git clone https://github.com/Crafttino21/ObsidianToolbox.git
+ObsidianToolbox/packages/server/install.sh
 ```
 
-Then, from a checkout of this repository:
+The script installs Docker if it is missing, generates the registration secret,
+asks whether to open the port to your network, starts the container, waits until
+it actually answers, and then prints the two things to type into Obsidian. It is
+safe to run again: an existing secret is never regenerated.
+
+Everything it does that is not reversible in one command — installing packages,
+opening a port — it asks about first. It is a short shell script; read it before
+you run it, as you should with any script that wants your root password.
+
+### By hand instead
 
 ```bash
 cd packages/server
@@ -41,6 +50,9 @@ cp .env.example .env
 openssl rand -hex 32   # paste into TOOLBOX_REGISTRATION_SECRET in .env
 docker compose up -d --build
 ```
+
+Requires Docker and the Compose plugin (`apt install docker.io
+docker-compose-plugin`).
 
 The `cd` is not optional: the compose file lives here, not at the repository
 root, and `docker compose up` one directory too high answers `no configuration

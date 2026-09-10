@@ -1,0 +1,9 @@
+{
+	// The build and test configuration itself, which runs in Node.
+	"extends": "./tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ES2022"],
+		"types": ["node"]
+	},
+	"include": ["vitest.config.ts"]
+}

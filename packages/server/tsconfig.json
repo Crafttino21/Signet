@@ -1,0 +1,18 @@
+{
+	// The sync server: Node, and no Obsidian.
+	//
+	// DOM is in the library list and is not an oversight. The server imports
+	// `packages/protocol`, which is written against Web Crypto — and TypeScript
+	// describes Web Crypto in `lib.dom` and nowhere else, so a Node program that
+	// uses it needs that library to compile. Nothing here touches a document.
+	//
+	// The direction that matters is the other one, and it is enforced: the plugin
+	// has no Node types at all, so it cannot reach for `node:fs` and then fail on
+	// a phone.
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["ES2022", "DOM"],
+		"types": ["node"]
+	},
+	"include": ["src/**/*.ts"]
+}

@@ -47,6 +47,22 @@ answered, its settings show the one thing there is to do and say the rest follow
 A page of controls that cannot say which of them is the one in the way is worse
 than a short page.
 
+## Three projects, not one
+
+`tsconfig.base.json` holds what they share. Each package then says what platform
+it is: the plugin gets DOM and **no Node types**, the protocol gets neither
+Node's nor Obsidian's, the server gets Node.
+
+The plugin's `types: []` is load-bearing. Obsidian on a phone is not Node, so a
+plugin that imports `node:fs` compiles, ships, works on the desktop and fails on
+the device that is hardest to debug on. Do not add Node types to it to make an
+error go away — the error is the feature. `src/core/obsidian-internals.ts` and
+the Obsidian adapter API are the supported ways to reach outside the vault.
+
+The server's library list includes DOM, which looks wrong and is not: it imports
+`packages/protocol`, which is written against Web Crypto, and TypeScript
+describes Web Crypto in `lib.dom` alone.
+
 ## Text shown to users
 
 Every user-facing string goes through `t()` from `src/i18n`, never inline. Add the

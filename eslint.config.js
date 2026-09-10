@@ -49,7 +49,12 @@ export default defineConfig(
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
-				projectService: true,
+				// The plugin, the protocol and the server are separate projects now,
+				// so the service is told about all of them; `allowDefaultProject`
+				// covers the configuration files, which belong to no package.
+				projectService: {
+					allowDefaultProject: ['*.config.ts', '*.config.mts'],
+				},
 				tsconfigRootDir: import.meta.dirname,
 			},
 		},
@@ -104,20 +109,6 @@ export default defineConfig(
 		files: ['packages/protocol/src/**/*.ts'],
 		rules: {
 			'obsidianmd/no-global-this': 'off',
-		},
-	},
-
-	{
-		// The double-sync check has to look at folders above the vault, which needs
-		// Node. It uses exactly the guarded `require` the rule's own message asks
-		// for — the call sites sit behind Platform.isDesktopApp and an adapter check.
-		files: ['src/modules/sync-health/double-sync.ts'],
-		languageOptions: {
-			globals: { require: 'readonly' },
-		},
-		rules: {
-			'obsidianmd/no-nodejs-modules': 'off',
-			'@typescript-eslint/no-require-imports': 'off',
 		},
 	},
 

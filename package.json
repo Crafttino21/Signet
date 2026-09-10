@@ -11,7 +11,7 @@
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "npm run typecheck && node esbuild.config.mjs production",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc -p tsconfig.json && tsc -p packages/protocol && tsc -p packages/server && tsc -p tsconfig.tools.json",
 		"lint": "eslint .",
 		"lint:fix": "eslint . --fix",
 		"format": "prettier --write .",

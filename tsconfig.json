@@ -1,28 +1,14 @@
 {
+	// The Obsidian plugin.
+	//
+	// `types: []` is the load-bearing line. Obsidian on a phone is not Node, so a
+	// plugin that reaches for `node:fs` or `process` compiles happily and then
+	// fails on exactly the device that is hardest to debug on. Without Node's
+	// types in scope, that mistake is a compile error instead.
+	"extends": "./tsconfig.base.json",
 	"compilerOptions": {
-		"target": "ES2021",
-		"module": "ESNext",
-		"moduleResolution": "bundler",
 		"lib": ["DOM", "DOM.Iterable", "ES2021"],
-		"types": ["node"],
-
-		"strict": true,
-		"noImplicitOverride": true,
-		"noImplicitReturns": true,
-		"noFallthroughCasesInSwitch": true,
-		"noUncheckedIndexedAccess": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
-
-		"isolatedModules": true,
-		"verbatimModuleSyntax": true,
-		"allowSyntheticDefaultImports": true,
-		"esModuleInterop": true,
-		"skipLibCheck": true,
-
-		"noEmit": true,
-		"inlineSourceMap": true,
-		"inlineSources": true
+		"types": []
 	},
-	"include": ["src/**/*.ts", "packages/*/src/**/*.ts", "vitest.config.ts"]
+	"include": ["src/**/*.ts"]
 }

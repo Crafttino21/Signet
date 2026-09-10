@@ -1,0 +1,13 @@
+{
+	// The wire format and the cryptography, imported by both sides.
+	//
+	// Neither Node's types nor Obsidian's: what is in here has to hold still in a
+	// browser and in Node alike, so it is limited to what both actually have.
+	// Web Crypto comes from the DOM library, which is where its types live.
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"lib": ["DOM", "ES2021"],
+		"types": []
+	},
+	"include": ["src/**/*.ts"]
+}

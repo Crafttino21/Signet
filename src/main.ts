@@ -1,24 +1,25 @@
-import { Plugin } from 'obsidian';
+import { Notice, Plugin } from 'obsidian';
 import { initI18n, t } from './i18n';
 import { LiveEditingRegistry } from './core/live-editing';
 import { ModuleRegistry } from './core/registry';
 import { RingLink } from './core/ring-link';
-import { TOOLBOX_PANEL_TYPE, ToolboxPanelView } from './core/panel-view';
+import { SIGNET_PANEL_TYPE, SignetPanelView } from './core/panel-view';
 import { migrateSettings } from './core/settings';
-import type { ToolboxSettings } from './core/settings';
-import { ToolboxSettingTab } from './core/settings-tab';
+import type { SignetSettings } from './core/settings';
+import { SignetSettingTab } from './core/settings-tab';
 import { SetupModal } from './core/setup';
+import { adoptLegacyFolder } from './core/rename';
 import { registerViewOnce } from './core/view';
-import { TOOLBOX_MODULES } from './modules';
+import { SIGNET_MODULES } from './modules';
 
 /**
  * The plugin itself does almost nothing: it loads settings, hands the module list
  * to the registry, adds the settings tab, and owns the side panel every module
  * draws into. Every feature lives in src/modules.
  */
-export default class ToolboxPlugin extends Plugin {
+export default class SignetPlugin extends Plugin {
 	// Plugin declares `settings?: unknown` and expects subclasses to narrow it.
-	override settings!: ToolboxSettings;
+	override settings!: SignetSettings;
 	registry!: ModuleRegistry;
 	/**
 	 * Notes currently owned by a live editing session.
@@ -33,7 +34,7 @@ export default class ToolboxPlugin extends Plugin {
 	 * Kept here so the two modules can agree without importing each other.
 	 */
 	readonly ringLink = new RingLink();
-	private settingTab!: ToolboxSettingTab;
+	private settingTab!: SignetSettingTab;
 	/** Guards against a module's own load calling back into reconciliation. */
 	private reconciling = false;
 
@@ -41,13 +42,18 @@ export default class ToolboxPlugin extends Plugin {
 		// Before anything renders a label.
 		initI18n();
 
-		this.settings = migrateSettings(await this.loadData(), TOOLBOX_MODULES);
-		this.registry = new ModuleRegistry(this, TOOLBOX_MODULES);
+		// Before the settings are read, because this is what there is to read: a
+		// device updating from the version called Toolbox has everything in a
+		// folder named after the old id, which Obsidian treats as another plugin.
+		const moved = await adoptLegacyFolder(this.app, this.manifest.id);
 
-		this.settingTab = new ToolboxSettingTab(this.app, this);
+		this.settings = migrateSettings(await this.loadData(), SIGNET_MODULES);
+		this.registry = new ModuleRegistry(this, SIGNET_MODULES);
+
+		this.settingTab = new SignetSettingTab(this.app, this);
 		this.addSettingTab(this.settingTab);
 
-		registerViewOnce(this, TOOLBOX_PANEL_TYPE, (leaf) => new ToolboxPanelView(leaf, this));
+		registerViewOnce(this, SIGNET_PANEL_TYPE, (leaf) => new SignetPanelView(leaf, this));
 		this.addRibbonIcon('wrench', t('panel.open'), () => void this.openPanel());
 		this.addCommand({
 			id: 'open-panel',
@@ -63,6 +69,12 @@ export default class ToolboxPlugin extends Plugin {
 		});
 
 		await this.registry.syncWithSettings();
+
+		// Said once, after everything is up, because it explains why the plugin
+		// looks set up already and where the old folder went.
+		if (moved) {
+			new Notice(t('rename.movedIn', { from: moved.from }));
+		}
 	}
 
 	override onunload(): void {
@@ -79,7 +91,7 @@ export default class ToolboxPlugin extends Plugin {
 	async openPanel(): Promise<void> {
 		const { workspace } = this.app;
 
-		const existing = workspace.getLeavesOfType(TOOLBOX_PANEL_TYPE)[0];
+		const existing = workspace.getLeavesOfType(SIGNET_PANEL_TYPE)[0];
 		if (existing) {
 			await workspace.revealLeaf(existing);
 			return;
@@ -89,7 +101,7 @@ export default class ToolboxPlugin extends Plugin {
 		if (!leaf) {
 			return;
 		}
-		await leaf.setViewState({ type: TOOLBOX_PANEL_TYPE, active: true });
+		await leaf.setViewState({ type: SIGNET_PANEL_TYPE, active: true });
 		await workspace.revealLeaf(leaf);
 	}
 
@@ -106,9 +118,9 @@ export default class ToolboxPlugin extends Plugin {
 	 * away from whatever the user was in the middle of pressing.
 	 */
 	refreshPanel(): void {
-		for (const leaf of this.app.workspace.getLeavesOfType(TOOLBOX_PANEL_TYPE)) {
+		for (const leaf of this.app.workspace.getLeavesOfType(SIGNET_PANEL_TYPE)) {
 			const view = leaf.view;
-			if (view instanceof ToolboxPanelView) {
+			if (view instanceof SignetPanelView) {
 				view.render();
 			}
 		}
@@ -143,7 +155,7 @@ export default class ToolboxPlugin extends Plugin {
 		void this.registry
 			.reconcileAvailability()
 			.catch((error: unknown) => {
-				console.error('Toolbox: could not switch on a newly available module.', error);
+				console.error('Signet: could not switch on a newly available module.', error);
 			})
 			.finally(() => {
 				this.reconciling = false;
@@ -154,7 +166,7 @@ export default class ToolboxPlugin extends Plugin {
 
 	/** Called when another device changes data.json underneath us (e.g. via sync). */
 	override async onExternalSettingsChange(): Promise<void> {
-		this.settings = migrateSettings(await this.loadData(), TOOLBOX_MODULES);
+		this.settings = migrateSettings(await this.loadData(), SIGNET_MODULES);
 		await this.registry.syncWithSettings();
 		this.refreshPanel();
 		this.refreshSettings();

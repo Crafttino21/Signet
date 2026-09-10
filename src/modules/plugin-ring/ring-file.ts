@@ -1,8 +1,8 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
 import { t } from '../../i18n';
-import { deriveRingId, isRingEnvelope, openSnapshot } from '@toolbox/protocol';
-import type { Bytes, RingEnvelope } from '@toolbox/protocol';
+import { deriveRingId, isRingEnvelope, openSnapshot } from '@signet/protocol';
+import type { Bytes, RingEnvelope } from '@signet/protocol';
 import { isRingSnapshot } from './types';
 
 export type RingFileState =

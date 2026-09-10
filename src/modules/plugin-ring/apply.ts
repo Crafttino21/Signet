@@ -25,7 +25,7 @@ export interface ApplyResult {
 export interface ApplyDeps {
 	app: App;
 	api: PluginApi;
-	/** Toolbox's own id, which is never acted on. */
+	/** Signet's own id, which is never acted on. */
 	selfId: string;
 	/**
 	 * Fetches a plugin this device does not have.

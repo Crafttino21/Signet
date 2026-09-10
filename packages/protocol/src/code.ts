@@ -59,7 +59,7 @@ export class InvalidRingCodeError extends Error {
 }
 
 /**
- * A join code from a newer version of Toolbox, carrying something this one does
+ * A join code from a newer version of Signet, carrying something this one does
  * not understand.
  *
  * It extends {@link InvalidRingCodeError} on purpose: every existing call site
@@ -236,7 +236,7 @@ function decodeAddress(suffix: string): JoinAddress {
 
 	if (reader.take(1) === 1) {
 		throw new UnsupportedJoinCodeError(
-			'This code was made by a newer version of Toolbox. Update the plugin on this device first.'
+			'This code was made by a newer version of Signet. Update the plugin on this device first.'
 		);
 	}
 

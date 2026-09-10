@@ -1,10 +1,10 @@
 import { Notice, Platform, Setting, TFile } from 'obsidian';
 import { PluginApi } from '../../core/obsidian-internals';
-import { ToolboxModule } from '../../core/module';
+import { SignetModule } from '../../core/module';
 import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
 import type { SetupStep } from '../../core/setup';
-import type ToolboxPlugin from '../../main';
+import type SignetPlugin from '../../main';
 import { t } from '../../i18n';
 import { applyPlans } from './apply';
 import { CommunityCatalog } from './catalog';
@@ -19,9 +19,9 @@ import {
 	parseJoinCode,
 	parseRingCode,
 	UnsupportedJoinCodeError,
-} from '@toolbox/protocol';
-import type { Bytes } from '@toolbox/protocol';
-import { deriveRingId, openSnapshot, RingDecryptionError, sealSnapshot } from '@toolbox/protocol';
+} from '@signet/protocol';
+import type { Bytes } from '@signet/protocol';
+import { deriveRingId, openSnapshot, RingDecryptionError, sealSnapshot } from '@signet/protocol';
 import { computeDiff, planApply } from './diff';
 import {
 	ConfirmModal,
@@ -87,6 +87,18 @@ type PluginRingSettings = {
  */
 const STALE_AFTER_MINUTES = 15;
 
+/**
+ * What this plugin's id used to be, before it stopped being a box of tools.
+ *
+ * Kept for as long as a device somewhere might still be running that build:
+ * its snapshots name it, and its settings folder is where an updating device
+ * finds everything it owns.
+ */
+const LEGACY_PLUGIN_ID = 'toolbox';
+
+/** The ring file lived here while the plugin went by its old name. */
+const LEGACY_RING_FILE = 'Toolbox/plugin-ring.json';
+
 /** How old the roster on screen may be before opening the panel re-reads it. */
 const ROSTER_MAX_AGE_MS = 30_000;
 
@@ -100,7 +112,7 @@ const DEFAULT_SETTINGS: PluginRingSettings = {
 	deviceName: '',
 	hostId: null,
 	removedIds: [],
-	ringFilePath: 'Toolbox/plugin-ring.json',
+	ringFilePath: 'Signet/plugin-ring.json',
 	lastPublishedSeq: 0,
 	lastAppliedSeq: 0,
 	excludedIds: [],
@@ -115,7 +127,7 @@ function parseIdList(value: string): string[] {
 		.filter((id) => id.length > 0);
 }
 
-class PluginRingModule extends ToolboxModule<PluginRingSettings> {
+class PluginRingModule extends SignetModule<PluginRingSettings> {
 	private api?: PluginApi;
 	private readonly catalog = new CommunityCatalog();
 
@@ -125,7 +137,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			// Without the internal plugin manager there is nothing this module can
 			// do. Say so once and stay inert rather than failing later per command.
 			console.error(
-				'Toolbox: the plugin ring needs Obsidian internals that are not available here:',
+				'Signet: the plugin ring needs Obsidian internals that are not available here:',
 				PluginApi.missing(this.app).join(', ')
 			);
 			new Notice(t('ring.unsupported.notice'));
@@ -237,8 +249,8 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		});
 
 		this.app.workspace.onLayoutReady(() => {
+			void this.keepLegacyRingPath().then(() => this.refreshFileVerdict());
 			this.warnAboutConflictCopies();
-			void this.refreshFileVerdict();
 			void this.beat().then(() => this.refreshDevices());
 
 			// A snapshot that arrived while this device was closed raises no vault
@@ -313,7 +325,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		const { role } = this.settings;
 		containerEl.createEl('p', {
-			cls: 'toolbox-panel__state',
+			cls: 'signet-panel__state',
 			text:
 				role === null
 					? t('ring.panel.none')
@@ -324,14 +336,14 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		if (role === 'client' && this.settings.hostId === null) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state toolbox-panel__state--warn',
+				cls: 'signet-panel__state signet-panel__state--warn',
 				text: t('ring.panel.waitingForHost'),
 			});
 		}
 
 		if (role === 'host' && this.settings.lastPublishedSeq === 0) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state toolbox-panel__state--warn',
+				cls: 'signet-panel__state signet-panel__state--warn',
 				text: t('ring.panel.nothingPublished'),
 			});
 		}
@@ -342,7 +354,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		if (role !== null && this.fileVerdict !== undefined && this.fileVerdict !== 'ours') {
 			const path = this.ringFile().path;
 			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state toolbox-panel__state--warn',
+				cls: 'signet-panel__state signet-panel__state--warn',
 				text:
 					this.fileVerdict === 'free'
 						? role === 'host'
@@ -354,7 +366,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			});
 		}
 
-		const buttons = containerEl.createDiv({ cls: 'toolbox-panel__buttons' });
+		const buttons = containerEl.createDiv({ cls: 'signet-panel__buttons' });
 		const button = (label: string, onClick: () => void): void => {
 			buttons.createEl('button', { text: label }).addEventListener('click', onClick);
 		};
@@ -401,23 +413,23 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		if (this.devices.length === 0) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-panel__state',
+				cls: 'signet-panel__state',
 				text: t('ring.panel.noDevices'),
 			});
 			return;
 		}
 
 		const isHost = this.settings.role === 'host';
-		const list = containerEl.createEl('ul', { cls: 'toolbox-ring__list' });
+		const list = containerEl.createEl('ul', { cls: 'signet-ring__list' });
 
 		for (const device of this.devices) {
-			const row = list.createEl('li', { cls: 'toolbox-ring__row' });
-			row.createSpan({ cls: 'toolbox-ring__name', text: device.deviceName });
+			const row = list.createEl('li', { cls: 'signet-ring__row' });
+			row.createSpan({ cls: 'signet-ring__name', text: device.deviceName });
 			row.createSpan({
 				cls:
 					device.status === 'fresh' || device.isSelf
-						? 'toolbox-ring__kind'
-						: 'toolbox-ring__kind toolbox-panel__state--warn',
+						? 'signet-ring__kind'
+						: 'signet-ring__kind signet-panel__state--warn',
 				text: describeSeen(device),
 			});
 
@@ -432,7 +444,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				tags.push(t('panel.version', { version: device.version }));
 			}
 			if (tags.length > 0) {
-				row.createSpan({ cls: 'toolbox-ring__detail', text: tags.join(' · ') });
+				row.createSpan({ cls: 'signet-ring__detail', text: tags.join(' · ') });
 			}
 
 			// Only the host can act, and never on itself: handing the ring to the
@@ -442,7 +454,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				continue;
 			}
 
-			const actions = row.createDiv({ cls: 'toolbox-ring__actions' });
+			const actions = row.createDiv({ cls: 'signet-ring__actions' });
 			actions
 				.createEl('button', { text: t('ring.panel.makeHost') })
 				.addEventListener('click', () => void this.handOver(device));
@@ -518,7 +530,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	override displaySettings(containerEl: HTMLElement): void {
 		if (!this.api) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-ring__warning',
+				cls: 'signet-ring__warning',
 				text: t('ring.unsupported.settings'),
 			});
 			return;
@@ -633,7 +645,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 
 		if (code) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-ring__hint',
+				cls: 'signet-ring__hint',
 				text: t('ring.settings.codeWarning'),
 			});
 		}
@@ -964,7 +976,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			await file.write(await sealSnapshot(secret, snapshot));
 			count = snapshot.plugins.length;
 		} catch (error) {
-			console.error('Toolbox: could not write the ring file.', error);
+			console.error('Signet: could not write the ring file.', error);
 			new Notice(
 				t('ring.notice.publishFailed', {
 					path: file.path,
@@ -1161,13 +1173,45 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 		this.plugin.ringLink.announce({ serverUrl: snapshot.sync?.serverUrl });
 	}
 
+	/**
+	 * Takes this plugin back out of a snapshot somebody else's copy put in.
+	 *
+	 * The rule is that Signet never appears in a diff — disabling the plugin
+	 * running the apply loop would cut the loop off mid-way — and it is enforced
+	 * by filtering on this device's own plugin id. The rename broke that across a
+	 * mixed fleet: a device still on the old build publishes `toolbox`, which is
+	 * not this device's id any more, so it came back as an ordinary plugin to
+	 * install or switch off. Both names are stripped, and the old one can go once
+	 * no device is running it.
+	 */
+	private withoutSelf(snapshot: unknown): unknown {
+		if (typeof snapshot !== 'object' || snapshot === null) {
+			return snapshot;
+		}
+		const candidate = snapshot as { plugins?: unknown };
+		if (!Array.isArray(candidate.plugins)) {
+			return snapshot;
+		}
+
+		const mine = new Set([this.plugin.manifest.id, LEGACY_PLUGIN_ID]);
+		return {
+			...candidate,
+			plugins: candidate.plugins.filter(
+				(entry) =>
+					typeof entry !== 'object' ||
+					entry === null ||
+					!mine.has((entry as { id?: unknown }).id as string)
+			),
+		};
+	}
+
 	private async decrypt(
 		secret: Bytes,
 		envelope: Parameters<typeof openSnapshot>[1],
 		quiet = false
 	): Promise<RingSnapshot | undefined> {
 		try {
-			const snapshot = await openSnapshot(secret, envelope);
+			const snapshot = this.withoutSelf(await openSnapshot(secret, envelope));
 			if (!isRingSnapshot(snapshot)) {
 				if (!quiet) {
 					new Notice(t('ring.notice.unknownFormat'));
@@ -1209,6 +1253,27 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	/** A mismatched code is a fact, not an event: worth saying once per session. */
 	private warnedAboutMismatch = false;
 
+	/**
+	 * Notices that this ring still lives at the old path, and stays with it.
+	 *
+	 * `ringFilePath` is a per-device setting that the ring does not carry, so a
+	 * device joining an existing ring with a new default would look in a folder
+	 * nobody writes to and conclude the ring has no file. The default only
+	 * applies to rings made from here on.
+	 */
+	private async keepLegacyRingPath(): Promise<void> {
+		if (this.settings.ringFilePath !== DEFAULT_SETTINGS.ringFilePath) {
+			return;
+		}
+		if (this.app.vault.getFileByPath(DEFAULT_SETTINGS.ringFilePath)) {
+			return;
+		}
+		if (!this.app.vault.getFileByPath(LEGACY_RING_FILE)) {
+			return;
+		}
+		await this.patchSettings({ ringFilePath: LEGACY_RING_FILE });
+	}
+
 	private ringFile(): RingFile {
 		return new RingFile(this.app, this.settings.ringFilePath || DEFAULT_SETTINGS.ringFilePath);
 	}
@@ -1248,7 +1313,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 				version: this.plugin.manifest.version,
 			});
 		} catch (error) {
-			console.error('Toolbox: could not write this device into the ring roster.', error);
+			console.error('Signet: could not write this device into the ring roster.', error);
 		}
 	}
 
@@ -1345,7 +1410,7 @@ export const pluginRingModule: ModuleDescriptor<PluginRingSettings> = {
 		return t('ring.description');
 	},
 	defaultSettings: DEFAULT_SETTINGS,
-	create: (plugin: ToolboxPlugin) => new PluginRingModule(plugin, pluginRingModule),
+	create: (plugin: SignetPlugin) => new PluginRingModule(plugin, pluginRingModule),
 };
 
 /** How long ago a device was last here, in words. */

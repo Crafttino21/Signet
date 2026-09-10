@@ -1,12 +1,12 @@
 import { ItemView } from 'obsidian';
 import type { IconName, WorkspaceLeaf } from 'obsidian';
 import { t } from '../i18n';
-import type ToolboxPlugin from '../main';
+import type SignetPlugin from '../main';
 
-export const TOOLBOX_PANEL_TYPE = 'toolbox-panel';
+export const SIGNET_PANEL_TYPE = 'signet-panel';
 
 /**
- * The one place to manage everything Toolbox does.
+ * The one place to manage everything Signet does.
  *
  * The panel does not know what any feature is. It walks the modules that are
  * switched on and asks each to draw itself, which keeps a feature's code in its
@@ -15,16 +15,16 @@ export const TOOLBOX_PANEL_TYPE = 'toolbox-panel';
  * It redraws on demand rather than on a timer: a panel that rebuilt itself every
  * second would steal focus from anything the user was in the middle of pressing.
  */
-export class ToolboxPanelView extends ItemView {
+export class SignetPanelView extends ItemView {
 	constructor(
 		leaf: WorkspaceLeaf,
-		private readonly plugin: ToolboxPlugin
+		private readonly plugin: SignetPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType(): string {
-		return TOOLBOX_PANEL_TYPE;
+		return SIGNET_PANEL_TYPE;
 	}
 
 	getDisplayText(): string {
@@ -46,7 +46,7 @@ export class ToolboxPanelView extends ItemView {
 	render(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('toolbox-panel');
+		contentEl.addClass('signet-panel');
 
 		// The shortest path from "installed" to "working" belongs at the top, and
 		// disappears once there is nothing left to set up.
@@ -58,7 +58,7 @@ export class ToolboxPanelView extends ItemView {
 			.filter((step) => !step.satisfied());
 
 		if (outstanding.length > 0) {
-			const banner = contentEl.createDiv({ cls: 'toolbox-panel__setup' });
+			const banner = contentEl.createDiv({ cls: 'signet-panel__setup' });
 			banner.createEl('p', {
 				text: t('panel.setupNeeded', { count: outstanding.length }),
 			});
@@ -78,7 +78,7 @@ export class ToolboxPanelView extends ItemView {
 
 			// A module with nothing to show should not leave an empty heading
 			// behind, so it is given a scratch element and only kept if it used it.
-			const section = createDiv({ cls: 'toolbox-panel__section' });
+			const section = createDiv({ cls: 'signet-panel__section' });
 			module.displayPanel(section);
 			if (section.childElementCount === 0) {
 				continue;
@@ -98,7 +98,7 @@ export class ToolboxPanelView extends ItemView {
 
 		if (waiting.length > 0) {
 			contentEl.createEl('p', {
-				cls: 'toolbox-panel__state',
+				cls: 'signet-panel__state',
 				text: t('panel.available', {
 					names: waiting.map((descriptor) => descriptor.name).join(', '),
 				}),
@@ -106,14 +106,14 @@ export class ToolboxPanelView extends ItemView {
 		}
 
 		if (!drew) {
-			contentEl.createEl('p', { cls: 'toolbox-panel__empty', text: t('panel.nothing') });
+			contentEl.createEl('p', { cls: 'signet-panel__empty', text: t('panel.nothing') });
 		}
 
 		// Which build is actually running. Copying files into the plugin folder does
 		// not reload anything, so "it still does the old thing" and "it is broken"
 		// look identical from here — and only one of them is worth debugging.
 		contentEl.createEl('p', {
-			cls: 'toolbox-panel__version',
+			cls: 'signet-panel__version',
 			text: t('panel.version', { version: this.plugin.manifest.version }),
 		});
 	}

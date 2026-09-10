@@ -14,7 +14,7 @@
  * once on the host rather than once per device.
  */
 
-import { DEFAULT_SYNC_PORT } from '@toolbox/protocol';
+import { DEFAULT_SYNC_PORT } from '@signet/protocol';
 
 /**
  * The example in every address field.

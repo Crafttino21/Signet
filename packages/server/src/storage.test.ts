@@ -16,7 +16,7 @@ let dir: string;
 let store: VaultStore;
 
 beforeEach(async () => {
-	dir = await mkdtemp(join(tmpdir(), 'toolbox-store-'));
+	dir = await mkdtemp(join(tmpdir(), 'signet-store-'));
 	store = new VaultStore(dir);
 });
 

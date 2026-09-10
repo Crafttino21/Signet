@@ -11,8 +11,8 @@ import {
 	deriveVaultId,
 	generateRingSecret,
 	hashAuthToken,
-} from '@toolbox/protocol';
-import type { Bytes } from '@toolbox/protocol';
+} from '@signet/protocol';
+import type { Bytes } from '@signet/protocol';
 import { createSyncServer } from '../../../packages/server/src/http';
 import { VaultStore } from '../../../packages/server/src/storage';
 import { FakeVault } from '../../test/fake-vault';
@@ -47,7 +47,7 @@ class Device {
 	}
 
 	private store(): SyncStateStore {
-		return new SyncStateStore(this.vault.app as App, 'toolbox');
+		return new SyncStateStore(this.vault.app as App, 'signet');
 	}
 
 	/** One full run, remembering the resulting state the way the module does. */
@@ -70,7 +70,7 @@ let vaultId: string;
 let token: string;
 
 beforeAll(async () => {
-	dir = await mkdtemp(join(tmpdir(), 'toolbox-sync-'));
+	dir = await mkdtemp(join(tmpdir(), 'signet-sync-'));
 
 	const server = createSyncServer(
 		{

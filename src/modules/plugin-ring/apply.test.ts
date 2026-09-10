@@ -7,7 +7,7 @@ import { FakeApp } from '../../test/fake-app';
 import type { FakeAppOptions } from '../../test/fake-app';
 import type { PluginPlan } from './types';
 
-const SELF = 'toolbox';
+const SELF = 'signet';
 
 function setup(options: FakeAppOptions) {
 	const fake = new FakeApp(options);
@@ -22,7 +22,7 @@ function setup(options: FakeAppOptions) {
 const manifests = [
 	{ id: 'alpha', name: 'Alpha', version: '1.0.0' },
 	{ id: 'beta', name: 'Beta', version: '1.0.0' },
-	{ id: SELF, name: 'Toolbox', version: '0.1.0' },
+	{ id: SELF, name: 'Signet', version: '0.1.0' },
 ];
 
 function plan(over: Partial<PluginPlan> & { id: string }): PluginPlan {
@@ -215,7 +215,7 @@ describe('applyPlans', () => {
 		expect(result.failed).toHaveLength(1);
 	});
 
-	it('never touches Toolbox itself', async () => {
+	it('never touches Signet itself', async () => {
 		const { fake, app, api } = setup({ manifests, enabled: [SELF] });
 
 		const result = await applyPlans({ app, api, selfId: SELF }, [

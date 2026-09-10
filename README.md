@@ -1,4 +1,4 @@
-# Toolbox
+# Signet
 
 An Obsidian plugin that collects several small quality-of-life tools in one place,
 each one switchable on its own.
@@ -10,7 +10,7 @@ a ring and live editing once a server answers, and each switches itself on the
 first time that happens — pasting a code that carries a server is asking for the
 sync, not asking to be shown a switch.
 
-**Getting started** takes one command: _Set up Toolbox_. It walks the handful of
+**Getting started** takes one command: _Set up Signet_. It walks the handful of
 decisions in the order they depend on each other — a ring first, because its code
 is the key to everything else, then the server. The panel shows how many steps are
 left until it works, and the prompt disappears once none are.
@@ -49,8 +49,8 @@ nothing else, and why losing the code loses the notes.
 On the machine that should hold the notes:
 
 ```bash
-git clone https://github.com/Crafttino21/ObsidianToolbox.git
-ObsidianToolbox/packages/server/install.sh
+git clone https://github.com/Crafttino21/Signet.git
+Signet/packages/server/install.sh
 ```
 
 It installs Docker if needed, generates the registration secret, offers to open
@@ -87,7 +87,7 @@ commands). So:
   AES-GCM is authenticated, write access to the vault is not enough to push a
   snapshot at the ring — only someone holding the code can.
 - Nothing is applied without showing you the changes first.
-- Toolbox never acts on itself, and a plugin the host does not have is left alone
+- Signet never acts on itself, and a plugin the host does not have is left alone
   rather than removed.
 
 The settings of other plugins routinely contain API keys in plain text, which is
@@ -167,8 +167,8 @@ say yes. Uploading never asks — it cannot cost you anything.
 1. Run the server. On the machine that should hold the notes:
 
     ```bash
-    git clone https://github.com/Crafttino21/ObsidianToolbox.git
-    ObsidianToolbox/packages/server/install.sh
+    git clone https://github.com/Crafttino21/Signet.git
+    Signet/packages/server/install.sh
     ```
 
     That installs Docker if needed, generates the registration secret, offers to
@@ -306,7 +306,7 @@ problem. That is the one place an indicator can live on a phone, where Obsidian 
 no status bar at all — the desktop keeps its status bar item as well. A note being
 edited together says so instead, because in that note it is the more useful fact.
 
-The **Toolbox panel** in the right sidebar is the rest of it: which devices are in
+The **Signet panel** in the right sidebar is the rest of it: which devices are in
 this vault and when each was last heard from, which server this device is talking
 to and whether it was told or chose, the state of the ring file, and every ring
 action in one column.
@@ -362,14 +362,14 @@ It cannot tell an edit from a cursor position.
 
 ## The devices in a ring
 
-Every device writes one small file into `Toolbox/devices`, named after its own
+Every device writes one small file into `Signet/devices`, named after its own
 id. One writer per file, so the roster can never become a source of the
 conflicts the sync exists to prevent — and because they are ordinary vault
 files, they travel by the sync itself and are therefore a measurement of it. A
 device that stops appearing is either closed or not syncing, and those look the
 same here on purpose: both mean its notes are not moving.
 
-The **Toolbox panel** lists them: name, when each was last here, which one you
+The **Signet panel** lists them: name, when each was last here, which one you
 are looking from, which one is the host, and what version each is running. A
 device writes itself every five minutes and again whenever it comes to the
 front, and counts as here for a whole beat cycle plus a margin for the trip and
@@ -429,10 +429,10 @@ npm run dev      # rebuild on change
 Then copy `main.js`, `manifest.json` and `styles.css` into your vault:
 
 ```
-<your vault>/.obsidian/plugins/toolbox/
+<your vault>/.obsidian/plugins/signet/
 ```
 
-Enable **Toolbox** under Settings → Community plugins. After a rebuild, use
+Enable **Signet** under Settings → Community plugins. After a rebuild, use
 _Reload app without saving_ (or the Hot Reload plugin) to pick up the change —
 copying the files changes nothing on its own, because Obsidian holds the plugin
 it loaded in memory. The panel prints the running version at the bottom, which
@@ -443,20 +443,20 @@ is the quickest way to tell a bug from a plugin that was never reloaded.
 Three steps, no changes to the plugin core:
 
 1. Create `src/modules/<your-module>/index.ts`.
-2. Subclass `ToolboxModule` and export a `ModuleDescriptor`.
-3. Add the descriptor to `TOOLBOX_MODULES` in `src/modules/index.ts`.
+2. Subclass `SignetModule` and export a `ModuleDescriptor`.
+3. Add the descriptor to `SIGNET_MODULES` in `src/modules/index.ts`.
 
 ```ts
-import { ToolboxModule } from '../../core/module';
+import { SignetModule } from '../../core/module';
 import type { ModuleDescriptor } from '../../core/module';
-import type ToolboxPlugin from '../../main';
+import type SignetPlugin from '../../main';
 import { t } from '../../i18n';
 
 type MySettings = { threshold: number };
 
 const DEFAULT_SETTINGS: MySettings = { threshold: 5 };
 
-class MyModule extends ToolboxModule<MySettings> {
+class MyModule extends SignetModule<MySettings> {
 	override onload(): void {
 		this.addCommand({ id: 'do-it', name: t('mine.command'), callback: () => this.run() });
 	}
@@ -476,7 +476,7 @@ export const myModule: ModuleDescriptor<MySettings> = {
 		return t('mine.description');
 	},
 	defaultSettings: DEFAULT_SETTINGS,
-	create: (plugin: ToolboxPlugin) => new MyModule(plugin, myModule),
+	create: (plugin: SignetPlugin) => new MyModule(plugin, myModule),
 };
 ```
 
@@ -541,7 +541,7 @@ community plugin review applies — so surprises show up here rather than at sub
 src/
   main.ts                  loads settings, builds the registry, adds the settings tab
   core/
-    module.ts              ToolboxModule base class + ModuleDescriptor
+    module.ts              SignetModule base class + ModuleDescriptor
     registry.ts            which modules exist, which are running
     settings.ts            settings shape + migration
     settings-tab.ts        one section per module

@@ -12,10 +12,10 @@
 set -euo pipefail
 
 VOLUME="server_toolbox-data"
-DEST="/var/backups/toolbox-sync"
+DEST="/var/backups/signet-sync"
 KEEP_DAYS=14
 STAMP="$(date +%Y-%m-%d_%H%M%S)"
-ARCHIVE="$DEST/toolbox-sync_$STAMP.tar.gz"
+ARCHIVE="$DEST/signet-sync_$STAMP.tar.gz"
 
 mkdir -p "$DEST"
 
@@ -33,6 +33,6 @@ if ! tar tzf "$ARCHIVE" >/dev/null 2>&1; then
 fi
 
 chmod 600 "$ARCHIVE"
-find "$DEST" -name 'toolbox-sync_*.tar.gz' -mtime "+$KEEP_DAYS" -delete
+find "$DEST" -name 'signet-sync_*.tar.gz' -mtime "+$KEEP_DAYS" -delete
 
 echo "$(date -Is) ok $ARCHIVE ($(du -h "$ARCHIVE" | cut -f1))"

@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { App } from 'obsidian';
-import { generateRingSecret, sealSnapshot } from '@toolbox/protocol';
+import { generateRingSecret, sealSnapshot } from '@signet/protocol';
 import { FakeVault } from '../../test/fake-vault';
 import { classifyRingFile, RingFile } from './ring-file';
 import type { RingSnapshot } from './types';
@@ -19,7 +19,7 @@ import type { RingSnapshot } from './types';
  * demonstrably not ours may be moved aside.
  */
 
-const PATH = 'Toolbox/plugin-ring.json';
+const PATH = 'Signet/plugin-ring.json';
 
 const snapshot: RingSnapshot = {
 	version: 1,

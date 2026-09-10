@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { VaultManifest } from '@toolbox/protocol';
+import type { VaultManifest } from '@signet/protocol';
 import { conflictPath, reconcile, touchesLocalFiles } from './reconcile';
 import type { IndexEntry } from './reconcile';
 import { matchConflictName } from './patterns';

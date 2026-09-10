@@ -18,15 +18,15 @@ import { t } from '../i18n';
  * keyboard and a screen reader.
  */
 export function advancedSection(containerEl: HTMLElement, label?: string): HTMLElement {
-	const details = containerEl.createEl('details', { cls: 'toolbox-advanced' });
+	const details = containerEl.createEl('details', { cls: 'signet-advanced' });
 	details.createEl('summary', {
-		cls: 'toolbox-advanced__summary',
+		cls: 'signet-advanced__summary',
 		text: label ?? t('common.advanced'),
 	});
-	return details.createDiv({ cls: 'toolbox-advanced__body' });
+	return details.createDiv({ cls: 'signet-advanced__body' });
 }
 
 /** A row of buttons under a shared label, for actions rather than settings. */
 export function actionRow(containerEl: HTMLElement, label: string): Setting {
-	return new Setting(containerEl).setName(label).setClass('toolbox-actions');
+	return new Setting(containerEl).setName(label).setClass('signet-actions');
 }

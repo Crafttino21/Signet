@@ -1,7 +1,7 @@
 import { Component, Platform } from 'obsidian';
 import type { App, Command, IconName } from 'obsidian';
 import type { SetupStep } from './setup';
-import type ToolboxPlugin from '../main';
+import type SignetPlugin from '../main';
 
 /**
  * The static half of a module: everything the settings tab needs in order to list
@@ -36,7 +36,7 @@ export interface ModuleDescriptor<S = unknown> {
 	 * module that is on but not yet relevant sits idle rather than being torn down
 	 * and rebuilt as its prerequisite comes and goes.
 	 */
-	available?(plugin: ToolboxPlugin): boolean;
+	available?(plugin: SignetPlugin): boolean;
 	/**
 	 * Switch this on by itself the first time it becomes available. Defaults to
 	 * false.
@@ -50,7 +50,7 @@ export interface ModuleDescriptor<S = unknown> {
 	 * coming back.
 	 */
 	readonly enableWhenAvailable?: boolean;
-	create(plugin: ToolboxPlugin): ToolboxModule<S>;
+	create(plugin: SignetPlugin): SignetModule<S>;
 }
 
 /**
@@ -66,9 +66,9 @@ export interface ModuleDescriptor<S = unknown> {
  * needs undoing. Anything registered directly on the plugin instead leaks until
  * the whole plugin unloads.
  */
-export abstract class ToolboxModule<S = unknown> extends Component {
+export abstract class SignetModule<S = unknown> extends Component {
 	constructor(
-		protected readonly plugin: ToolboxPlugin,
+		protected readonly plugin: SignetPlugin,
 		readonly descriptor: ModuleDescriptor<S>
 	) {
 		super();

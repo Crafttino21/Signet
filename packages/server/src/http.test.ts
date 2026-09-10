@@ -18,8 +18,8 @@ import {
 	openSnapshot,
 	sealBlob,
 	sealSnapshot,
-} from '@toolbox/protocol';
-import type { Bytes, VaultManifest } from '@toolbox/protocol';
+} from '@signet/protocol';
+import type { Bytes, VaultManifest } from '@signet/protocol';
 import type { ServerConfig } from './config';
 import { createSyncServer } from './http';
 import { VaultStore } from './storage';
@@ -44,7 +44,7 @@ let vaultId: string;
 let token: string;
 
 beforeAll(async () => {
-	dir = await mkdtemp(join(tmpdir(), 'toolbox-http-'));
+	dir = await mkdtemp(join(tmpdir(), 'signet-http-'));
 
 	const config: ServerConfig = {
 		host: '127.0.0.1',

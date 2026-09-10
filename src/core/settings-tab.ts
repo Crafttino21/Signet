@@ -1,6 +1,6 @@
 import { PluginSettingTab, Setting } from 'obsidian';
 import type { App } from 'obsidian';
-import type ToolboxPlugin from '../main';
+import type SignetPlugin from '../main';
 import { t } from '../i18n';
 
 /**
@@ -11,10 +11,10 @@ import { t } from '../i18n';
  * reason. Worth revisiting once 1.13 is a safe baseline — the two lint rules that
  * ask for the new API are switched off for this file in eslint.config.js.
  */
-export class ToolboxSettingTab extends PluginSettingTab {
-	private readonly plugin: ToolboxPlugin;
+export class SignetSettingTab extends PluginSettingTab {
+	private readonly plugin: SignetPlugin;
 
-	constructor(app: App, plugin: ToolboxPlugin) {
+	constructor(app: App, plugin: SignetPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -47,7 +47,7 @@ export class ToolboxSettingTab extends PluginSettingTab {
 		// Every module gets its own container: it is what the narrow-screen rules in
 		// styles.css hang off, and Obsidian's setting rows are otherwise loose
 		// children of a tab this plugin does not own.
-		const page = containerEl.createDiv({ cls: 'toolbox-settings' });
+		const page = containerEl.createDiv({ cls: 'signet-settings' });
 
 		for (const descriptor of this.plugin.registry.visible()) {
 			new Setting(page).setName(descriptor.name).setHeading();

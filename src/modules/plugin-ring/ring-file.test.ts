@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { App } from 'obsidian';
 import { FakeVault } from '../../test/fake-vault';
 import { RingFile } from './ring-file';
-import type { RingEnvelope } from '@toolbox/protocol';
+import type { RingEnvelope } from '@signet/protocol';
 
 /**
  * Finding the ring file, including when Obsidian does not know it is there.
@@ -14,7 +14,7 @@ import type { RingEnvelope } from '@toolbox/protocol';
  * file sat right there, which is the bug these tests hold the line on.
  */
 
-const PATH = 'Toolbox/plugin-ring.json';
+const PATH = 'Signet/plugin-ring.json';
 
 const envelope: RingEnvelope = {
 	v: 1,
@@ -75,7 +75,7 @@ describe('writing the ring file', () => {
 		await ringFile(vault).write(envelope);
 
 		expect(JSON.parse(vault.text(PATH) ?? '')).toEqual(envelope);
-		expect(vault.folders.has('Toolbox')).toBe(true);
+		expect(vault.folders.has('Signet')).toBe(true);
 	});
 
 	it('replaces one the index knows about', async () => {
@@ -100,8 +100,8 @@ describe('writing the ring file', () => {
 	it('does not trip over a folder that exists but is not indexed', async () => {
 		const vault = new FakeVault();
 		// Something is in the folder, so the disk has it — but nothing told the index.
-		vault.hidden.set('Toolbox/something-else.md', 'note');
-		expect(vault.vault.getFolderByPath('Toolbox')).toBeNull();
+		vault.hidden.set('Signet/something-else.md', 'note');
+		expect(vault.vault.getFolderByPath('Signet')).toBeNull();
 
 		await expect(ringFile(vault).write(envelope)).resolves.toBeUndefined();
 	});
@@ -119,12 +119,12 @@ describe('conflicting copies', () => {
 	it('finds what a sync client left beside the real file', () => {
 		const vault = new FakeVault();
 		vault.put(PATH, JSON.stringify(envelope));
-		vault.put('Toolbox/plugin-ring (conflicted copy 2026-09-08 093612).json', '{}');
-		vault.put('Toolbox/notes.md', 'unrelated');
+		vault.put('Signet/plugin-ring (conflicted copy 2026-09-08 093612).json', '{}');
+		vault.put('Signet/notes.md', 'unrelated');
 		vault.put('Elsewhere/plugin-ring.json', '{}');
 
 		expect(ringFile(vault).findConflictCopies()).toEqual([
-			'Toolbox/plugin-ring (conflicted copy 2026-09-08 093612).json',
+			'Signet/plugin-ring (conflicted copy 2026-09-08 093612).json',
 		]);
 	});
 });

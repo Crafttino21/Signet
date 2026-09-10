@@ -1,18 +1,18 @@
 /*
- * Styles for the Toolbox plugin.
+ * Styles for the Signet plugin.
  *
  * Always use Obsidian's CSS variables rather than fixed colours, so the plugin
  * follows whatever theme the user has. Never set styles inline from TypeScript —
  * add a class here instead.
  */
 
-.toolbox-ring__hint {
+.signet-ring__hint {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	margin: 0 0 var(--size-4-3);
 }
 
-.toolbox-ring__warning {
+.signet-ring__warning {
 	color: var(--text-error);
 	background-color: var(--background-modifier-error);
 	border-radius: var(--radius-s);
@@ -20,7 +20,7 @@
 	margin: 0 0 var(--size-4-3);
 }
 
-.toolbox-ring__code {
+.signet-ring__code {
 	font-family: var(--font-monospace);
 	font-size: var(--font-ui-large);
 	text-align: center;
@@ -33,7 +33,7 @@
 	word-break: break-all;
 }
 
-.toolbox-ring__list {
+.signet-ring__list {
 	list-style: none;
 	margin: 0 0 var(--size-4-3);
 	padding: 0;
@@ -42,7 +42,7 @@
 	overflow-x: hidden;
 }
 
-.toolbox-ring__row {
+.signet-ring__row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(0, auto);
 	gap: 0 var(--size-4-2);
@@ -51,19 +51,19 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.toolbox-ring__name {
+.signet-ring__name {
 	font-weight: var(--font-medium);
 	overflow-wrap: anywhere;
 }
 
-.toolbox-ring__kind {
+.signet-ring__kind {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	text-align: right;
 	overflow-wrap: anywhere;
 }
 
-.toolbox-ring__actions {
+.signet-ring__actions {
 	grid-column: 1 / -1;
 	display: flex;
 	flex-wrap: wrap;
@@ -71,20 +71,20 @@
 	margin: var(--size-4-1) 0 var(--size-4-2);
 }
 
-.toolbox-ring__detail,
-.toolbox-ring__reason {
+.signet-ring__detail,
+.signet-ring__reason {
 	grid-column: 1 / -1;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }
 
-.toolbox-ring__detail {
+.signet-ring__detail {
 	font-family: var(--font-monospace);
 }
 
 /* Sync guardian */
 
-.toolbox-sync__alert {
+.signet-sync__alert {
 	border: 1px solid var(--text-error);
 	border-radius: var(--radius-s);
 	background-color: var(--background-modifier-error);
@@ -92,16 +92,16 @@
 	margin-bottom: var(--size-4-4);
 }
 
-.toolbox-sync__alert h3 {
+.signet-sync__alert h3 {
 	margin-top: 0;
 }
 
-.toolbox-sync__note {
+.signet-sync__note {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 }
 
-.toolbox-sync__list {
+.signet-sync__list {
 	list-style: none;
 	margin: 0 0 var(--size-4-3);
 	padding: 0;
@@ -110,7 +110,7 @@
 	overflow-x: hidden;
 }
 
-.toolbox-sync__row {
+.signet-sync__row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr) minmax(0, auto);
 	gap: var(--size-2-1) var(--size-4-2);
@@ -119,43 +119,43 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.toolbox-sync__name {
+.signet-sync__name {
 	font-weight: var(--font-medium);
 	overflow-wrap: anywhere;
 }
 
-.toolbox-sync__meta {
+.signet-sync__meta {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	text-align: right;
 	overflow-wrap: anywhere;
 }
 
-.toolbox-sync__warn {
+.signet-sync__warn {
 	color: var(--text-warning);
 	font-size: var(--font-ui-smaller);
 	text-align: right;
 	overflow-wrap: anywhere;
 }
 
-.toolbox-sync__actions {
+.signet-sync__actions {
 	grid-column: 1 / -1;
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--size-4-2);
 }
 
-.toolbox-sync__compare {
+.signet-sync__compare {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
 	gap: var(--size-4-3);
 }
 
-.toolbox-sync__column h4 {
+.signet-sync__column h4 {
 	margin: 0 0 var(--size-4-1);
 }
 
-.toolbox-sync__text {
+.signet-sync__text {
 	max-height: 40vh;
 	overflow: auto;
 	background-color: var(--background-secondary);
@@ -168,114 +168,114 @@
 
 /* Side panel */
 
-.toolbox-panel {
+.signet-panel {
 	padding: var(--size-4-3);
 }
 
-.toolbox-panel__section + .toolbox-panel__section {
+.signet-panel__section + .signet-panel__section {
 	margin-top: var(--size-4-5);
 	padding-top: var(--size-4-4);
 	border-top: 1px solid var(--background-modifier-border);
 }
 
-.toolbox-panel__section h3 {
+.signet-panel__section h3 {
 	margin: 0 0 var(--size-4-1);
 	font-size: var(--font-ui-medium);
 }
 
-.toolbox-panel__section h4 {
+.signet-panel__section h4 {
 	margin: var(--size-4-4) 0 var(--size-4-1);
 	font-size: var(--font-ui-small);
 	color: var(--text-muted);
 }
 
-.toolbox-panel__state {
+.signet-panel__state {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	margin: 0 0 var(--size-4-2);
 }
 
-.toolbox-panel__state--warn {
+.signet-panel__state--warn {
 	color: var(--text-warning);
 }
 
-.toolbox-panel__buttons {
+.signet-panel__buttons {
 	display: flex;
 	flex-wrap: wrap;
 	gap: var(--size-4-2);
 }
 
-.toolbox-panel__empty {
+.signet-panel__empty {
 	color: var(--text-muted);
 }
 
 /* Collapsed settings */
 
-.toolbox-advanced {
+.signet-advanced {
 	margin-top: var(--size-4-4);
 	border-top: 1px solid var(--background-modifier-border);
 	padding-top: var(--size-4-2);
 }
 
-.toolbox-advanced__summary {
+.signet-advanced__summary {
 	cursor: pointer;
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	padding: var(--size-4-1) 0;
 }
 
-.toolbox-advanced[open] .toolbox-advanced__summary {
+.signet-advanced[open] .signet-advanced__summary {
 	color: var(--text-normal);
 }
 
 /* Status bar */
 
-.toolbox-status {
+.signet-status {
 	cursor: pointer;
 }
 
-.toolbox-status--error {
+.signet-status--error {
 	color: var(--text-error);
 }
 
-.toolbox-status--live {
+.signet-status--live {
 	color: var(--text-accent);
 }
 
 /* Guided setup */
 
-.toolbox-setup__step {
+.signet-setup__step {
 	margin-bottom: var(--size-4-4);
 }
 
-.toolbox-setup__step h3 {
+.signet-setup__step h3 {
 	margin: 0 0 var(--size-4-1);
 	font-size: var(--font-ui-medium);
 }
 
-.toolbox-setup__step--done h3 {
+.signet-setup__step--done h3 {
 	color: var(--text-muted);
 	font-weight: var(--font-normal);
 }
 
-.toolbox-setup__hint {
+.signet-setup__hint {
 	color: var(--text-muted);
 	font-size: var(--font-ui-smaller);
 	margin: 0 0 var(--size-4-2);
 }
 
-.toolbox-setup__done {
+.signet-setup__done {
 	color: var(--text-success);
 }
 
-.toolbox-panel__setup {
+.signet-panel__setup {
 	background-color: var(--background-modifier-border);
 	border-radius: var(--radius-s);
 	padding: var(--size-4-3);
 	margin-bottom: var(--size-4-4);
 }
 
-.toolbox-panel__setup p {
+.signet-panel__setup p {
 	margin: 0 0 var(--size-4-2);
 }
 
@@ -365,62 +365,62 @@
  *
  * On a phone the side panel is the width of the screen and the labels are German,
  * so all three fire at once. The rules are scoped to this plugin's own three
- * surfaces — `.toolbox-panel`, `.toolbox-settings`, `.toolbox-modal` — and never
+ * surfaces — `.signet-panel`, `.signet-settings`, `.signet-modal` — and never
  * to Obsidian's classes on their own: a plugin has no business restyling settings
  * rows that belong to somebody else.
  */
 
-.toolbox-panel,
-.toolbox-settings,
-.toolbox-modal,
-.toolbox-panel__section,
-.toolbox-panel__setup,
-.toolbox-setup__step {
+.signet-panel,
+.signet-settings,
+.signet-modal,
+.signet-panel__section,
+.signet-panel__setup,
+.signet-setup__step {
 	min-width: 0;
 	max-width: 100%;
 	overflow-x: hidden;
 }
 
 /* Obsidian's setting rows, in this plugin's surfaces only. */
-.toolbox-settings .setting-item,
-.toolbox-modal .setting-item {
+.signet-settings .setting-item,
+.signet-modal .setting-item {
 	flex-wrap: wrap;
 	min-width: 0;
 }
 
-.toolbox-settings .setting-item-info,
-.toolbox-settings .setting-item-control,
-.toolbox-modal .setting-item-info,
-.toolbox-modal .setting-item-control {
+.signet-settings .setting-item-info,
+.signet-settings .setting-item-control,
+.signet-modal .setting-item-info,
+.signet-modal .setting-item-control {
 	min-width: 0;
 	max-width: 100%;
 }
 
-.toolbox-settings .setting-item-name,
-.toolbox-settings .setting-item-description,
-.toolbox-modal .setting-item-name,
-.toolbox-modal .setting-item-description {
+.signet-settings .setting-item-name,
+.signet-settings .setting-item-description,
+.signet-modal .setting-item-name,
+.signet-modal .setting-item-description {
 	overflow-wrap: anywhere;
 }
 
 /* A text field defaults to a width in characters, which on a narrow screen is
  * wider than the screen. */
-.toolbox-settings input[type='text'],
-.toolbox-settings input[type='password'],
-.toolbox-settings textarea,
-.toolbox-modal input[type='text'],
-.toolbox-modal input[type='password'],
-.toolbox-modal textarea {
+.signet-settings input[type='text'],
+.signet-settings input[type='password'],
+.signet-settings textarea,
+.signet-modal input[type='text'],
+.signet-modal input[type='password'],
+.signet-modal textarea {
 	min-width: 0;
 	max-width: 100%;
 	box-sizing: border-box;
 }
 
 /* Every button this plugin puts on screen, raw or built by the Setting API. */
-.toolbox-panel button,
-.toolbox-settings button,
-.toolbox-modal button,
-.toolbox-ring__actions button {
+.signet-panel button,
+.signet-settings button,
+.signet-modal button,
+.signet-ring__actions button {
 	min-width: 0;
 	max-width: 100%;
 	height: auto;
@@ -436,68 +436,68 @@
  * into a narrow window on a desktop, where there is no such class.
  */
 @media (max-width: 600px) {
-	.toolbox-panel__buttons,
-	.toolbox-sync__actions,
-	.toolbox-ring__actions {
+	.signet-panel__buttons,
+	.signet-sync__actions,
+	.signet-ring__actions {
 		flex-direction: column;
 		align-items: stretch;
 	}
 
-	.toolbox-settings .setting-item,
-	.toolbox-modal .setting-item {
+	.signet-settings .setting-item,
+	.signet-modal .setting-item {
 		flex-direction: column;
 		align-items: stretch;
 		gap: var(--size-4-2);
 	}
 
-	.toolbox-settings .setting-item-control,
-	.toolbox-modal .setting-item-control {
+	.signet-settings .setting-item-control,
+	.signet-modal .setting-item-control {
 		width: 100%;
 		flex-wrap: wrap;
 		justify-content: flex-start;
 	}
 
-	.toolbox-settings input[type='text'],
-	.toolbox-settings textarea,
-	.toolbox-modal input[type='text'],
-	.toolbox-modal textarea {
+	.signet-settings input[type='text'],
+	.signet-settings textarea,
+	.signet-modal input[type='text'],
+	.signet-modal textarea {
 		width: 100%;
 	}
 
-	.toolbox-ring__code {
+	.signet-ring__code {
 		font-size: var(--font-ui-medium);
 	}
 }
 
-body.is-mobile .toolbox-panel__buttons,
-body.is-mobile .toolbox-sync__actions,
-body.is-mobile .toolbox-ring__actions {
+body.is-mobile .signet-panel__buttons,
+body.is-mobile .signet-sync__actions,
+body.is-mobile .signet-ring__actions {
 	flex-direction: column;
 	align-items: stretch;
 }
 
-body.is-mobile .toolbox-settings .setting-item,
-body.is-mobile .toolbox-modal .setting-item {
+body.is-mobile .signet-settings .setting-item,
+body.is-mobile .signet-modal .setting-item {
 	flex-direction: column;
 	align-items: stretch;
 	gap: var(--size-4-2);
 }
 
-body.is-mobile .toolbox-settings .setting-item-control,
-body.is-mobile .toolbox-modal .setting-item-control {
+body.is-mobile .signet-settings .setting-item-control,
+body.is-mobile .signet-modal .setting-item-control {
 	width: 100%;
 	flex-wrap: wrap;
 	justify-content: flex-start;
 }
 
-body.is-mobile .toolbox-settings input[type='text'],
-body.is-mobile .toolbox-settings textarea,
-body.is-mobile .toolbox-modal input[type='text'],
-body.is-mobile .toolbox-modal textarea {
+body.is-mobile .signet-settings input[type='text'],
+body.is-mobile .signet-settings textarea,
+body.is-mobile .signet-modal input[type='text'],
+body.is-mobile .signet-modal textarea {
 	width: 100%;
 }
 
-body.is-mobile .toolbox-ring__code {
+body.is-mobile .signet-ring__code {
 	font-size: var(--font-ui-medium);
 }
 
@@ -508,20 +508,20 @@ body.is-mobile .toolbox-ring__code {
  * uses, and the label spells them out for anyone who cannot see the difference.
  */
 
-.toolbox-sync-indicator--syncing,
-.toolbox-sync-indicator--live {
+.signet-sync-indicator--syncing,
+.signet-sync-indicator--live {
 	color: var(--text-accent);
 }
 
-.toolbox-sync-indicator--error {
+.signet-sync-indicator--error {
 	color: var(--text-error);
 }
 
-.toolbox-sync-indicator--off {
+.signet-sync-indicator--off {
 	color: var(--text-faint);
 }
 
-.toolbox-panel__version {
+.signet-panel__version {
 	margin-top: var(--size-4-5);
 	color: var(--text-faint);
 	font-size: var(--font-ui-smaller);
@@ -533,6 +533,6 @@ body.is-mobile .toolbox-ring__code {
  * the code looked as though it had changed the moment a server was connected,
  * and a code written down before that looked out of date when it still works.
  */
-.toolbox-ring__code-server {
+.signet-ring__code-server {
 	color: var(--text-muted);
 }

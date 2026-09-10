@@ -35,12 +35,12 @@ export class SyncPlanModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(t('vaultSync.plan.title'));
 
 		if (this.context.firstRun) {
 			this.contentEl.createEl('p', {
-				cls: 'toolbox-sync__note',
+				cls: 'signet-sync__note',
 				text: t('vaultSync.plan.firstRun'),
 			});
 		}
@@ -57,7 +57,7 @@ export class SyncPlanModal extends Modal {
 
 		if (this.actions.some((action) => action.kind === 'conflict')) {
 			this.contentEl.createEl('p', {
-				cls: 'toolbox-sync__note',
+				cls: 'signet-sync__note',
 				text: t('vaultSync.plan.conflictNote'),
 			});
 		}
@@ -84,12 +84,12 @@ export class SyncPlanModal extends Modal {
 	private renderSection(title: string, actions: readonly SyncAction[]): void {
 		new Setting(this.contentEl).setName(title).setHeading();
 
-		const list = this.contentEl.createEl('ul', { cls: 'toolbox-sync__list' });
+		const list = this.contentEl.createEl('ul', { cls: 'signet-sync__list' });
 		for (const action of actions) {
-			const row = list.createEl('li', { cls: 'toolbox-sync__row' });
-			row.createSpan({ cls: 'toolbox-sync__name', text: action.path });
+			const row = list.createEl('li', { cls: 'signet-sync__row' });
+			row.createSpan({ cls: 'signet-sync__name', text: action.path });
 			row.createSpan({
-				cls: action.kind === 'deleteLocal' ? 'toolbox-sync__warn' : 'toolbox-sync__meta',
+				cls: action.kind === 'deleteLocal' ? 'signet-sync__warn' : 'signet-sync__meta',
 				text: t(ACTION_KEY[action.kind]),
 			});
 		}

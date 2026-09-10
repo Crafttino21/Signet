@@ -1,6 +1,6 @@
-# Toolbox sync server
+# Signet sync server
 
-A small sync server for the Toolbox Obsidian plugin. It holds your notes without
+A small sync server for the Signet Obsidian plugin. It holds your notes without
 being able to read them.
 
 ## What it does and does not do
@@ -29,8 +29,8 @@ framework to keep patched on a machine that holds your notes.
 Two commands on the machine that should hold the notes:
 
 ```bash
-git clone https://github.com/Crafttino21/ObsidianToolbox.git
-ObsidianToolbox/packages/server/install.sh
+git clone https://github.com/Crafttino21/Signet.git
+Signet/packages/server/install.sh
 ```
 
 The script installs Docker if it is missing, generates the registration secret,
@@ -47,7 +47,7 @@ you run it, as you should with any script that wants your root password.
 ```bash
 cd packages/server
 cp .env.example .env
-openssl rand -hex 32   # paste into TOOLBOX_REGISTRATION_SECRET in .env
+openssl rand -hex 32   # paste into SIGNET_REGISTRATION_SECRET in .env
 docker compose up -d --build
 ```
 
@@ -84,7 +84,7 @@ compose file — it is ignored by git, so the safe default stays the default:
 
 ```yaml
 services:
-    toolbox-sync:
+    signet-sync:
         ports: !override
             - '0.0.0.0:8787:8787'
 ```
@@ -112,13 +112,13 @@ Or with nginx, a normal `proxy_pass` to `http://127.0.0.1:8787` behind certbot.
 
 ### Configuration
 
-| Variable                      | Default      | Meaning                                                                                                                                                           |
-| ----------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `TOOLBOX_REGISTRATION_SECRET` | _(required)_ | Needed to create a new vault. Without it the server refuses to start, because a sync server that silently accepts strangers is worse than one that will not boot. |
-| `TOOLBOX_PORT`                | `8787`       | Listening port.                                                                                                                                                   |
-| `TOOLBOX_DATA_DIR`            | `/data`      | Where vaults are kept.                                                                                                                                            |
-| `TOOLBOX_MAX_BLOB_BYTES`      | `104857600`  | Largest single file.                                                                                                                                              |
-| `TOOLBOX_MAX_MANIFEST_BYTES`  | `33554432`   | Largest manifest.                                                                                                                                                 |
+| Variable                     | Default      | Meaning                                                                                                                                                           |
+| ---------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SIGNET_REGISTRATION_SECRET` | _(required)_ | Needed to create a new vault. Without it the server refuses to start, because a sync server that silently accepts strangers is worse than one that will not boot. |
+| `SIGNET_PORT`                | `8787`       | Listening port.                                                                                                                                                   |
+| `SIGNET_DATA_DIR`            | `/data`      | Where vaults are kept.                                                                                                                                            |
+| `SIGNET_MAX_BLOB_BYTES`      | `104857600`  | Largest single file.                                                                                                                                              |
+| `SIGNET_MAX_MANIFEST_BYTES`  | `33554432`   | Largest manifest.                                                                                                                                                 |
 
 The registration secret is only needed once per vault, when a device first
 creates it. Everyday syncing authenticates with a token derived from your ring
@@ -130,7 +130,7 @@ The data directory is the whole state. Back up the Docker volume:
 
 ```bash
 docker run --rm -v toolbox-data:/data -v "$PWD:/backup" alpine \
-	tar czf /backup/toolbox-sync-backup.tar.gz -C /data .
+	tar czf /backup/signet-sync-backup.tar.gz -C /data .
 ```
 
 The backup is as unreadable as the server itself. You need the ring code to make

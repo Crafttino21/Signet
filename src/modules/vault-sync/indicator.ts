@@ -21,7 +21,7 @@ const LIVE_NOTE_ICON: IconName = 'users';
 /**
  * The sync state, in the header of every open note.
  *
- * Obsidian has no status bar on mobile — `ToolboxModule.addStatusBarItem` returns
+ * Obsidian has no status bar on mobile — `SignetModule.addStatusBarItem` returns
  * undefined there — so on a phone the sync had no visible state at all short of
  * opening the panel. A view header action is the one surface that exists on both,
  * and it sits where the answer is wanted: next to the note it is about.
@@ -84,7 +84,7 @@ export class SyncIndicator {
 		const element = view.addAction(ICONS[this.state], t('vaultSync.status.tooltip'), () => {
 			this.options.onClick();
 		});
-		element.addClass('toolbox-sync-indicator');
+		element.addClass('signet-sync-indicator');
 		this.perView.set(view, element);
 		this.added.add(element);
 		return element;
@@ -104,8 +104,8 @@ export class SyncIndicator {
 		);
 
 		for (const state of STATES) {
-			element.toggleClass(`toolbox-sync-indicator--${state}`, !live && state === this.state);
+			element.toggleClass(`signet-sync-indicator--${state}`, !live && state === this.state);
 		}
-		element.toggleClass('toolbox-sync-indicator--live', live || this.state === 'live');
+		element.toggleClass('signet-sync-indicator--live', live || this.state === 'live');
 	}
 }

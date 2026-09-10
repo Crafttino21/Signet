@@ -3,16 +3,16 @@
 // the same module the alias points at, so the classes are identical.
 import { Plugin } from '../test/obsidian.stub';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ToolboxModule } from './module';
+import { SignetModule } from './module';
 import type { ModuleDescriptor } from './module';
 import { ModuleRegistry } from './registry';
-import type { ToolboxSettings } from './settings';
-import type ToolboxPlugin from '../main';
+import type { SignetSettings } from './settings';
+import type SignetPlugin from '../main';
 
 /** Records what the lifecycle actually did, in order. */
 let events: string[] = [];
 
-class TestModule extends ToolboxModule {
+class TestModule extends SignetModule {
 	override onload(): void {
 		events.push('onload');
 		// The point of the whole design: this cleanup must run on disable.
@@ -48,7 +48,7 @@ const brokenModule: ModuleDescriptor = {
 };
 
 class TestPlugin extends Plugin {
-	settings: ToolboxSettings = {
+	settings: SignetSettings = {
 		version: 1,
 		enabledModules: {},
 		moduleSettings: {},
@@ -60,7 +60,7 @@ class TestPlugin extends Plugin {
 function setup(descriptors: readonly ModuleDescriptor[]) {
 	const plugin = new TestPlugin();
 	plugin.load();
-	const registry = new ModuleRegistry(plugin as unknown as ToolboxPlugin, descriptors);
+	const registry = new ModuleRegistry(plugin as unknown as SignetPlugin, descriptors);
 	return { plugin, registry };
 }
 
@@ -78,7 +78,7 @@ describe('ModuleRegistry', () => {
 		expect(registry.isEnabled('test')).toBe(true);
 		expect(registry.getActive('test')).toBeDefined();
 		expect(plugin.saveSettings).toHaveBeenCalledOnce();
-		expect(plugin.commands.has('toolbox:test')).toBe(true);
+		expect(plugin.commands.has('signet:test')).toBe(true);
 	});
 
 	it('undoes everything the module registered when it is switched off', async () => {
@@ -90,7 +90,7 @@ describe('ModuleRegistry', () => {
 		expect(events).toEqual(['onload', 'onDisable', 'cleanup', 'onunload']);
 		expect(registry.getActive('test')).toBeUndefined();
 		// The command registered in onload is gone again.
-		expect(plugin.commands.has('toolbox:test')).toBe(false);
+		expect(plugin.commands.has('signet:test')).toBe(false);
 	});
 
 	it('creates a fresh instance on re-enable rather than reusing the old one', async () => {

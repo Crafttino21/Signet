@@ -1,7 +1,7 @@
 import type { DiffItem, DiffReason, LocalPlugin, PluginPlan, RingSnapshot } from './types';
 
 export interface DiffOptions {
-	/** Toolbox's own plugin id. Never appears in a diff — see the note below. */
+	/** Signet's own plugin id. Never appears in a diff — see the note below. */
 	selfId: string;
 	/** True on iOS/Android, where desktop-only plugins must not be switched on. */
 	isMobile: boolean;
@@ -43,7 +43,7 @@ export function jsonEquals(a: unknown, b: unknown): boolean {
  *
  * Two rules shape the output:
  *
- * - Toolbox itself is never part of a diff. Applying an item means disabling and
+ * - Signet itself is never part of a diff. Applying an item means disabling and
  *   re-enabling a plugin, and doing that to the plugin running the loop would cut
  *   the loop off mid-way with nothing reported. It is filtered here and again in
  *   {@link planApply}, because a snapshot from an older version might still name it.
@@ -155,7 +155,7 @@ export function planApply(
 	const plans = new Map<string, PluginPlan>();
 
 	for (const item of items) {
-		// Second line of defence: Toolbox must never end up in an operation, no
+		// Second line of defence: Signet must never end up in an operation, no
 		// matter what a snapshot claims.
 		if (!item.actionable || item.id === options.selfId) {
 			continue;

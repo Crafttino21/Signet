@@ -50,7 +50,7 @@ export class ConnectServerModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(t('vaultSync.connect.title'));
 		this.render();
 	}
@@ -64,10 +64,10 @@ export class ConnectServerModal extends Modal {
 		const { contentEl } = this;
 		contentEl.empty();
 
-		contentEl.createEl('p', { cls: 'toolbox-ring__hint', text: t('vaultSync.connect.hint') });
+		contentEl.createEl('p', { cls: 'signet-ring__hint', text: t('vaultSync.connect.hint') });
 
 		if (this.error !== undefined) {
-			contentEl.createEl('p', { cls: 'toolbox-ring__warning', text: this.error });
+			contentEl.createEl('p', { cls: 'signet-ring__warning', text: this.error });
 		}
 
 		new Setting(contentEl)
@@ -112,7 +112,7 @@ export class ConnectServerModal extends Modal {
 			);
 
 		contentEl.createEl('p', {
-			cls: 'toolbox-ring__hint',
+			cls: 'signet-ring__hint',
 			text: t('vaultSync.connect.withoutHint'),
 		});
 	}

@@ -15,7 +15,7 @@ export const en = {
 	'common.cancel': 'Cancel',
 	'common.copy': 'Copy',
 
-	'module.loadFailed': 'Toolbox: "{name}" failed to load and was switched off.',
+	'module.loadFailed': 'Signet: "{name}" failed to load and was switched off.',
 
 	'ring.name': 'Plugin ring',
 	'ring.description':
@@ -28,8 +28,7 @@ export const en = {
 	'ring.command.check': 'Check the ring for changes',
 	'ring.command.leave': 'Leave the plugin ring',
 
-	'ring.unsupported.notice':
-		'Toolbox: the plugin ring is not supported by this Obsidian version.',
+	'ring.unsupported.notice': 'Signet: the plugin ring is not supported by this Obsidian version.',
 	'ring.unsupported.settings':
 		'This Obsidian version does not expose the plugin manager this feature needs.',
 
@@ -89,13 +88,13 @@ export const en = {
 	'ring.notice.unknownFormat': 'The ring snapshot is not in a format this version understands.',
 	'ring.notice.unreadable': 'The ring snapshot could not be read.',
 	'ring.notice.retryLater': '{message} Try again in a moment.',
-	'ring.notice.hasChanges': 'Toolbox: the plugin ring has changes on another device.',
+	'ring.notice.hasChanges': 'Signet: the plugin ring has changes on another device.',
 	'ring.notice.conflictCopies':
-		'Toolbox: found {count} conflicting copies of the ring file. Two devices may both be publishing.',
+		'Signet: found {count} conflicting copies of the ring file. Two devices may both be publishing.',
 	'ring.notice.codeCopied': 'Ring code copied.',
 	'ring.notice.codeCopyFailed': 'Could not copy the code — select it by hand.',
 	'ring.notice.newerCode':
-		'That code was made by a newer version of Toolbox. Update the plugin on this device first.',
+		'That code was made by a newer version of Signet. Update the plugin on this device first.',
 	'ring.notice.replacedRingFile': 'Moved the old ring file at "{path}" to the trash.',
 	'ring.notice.ringFileBusy':
 		'Obsidian has not indexed the file at "{path}" yet, so it cannot be moved safely. Try again in a moment.',
@@ -268,7 +267,7 @@ export const en = {
 	'vaultSync.notice.portAdded':
 		'No port given, so the usual one was added: {url}. Change it under Advanced if your server listens elsewhere.',
 	'vaultSync.notice.unreachable':
-		'Toolbox: {url} could not be reached. {message} Check the address including the port — the server listens on 8787 unless you changed it.',
+		'Signet: {url} could not be reached. {message} Check the address including the port — the server listens on 8787 unless you changed it.',
 	'vaultSync.notice.foundOnDefaultPort':
 		'A sync server does answer at {url} — that is almost certainly the address you want.',
 	'vaultSync.notice.badServerUrl':
@@ -299,10 +298,12 @@ export const en = {
 
 	'common.advanced': 'Advanced',
 
-	'panel.title': 'Toolbox',
-	'panel.open': 'Open the Toolbox panel',
+	'rename.movedIn':
+		'This plugin was called Toolbox until now. Your settings, your ring and what this device had already synced were carried over from "{from}", which you can delete once everything looks right.',
+	'panel.title': 'Signet',
+	'panel.open': 'Open the Signet panel',
 	'panel.available': 'Ready to switch on in the settings: {names}.',
-	'panel.version': 'Toolbox {version}',
+	'panel.version': 'Signet {version}',
 	'panel.nothing': 'No modules are switched on. Turn one on in the settings.',
 
 	'ring.panel.title': 'Plugin ring',
@@ -345,7 +346,7 @@ export const en = {
 	'vaultSync.status.error': 'Sync: problem',
 	'vaultSync.status.off': 'Sync: off',
 	'vaultSync.indicator.liveNote': 'This note is being edited together right now',
-	'vaultSync.status.tooltip': 'Toolbox vault sync — click to open the panel',
+	'vaultSync.status.tooltip': 'Signet vault sync — click to open the panel',
 
 	'ring.reason.cannotInstall': 'Installing is not possible on this device',
 	'ring.kind.install': 'Install',
@@ -355,8 +356,8 @@ export const en = {
 	'ring.settings.installUnsupported':
 		'This Obsidian version does not expose the plugin installer, so missing plugins can only be listed.',
 	'ring.result.installed': 'Installed {count}.',
-	'setup.title': 'Set up Toolbox',
-	'setup.command': 'Set up Toolbox',
+	'setup.title': 'Set up Signet',
+	'setup.command': 'Set up Signet',
 	'setup.nothing': 'Nothing needs setting up. Switch a module on first.',
 	'setup.allDone': 'Everything is set up. You can close this.',
 	'setup.finish': 'Done',
@@ -390,7 +391,7 @@ export const en = {
 		'While a note is open it is kept in step keystroke by keystroke with anyone else who has it open. That note is left out of the ordinary file sync until it is closed, so the two cannot write over each other.',
 	'collab.settings.excluded': 'Never edit these folders together',
 	'collab.settings.excludedDesc': 'One path per line.',
-	'collab.notice.failed': 'Toolbox: could not start live editing for this note.',
+	'collab.notice.failed': 'Signet: could not start live editing for this note.',
 };
 
 export type TranslationKey = keyof typeof en;

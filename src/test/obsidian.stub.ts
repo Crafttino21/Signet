@@ -103,7 +103,7 @@ export class Plugin extends Component {
 	readonly ribbonIcons: HTMLElement[] = [];
 	constructor(
 		public app: unknown = {},
-		public manifest: { id: string } = { id: 'toolbox' }
+		public manifest: { id: string } = { id: 'signet' }
 	) {
 		super();
 	}

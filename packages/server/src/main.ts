@@ -25,7 +25,7 @@ async function main(): Promise<void> {
 	relay.attach(server);
 
 	server.listen(config.port, config.host, () => {
-		console.log(`Toolbox sync server listening on ${config.host}:${String(config.port)}`);
+		console.log(`Signet sync server listening on ${config.host}:${String(config.port)}`);
 		console.log(`Data directory: ${config.dataDir}`);
 	});
 

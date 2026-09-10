@@ -1,7 +1,7 @@
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
 import * as Y from 'yjs';
 import { RoomSocket } from './room-socket';
-import type { Bytes } from '@toolbox/protocol';
+import type { Bytes } from '@signet/protocol';
 
 /**
  * One note being edited together.

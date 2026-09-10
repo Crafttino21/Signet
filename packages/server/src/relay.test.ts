@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
-import type { RoomFrame } from '@toolbox/protocol';
+import type { RoomFrame } from '@signet/protocol';
 import { createSyncServer } from './http';
 import { CollabRelay } from './relay';
 import { RoomStore } from './rooms';
@@ -99,7 +99,7 @@ function settle(ms = 300): Promise<void> {
 }
 
 beforeAll(async () => {
-	dir = await mkdtemp(join(tmpdir(), 'toolbox-relay-'));
+	dir = await mkdtemp(join(tmpdir(), 'signet-relay-'));
 
 	const vaults = new VaultStore(dir);
 	await vaults.register(VAULT, sha256Hex(TOKEN));

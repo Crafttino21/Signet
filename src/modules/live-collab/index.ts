@@ -10,12 +10,12 @@ import {
 	deriveRoomId,
 	deriveVaultId,
 	parseRingCode,
-} from '@toolbox/protocol';
-import type { Bytes } from '@toolbox/protocol';
-import { ToolboxModule } from '../../core/module';
+} from '@signet/protocol';
+import type { Bytes } from '@signet/protocol';
+import { SignetModule } from '../../core/module';
 import type { ModuleDescriptor } from '../../core/module';
 import { advancedSection } from '../../core/settings-ui';
-import type ToolboxPlugin from '../../main';
+import type SignetPlugin from '../../main';
 import { t } from '../../i18n';
 import { CollabSession } from './session';
 
@@ -48,7 +48,7 @@ const RING_MODULE_ID = 'plugin-ring';
 const SYNC_MODULE_ID = 'vault-sync';
 
 /** Whether the vault sync has a server that has answered for this vault. */
-function isSyncRegistered(plugin: ToolboxPlugin): boolean {
+function isSyncRegistered(plugin: SignetPlugin): boolean {
 	const sync = plugin.settings.moduleSettings[SYNC_MODULE_ID] as SyncSettings | undefined;
 	return sync?.registered === true && typeof sync.serverUrl === 'string' && sync.serverUrl !== '';
 }
@@ -66,7 +66,7 @@ interface SyncSettings {
 	registered?: unknown;
 }
 
-class LiveCollabModule extends ToolboxModule<LiveCollabSettings> {
+class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	/** One session per open note, keyed by vault path. */
 	private readonly sessions = new Map<string, CollabSession>();
 	/** Editors currently on screen, so a session can find the one to bind. */
@@ -182,7 +182,7 @@ class LiveCollabModule extends ToolboxModule<LiveCollabSettings> {
 				}
 			}
 		} catch (error) {
-			console.error('Toolbox: could not start a collaborative session.', error);
+			console.error('Signet: could not start a collaborative session.', error);
 			new Notice(t('collab.notice.failed'));
 		}
 	}
@@ -207,7 +207,7 @@ class LiveCollabModule extends ToolboxModule<LiveCollabSettings> {
 				this.refreshPanel();
 			},
 			onError: (error) => {
-				console.error('Toolbox: collaboration error.', error);
+				console.error('Signet: collaboration error.', error);
 			},
 		});
 
@@ -306,7 +306,7 @@ class LiveCollabModule extends ToolboxModule<LiveCollabSettings> {
 				await this.app.vault.modify(file, contents);
 			}
 		} catch (error) {
-			console.error(`Toolbox: could not write ${path} back to disk.`, error);
+			console.error(`Signet: could not write ${path} back to disk.`, error);
 		}
 	}
 
@@ -395,5 +395,5 @@ export const liveCollabModule: ModuleDescriptor<LiveCollabSettings> = {
 		return t('collab.description');
 	},
 	defaultSettings: DEFAULT_SETTINGS,
-	create: (plugin: ToolboxPlugin) => new LiveCollabModule(plugin, liveCollabModule),
+	create: (plugin: SignetPlugin) => new LiveCollabModule(plugin, liveCollabModule),
 };

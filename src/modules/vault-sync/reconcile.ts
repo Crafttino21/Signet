@@ -1,4 +1,4 @@
-import type { FileEntry, VaultManifest } from '@toolbox/protocol';
+import type { FileEntry, VaultManifest } from '@signet/protocol';
 
 /**
  * Deciding what a sync run should do.

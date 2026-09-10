@@ -1,7 +1,7 @@
 import type { View, WorkspaceLeaf } from 'obsidian';
-import type ToolboxPlugin from '../main';
+import type SignetPlugin from '../main';
 
-const registeredTypes = new WeakMap<ToolboxPlugin, Set<string>>();
+const registeredTypes = new WeakMap<SignetPlugin, Set<string>>();
 
 /**
  * Registers a view type at most once per plugin instance.
@@ -17,7 +17,7 @@ const registeredTypes = new WeakMap<ToolboxPlugin, Set<string>>();
  * icon, and the leaves themselves.
  */
 export function registerViewOnce(
-	plugin: ToolboxPlugin,
+	plugin: SignetPlugin,
 	type: string,
 	viewCreator: (leaf: WorkspaceLeaf) => View
 ): void {

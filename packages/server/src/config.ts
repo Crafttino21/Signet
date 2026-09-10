@@ -16,6 +16,18 @@ export interface ServerConfig {
 	maxManifestBytes: number;
 }
 
+/**
+ * Reads a setting, accepting the name this server used to go by.
+ *
+ * The project was called Toolbox until it grew a sync service and stopped
+ * being one. A rename must not stop somebody's server booting after a `git
+ * pull`, so both spellings are read and the old one is simply the older name
+ * for the same thing.
+ */
+function setting(env: NodeJS.ProcessEnv, name: string): string | undefined {
+	return env[`SIGNET_${name}`] ?? env[`TOOLBOX_${name}`];
+}
+
 export class ConfigError extends Error {
 	constructor(message: string) {
 		super(message);
@@ -24,7 +36,7 @@ export class ConfigError extends Error {
 }
 
 function number(env: NodeJS.ProcessEnv, name: string, fallback: number): number {
-	const raw = env[name];
+	const raw = setting(env, name);
 	if (raw === undefined || raw === '') {
 		return fallback;
 	}
@@ -36,21 +48,21 @@ function number(env: NodeJS.ProcessEnv, name: string, fallback: number): number 
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ServerConfig {
-	const registrationSecret = env.TOOLBOX_REGISTRATION_SECRET ?? '';
+	const registrationSecret = setting(env, 'REGISTRATION_SECRET') ?? '';
 	if (registrationSecret.length < 16) {
 		throw new ConfigError(
-			'TOOLBOX_REGISTRATION_SECRET must be set to at least 16 characters. Generate one with: openssl rand -hex 32'
+			'SIGNET_REGISTRATION_SECRET must be set to at least 16 characters. Generate one with: openssl rand -hex 32'
 		);
 	}
 
 	return {
-		host: env.TOOLBOX_HOST ?? '0.0.0.0',
-		port: number(env, 'TOOLBOX_PORT', 8787),
-		dataDir: env.TOOLBOX_DATA_DIR ?? '/data',
+		host: setting(env, 'HOST') ?? '0.0.0.0',
+		port: number(env, 'PORT', 8787),
+		dataDir: setting(env, 'DATA_DIR') ?? '/data',
 		registrationSecret,
 		// Obsidian's own mobile API struggles well before this, but a cap keeps a
 		// broken client from filling the disk in one request.
-		maxBlobBytes: number(env, 'TOOLBOX_MAX_BLOB_BYTES', 100 * 1024 * 1024),
-		maxManifestBytes: number(env, 'TOOLBOX_MAX_MANIFEST_BYTES', 32 * 1024 * 1024),
+		maxBlobBytes: number(env, 'MAX_BLOB_BYTES', 100 * 1024 * 1024),
+		maxManifestBytes: number(env, 'MAX_MANIFEST_BYTES', 32 * 1024 * 1024),
 	};
 }

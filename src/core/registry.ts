@@ -1,6 +1,6 @@
 import { Notice } from 'obsidian';
-import type { ModuleDescriptor, ToolboxModule } from './module';
-import type ToolboxPlugin from '../main';
+import type { ModuleDescriptor, SignetModule } from './module';
+import type SignetPlugin from '../main';
 import { t } from '../i18n';
 
 /**
@@ -12,11 +12,11 @@ import { t } from '../i18n';
  * and leave a half-loaded module behind.
  */
 export class ModuleRegistry {
-	private readonly active = new Map<string, ToolboxModule>();
+	private readonly active = new Map<string, SignetModule>();
 	private queue: Promise<void> = Promise.resolve();
 
 	constructor(
-		private readonly plugin: ToolboxPlugin,
+		private readonly plugin: SignetPlugin,
 		private readonly descriptors: readonly ModuleDescriptor[]
 	) {}
 
@@ -38,7 +38,7 @@ export class ModuleRegistry {
 	}
 
 	/** The running instance, or undefined when the module is switched off. */
-	getActive(id: string): ToolboxModule | undefined {
+	getActive(id: string): SignetModule | undefined {
 		return this.active.get(id);
 	}
 
@@ -123,7 +123,7 @@ export class ModuleRegistry {
 		} catch (error) {
 			// One broken module must not take the whole plugin down with it.
 			console.error(
-				`Toolbox: module "${descriptor.id}" failed to load, switching it off.`,
+				`Signet: module "${descriptor.id}" failed to load, switching it off.`,
 				error
 			);
 			this.active.delete(descriptor.id);
@@ -148,7 +148,7 @@ export class ModuleRegistry {
 			// Unloads the component, which undoes every this.register* call it made.
 			this.plugin.removeChild(module);
 		} catch (error) {
-			console.error(`Toolbox: module "${id}" failed to unload cleanly.`, error);
+			console.error(`Signet: module "${id}" failed to unload cleanly.`, error);
 		}
 	}
 

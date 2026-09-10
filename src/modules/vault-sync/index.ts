@@ -1,12 +1,12 @@
 import { Notice, Platform, Setting } from 'obsidian';
-import { deriveAuthToken, deriveVaultId, hashAuthToken, parseRingCode } from '@toolbox/protocol';
-import type { Bytes } from '@toolbox/protocol';
-import { ToolboxModule } from '../../core/module';
+import { deriveAuthToken, deriveVaultId, hashAuthToken, parseRingCode } from '@signet/protocol';
+import type { Bytes } from '@signet/protocol';
+import { SignetModule } from '../../core/module';
 import { advancedSection } from '../../core/settings-ui';
 import type { ModuleDescriptor } from '../../core/module';
 import type { ServerSetupOutcome } from '../../core/ring-link';
 import type { SetupStep } from '../../core/setup';
-import type ToolboxPlugin from '../../main';
+import type SignetPlugin from '../../main';
 import { t } from '../../i18n';
 import { isSyncServerAt, SyncClient, SyncServerError } from './client';
 import { ConnectServerModal } from './connect-modal';
@@ -92,7 +92,7 @@ const ADDRESS_SETTLE_MS = 2000;
  * because the descriptor is asked this before any module is built — and because
  * the two modules deliberately do not import each other.
  */
-function hasRing(plugin: ToolboxPlugin): boolean {
+function hasRing(plugin: SignetPlugin): boolean {
 	const ring = plugin.settings.moduleSettings[RING_MODULE_ID] as RingSettings | undefined;
 	return typeof ring?.code === 'string' && ring.code.length > 0;
 }
@@ -104,7 +104,7 @@ interface RingSettings {
 	deviceName?: unknown;
 }
 
-class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
+class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	private running = false;
 	private live?: LiveSession;
 	/** The commit this device is known to hold, so the live loop knows what to wait past. */
@@ -177,7 +177,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		);
 
 		this.status = this.addStatusBarItem();
-		this.status?.addClass('toolbox-status');
+		this.status?.addClass('signet-status');
 		this.status?.addEventListener('click', () => void this.plugin.openPanel());
 
 		// The status bar does not exist on mobile, so the note header carries the
@@ -240,7 +240,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			// backgrounded app on a phone.
 			isActive: () => !document.hidden,
 			onError: (error) => {
-				console.error('Toolbox: live sync paused after an error.', error);
+				console.error('Signet: live sync paused after an error.', error);
 			},
 		});
 
@@ -283,8 +283,8 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		if (this.status) {
 			this.status.setText(t(`vaultSync.status.${state}`));
 			this.status.setAttribute('aria-label', t('vaultSync.status.tooltip'));
-			this.status.toggleClass('toolbox-status--error', state === 'error');
-			this.status.toggleClass('toolbox-status--live', state === 'live');
+			this.status.toggleClass('signet-status--error', state === 'error');
+			this.status.toggleClass('signet-status--live', state === 'live');
 		}
 		this.indicator?.setState(state);
 	}
@@ -302,7 +302,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 					// A client is not supposed to configure anything: the address comes
 					// from the host and the key is the ring code it already typed.
 					containerEl.createEl('p', {
-						cls: 'toolbox-setup__hint',
+						cls: 'signet-setup__hint',
 						text: this.settings.serverUrl
 							? t('vaultSync.setup.waitingForServer', {
 									url: this.settings.serverUrl,
@@ -467,14 +467,14 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			.filter((file) => matchConflictName(file.path) !== undefined).length;
 		if (conflicts > 0) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-ring__warning',
+				cls: 'signet-ring__warning',
 				text: t('vaultSync.settings.conflicts', { count: conflicts }),
 			});
 		}
 
 		if (!ring) {
 			containerEl.createEl('p', {
-				cls: 'toolbox-ring__warning',
+				cls: 'signet-ring__warning',
 				text: t('vaultSync.settings.needsRing'),
 			});
 			return;
@@ -500,7 +500,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			}
 
 			containerEl.createEl('p', {
-				cls: 'toolbox-ring__hint',
+				cls: 'signet-ring__hint',
 				text: t('vaultSync.settings.moreAfterSetup'),
 			});
 			// Not repeated for a client that has no address: it just got the field
@@ -598,7 +598,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			);
 
 		containerEl.createEl('p', {
-			cls: 'toolbox-sync__note',
+			cls: 'signet-sync__note',
 			text: t('vaultSync.settings.codeWarning'),
 		});
 	}
@@ -1019,7 +1019,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 				new Notice(summary);
 			}
 			for (const failure of report.failed) {
-				console.error(`Toolbox: sync failed for ${failure.path}: ${failure.error}`);
+				console.error(`Signet: sync failed for ${failure.path}: ${failure.error}`);
 			}
 
 			// A run that could not finish everything is not a clean run, and the
@@ -1178,5 +1178,5 @@ export const vaultSyncModule: ModuleDescriptor<VaultSyncSettings> = {
 		return t('vaultSync.description');
 	},
 	defaultSettings: DEFAULT_SETTINGS,
-	create: (plugin: ToolboxPlugin) => new VaultSyncModule(plugin, vaultSyncModule),
+	create: (plugin: SignetPlugin) => new VaultSyncModule(plugin, vaultSyncModule),
 };

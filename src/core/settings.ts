@@ -1,12 +1,12 @@
 import type { ModuleDescriptor } from './module';
 
 /**
- * Bump this whenever the shape of {@link ToolboxSettings} changes in a way that
+ * Bump this whenever the shape of {@link SignetSettings} changes in a way that
  * stored data cannot satisfy on its own, and add a step to {@link runMigrations}.
  */
 export const SETTINGS_VERSION = 3;
 
-export interface ToolboxSettings {
+export interface SignetSettings {
 	version: number;
 	/** Module id -> whether the user switched it on. */
 	enabledModules: Record<string, boolean>;
@@ -122,7 +122,7 @@ function switchOnTheDefaults(
 export function migrateSettings(
 	raw: unknown,
 	descriptors: readonly ModuleDescriptor[]
-): ToolboxSettings {
+): SignetSettings {
 	const source = isRecord(raw) ? raw : {};
 	const storedVersion = typeof source.version === 'number' ? source.version : 0;
 	const migrated = runMigrations(source, storedVersion, descriptors);

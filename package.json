@@ -1,7 +1,7 @@
 {
-	"name": "toolbox",
+	"name": "signet",
 	"version": "0.1.0",
-	"description": "A modular Obsidian plugin that bundles several small quality-of-life tools.",
+	"description": "An Obsidian plugin that keeps several devices in step, against a sync server you run yourself.",
 	"type": "module",
 	"private": true,
 	"license": "MIT",

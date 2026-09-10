@@ -14,13 +14,13 @@ import { buildSnapshot } from './snapshot';
  * vault that may be shared.
  */
 
-const SELF = 'toolbox';
+const SELF = 'signet';
 
 function setup() {
 	const fake = new FakeApp({
 		manifests: [
 			{ id: 'alpha', name: 'Alpha', version: '1.0.0' },
-			{ id: SELF, name: 'Toolbox', version: '0.1.0' },
+			{ id: SELF, name: 'Signet', version: '0.1.0' },
 		],
 		enabled: ['alpha'],
 		files: { '.obsidian/plugins/alpha/data.json': JSON.stringify({ mode: 'dark' }) },
@@ -66,7 +66,7 @@ describe('building a snapshot', () => {
 		expect('sync' in snapshot).toBe(false);
 	});
 
-	it('never publishes Toolbox itself', async () => {
+	it('never publishes Signet itself', async () => {
 		// Its own data.json holds the ring code, which is the key to everything.
 		const { app, api } = setup();
 

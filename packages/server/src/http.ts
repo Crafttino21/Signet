@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
-import { isRingEnvelope, isSafeId, PROTOCOL_VERSION } from '@toolbox/protocol';
-import type { ErrorResponse, HeadResponse, PushResponse, RegisterRequest } from '@toolbox/protocol';
+import { isRingEnvelope, isSafeId, PROTOCOL_VERSION } from '@signet/protocol';
+import type { ErrorResponse, HeadResponse, PushResponse, RegisterRequest } from '@signet/protocol';
 import type { ServerConfig } from './config';
 import { secretsMatch, sha256Hex } from './storage';
 import type { VaultStore } from './storage';

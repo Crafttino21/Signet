@@ -3,8 +3,8 @@ import type { WebSocket } from 'ws';
 import type { IncomingMessage, Server } from 'node:http';
 import { COMPACT_THRESHOLD } from './rooms';
 import type { RoomStore } from './rooms';
-import { isSafeId, isRoomFrame } from '@toolbox/protocol';
-import type { RoomFrame } from '@toolbox/protocol';
+import { isSafeId, isRoomFrame } from '@signet/protocol';
+import type { RoomFrame } from '@signet/protocol';
 import { secretsMatch, sha256Hex } from './storage';
 import type { VaultStore } from './storage';
 

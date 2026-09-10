@@ -9,7 +9,7 @@ export const de: Translations = {
 	'common.cancel': 'Abbrechen',
 	'common.copy': 'Kopieren',
 
-	'module.loadFailed': 'Toolbox: „{name}“ konnte nicht geladen werden und wurde abgeschaltet.',
+	'module.loadFailed': 'Signet: „{name}“ konnte nicht geladen werden und wurde abgeschaltet.',
 
 	'ring.name': 'Plugin-Ring',
 	'ring.description':
@@ -23,7 +23,7 @@ export const de: Translations = {
 	'ring.command.leave': 'Plugin-Ring verlassen',
 
 	'ring.unsupported.notice':
-		'Toolbox: Der Plugin-Ring wird von dieser Obsidian-Version nicht unterstützt.',
+		'Signet: Der Plugin-Ring wird von dieser Obsidian-Version nicht unterstützt.',
 	'ring.unsupported.settings':
 		'Diese Obsidian-Version stellt die Plugin-Verwaltung nicht bereit, die diese Funktion braucht.',
 
@@ -85,11 +85,11 @@ export const de: Translations = {
 	'ring.notice.unknownFormat': 'Der Ring-Snapshot hat ein Format, das diese Version nicht kennt.',
 	'ring.notice.unreadable': 'Der Ring-Snapshot konnte nicht gelesen werden.',
 	'ring.notice.retryLater': '{message} Gleich noch einmal versuchen.',
-	'ring.notice.hasChanges': 'Toolbox: Im Plugin-Ring gibt es Änderungen von einem anderen Gerät.',
+	'ring.notice.hasChanges': 'Signet: Im Plugin-Ring gibt es Änderungen von einem anderen Gerät.',
 	'ring.notice.conflictCopies':
-		'Toolbox: {count} Konfliktkopien der Ring-Datei gefunden. Womöglich veröffentlichen zwei Geräte gleichzeitig.',
+		'Signet: {count} Konfliktkopien der Ring-Datei gefunden. Womöglich veröffentlichen zwei Geräte gleichzeitig.',
 	'ring.notice.newerCode':
-		'Dieser Code stammt aus einer neueren Toolbox-Version. Aktualisiere zuerst das Plugin auf diesem Gerät.',
+		'Dieser Code stammt aus einer neueren Signet-Version. Aktualisiere zuerst das Plugin auf diesem Gerät.',
 	'ring.notice.replacedRingFile': 'Die alte Ring-Datei „{path}“ liegt jetzt im Papierkorb.',
 	'ring.notice.ringFileBusy':
 		'Die Datei „{path}“ steht noch nicht in Obsidians Index und lässt sich deshalb nicht sicher verschieben. Versuch es gleich noch einmal.',
@@ -266,7 +266,7 @@ export const de: Translations = {
 	'vaultSync.notice.portAdded':
 		'Keine Portangabe, deshalb wurde der übliche ergänzt: {url}. Unter „Erweitert“ änderbar, falls dein Server woanders lauscht.',
 	'vaultSync.notice.unreachable':
-		'Toolbox: {url} war nicht erreichbar. {message} Prüfe die Adresse samt Port — der Server lauscht auf 8787, sofern du das nicht geändert hast.',
+		'Signet: {url} war nicht erreichbar. {message} Prüfe die Adresse samt Port — der Server lauscht auf 8787, sofern du das nicht geändert hast.',
 	'vaultSync.notice.foundOnDefaultPort':
 		'Unter {url} antwortet aber ein Sync-Server — das ist ziemlich sicher die Adresse, die du willst.',
 	'vaultSync.notice.badServerUrl':
@@ -298,10 +298,12 @@ export const de: Translations = {
 
 	'common.advanced': 'Erweitert',
 
-	'panel.title': 'Toolbox',
-	'panel.open': 'Toolbox-Leiste öffnen',
+	'rename.movedIn':
+		'Dieses Plugin hieß bis eben Toolbox. Deine Einstellungen, dein Ring und der Sync-Stand dieses Geräts wurden aus „{from}“ übernommen — den Ordner kannst du löschen, sobald alles stimmt.',
+	'panel.title': 'Signet',
+	'panel.open': 'Signet-Leiste öffnen',
 	'panel.available': 'In den Einstellungen einschaltbar: {names}.',
-	'panel.version': 'Toolbox {version}',
+	'panel.version': 'Signet {version}',
 	'panel.nothing': 'Es ist kein Modul eingeschaltet. In den Einstellungen eines aktivieren.',
 
 	'ring.panel.title': 'Plugin-Ring',
@@ -347,7 +349,7 @@ export const de: Translations = {
 	'vaultSync.status.error': 'Sync: Problem',
 	'vaultSync.status.off': 'Sync: aus',
 	'vaultSync.indicator.liveNote': 'Diese Notiz wird gerade gemeinsam bearbeitet',
-	'vaultSync.status.tooltip': 'Toolbox Vault-Sync — klicken öffnet die Leiste',
+	'vaultSync.status.tooltip': 'Signet Vault-Sync — klicken öffnet die Leiste',
 
 	'ring.reason.cannotInstall': 'Installieren ist auf diesem Gerät nicht möglich',
 	'ring.kind.install': 'Installieren',
@@ -357,8 +359,8 @@ export const de: Translations = {
 	'ring.settings.installUnsupported':
 		'Diese Obsidian-Version stellt den Plugin-Installer nicht bereit, fehlende Plugins können deshalb nur aufgelistet werden.',
 	'ring.result.installed': '{count} installiert.',
-	'setup.title': 'Toolbox einrichten',
-	'setup.command': 'Toolbox einrichten',
+	'setup.title': 'Signet einrichten',
+	'setup.command': 'Signet einrichten',
 	'setup.nothing': 'Es gibt nichts einzurichten. Zuerst ein Modul einschalten.',
 	'setup.allDone': 'Alles eingerichtet. Du kannst schließen.',
 	'setup.finish': 'Fertig',
@@ -392,5 +394,5 @@ export const de: Translations = {
 		'Solange eine Notiz offen ist, wird sie Anschlag für Anschlag mit allen abgeglichen, die sie ebenfalls offen haben. Diese Notiz bleibt so lange aus dem normalen Dateisync heraus, damit beide sich nicht gegenseitig überschreiben.',
 	'collab.settings.excluded': 'Diese Ordner nie gemeinsam bearbeiten',
 	'collab.settings.excludedDesc': 'Ein Pfad pro Zeile.',
-	'collab.notice.failed': 'Toolbox: Gemeinsames Bearbeiten konnte für diese Notiz nicht starten.',
+	'collab.notice.failed': 'Signet: Gemeinsames Bearbeiten konnte für diese Notiz nicht starten.',
 };

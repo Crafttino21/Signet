@@ -5,7 +5,7 @@ import { SNAPSHOT_VERSION } from './types';
 import type { LocalPlugin, RingSnapshot } from './types';
 
 export interface SnapshotOptions {
-	/** Toolbox's own plugin id — always left out, see below. */
+	/** Signet's own plugin id — always left out, see below. */
 	selfId: string;
 	/** Plugins whose settings the host does not want to share. */
 	excludedIds: readonly string[];
@@ -20,7 +20,7 @@ export interface SnapshotOptions {
 /**
  * Reads what this device currently has installed, including each plugin's settings.
  *
- * Toolbox is skipped outright. Its own `data.json` holds the ring secret, so
+ * Signet is skipped outright. Its own `data.json` holds the ring secret, so
  * including it would both publish the secret into the snapshot and give a client
  * the means to overwrite its own ring state with the host's.
  */

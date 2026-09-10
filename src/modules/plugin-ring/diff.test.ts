@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { computeDiff, jsonEquals, planApply } from './diff';
 import type { LocalPlugin, RingSnapshot } from './types';
 
-const SELF = 'toolbox';
+const SELF = 'signet';
 
 function snapshotOf(plugins: RingSnapshot['plugins']): RingSnapshot {
 	return {
@@ -110,7 +110,7 @@ describe('computeDiff', () => {
 		]);
 	});
 
-	it('leaves Toolbox itself out of the diff entirely', () => {
+	it('leaves Signet itself out of the diff entirely', () => {
 		const diff = computeDiff(
 			[local({ id: SELF, enabled: true })],
 			snapshotOf([entry({ id: SELF, enabled: false, settings: { secret: 'leaked' } })]),
@@ -173,13 +173,13 @@ describe('planApply', () => {
 		expect(planApply(diff, snapshot, { selfId: SELF })).toEqual([]);
 	});
 
-	it('refuses to act on Toolbox even when a snapshot names it', () => {
-		// A diff from an older version could still contain Toolbox. Acting on it
+	it('refuses to act on Signet even when a snapshot names it', () => {
+		// A diff from an older version could still contain Signet. Acting on it
 		// would disable the plugin running the loop, so planApply filters again.
 		const snapshot = snapshotOf([entry({ id: SELF, enabled: false })]);
 		const forged = [
-			{ kind: 'disable' as const, id: SELF, name: 'Toolbox', actionable: true },
-			{ kind: 'settings' as const, id: SELF, name: 'Toolbox', actionable: true },
+			{ kind: 'disable' as const, id: SELF, name: 'Signet', actionable: true },
+			{ kind: 'settings' as const, id: SELF, name: 'Signet', actionable: true },
 		];
 
 		expect(planApply(forged, snapshot, { selfId: SELF })).toEqual([]);

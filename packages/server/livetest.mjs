@@ -25,7 +25,7 @@ import {
 	openSnapshot,
 	sealBlob,
 	sealSnapshot,
-} from '@toolbox/protocol';
+} from '@signet/protocol';
 
 const base = (process.argv[2] ?? 'http://127.0.0.1:8787').replace(/\/+$/, '');
 const registrationSecret = process.argv[3] ?? '';

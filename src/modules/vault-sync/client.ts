@@ -1,6 +1,6 @@
 import { requestUrl } from 'obsidian';
-import { routes } from '@toolbox/protocol';
-import type { HeadResponse, RingEnvelope } from '@toolbox/protocol';
+import { routes } from '@signet/protocol';
+import type { HeadResponse, RingEnvelope } from '@signet/protocol';
 
 /**
  * Talking to the sync server.

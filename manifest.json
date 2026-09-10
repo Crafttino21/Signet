@@ -1,9 +1,9 @@
 {
-	"id": "toolbox",
-	"name": "Toolbox",
-	"version": "0.1.18",
+	"id": "signet",
+	"name": "Signet",
+	"version": "0.2.0",
 	"minAppVersion": "1.8.7",
-	"description": "A modular collection of small quality-of-life tools, each one switchable on its own.",
+	"description": "Keeps several devices in step: their plugins, their notes, and a note two of them have open at once. Encrypted, against a server you run.",
 	"author": "WeepingAngel",
 	"isDesktopOnly": false
 }

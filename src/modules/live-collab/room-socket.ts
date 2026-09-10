@@ -1,5 +1,5 @@
-import { isRoomFrame, openBlob, routes, sealBlob } from '@toolbox/protocol';
-import type { Bytes, RoomFrame } from '@toolbox/protocol';
+import { isRoomFrame, openBlob, routes, sealBlob } from '@signet/protocol';
+import type { Bytes, RoomFrame } from '@signet/protocol';
 
 /**
  * One encrypted socket to one room.

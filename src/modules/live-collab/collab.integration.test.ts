@@ -13,8 +13,8 @@ import {
 	deriveVaultId,
 	generateRingSecret,
 	hashAuthToken,
-} from '@toolbox/protocol';
-import type { Bytes } from '@toolbox/protocol';
+} from '@signet/protocol';
+import type { Bytes } from '@signet/protocol';
 import { createSyncServer } from '../../../packages/server/src/http';
 import { CollabRelay } from '../../../packages/server/src/relay';
 import { RoomStore } from '../../../packages/server/src/rooms';
@@ -164,7 +164,7 @@ async function until(
 }
 
 beforeAll(async () => {
-	dir = await mkdtemp(join(tmpdir(), 'toolbox-collab-'));
+	dir = await mkdtemp(join(tmpdir(), 'signet-collab-'));
 
 	secret = generateRingSecret();
 	vaultId = await deriveVaultId(secret);

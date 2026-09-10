@@ -1,4 +1,4 @@
-import { hashContent } from '@toolbox/protocol';
+import { hashContent } from '@signet/protocol';
 import type { App, TFile } from 'obsidian';
 import type { IndexEntry } from './reconcile';
 

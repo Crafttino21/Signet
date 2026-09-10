@@ -10,8 +10,8 @@ import {
 	PROTOCOL_VERSION,
 	sealBlob,
 	sealSnapshot,
-} from '@toolbox/protocol';
-import type { Bytes, FileEntry, Tombstone, VaultManifest } from '@toolbox/protocol';
+} from '@signet/protocol';
+import type { Bytes, FileEntry, Tombstone, VaultManifest } from '@signet/protocol';
 import { buildLocalIndex } from './local-index';
 import { conflictPath, reconcile } from './reconcile';
 import type { IndexEntry, SyncAction } from './reconcile';

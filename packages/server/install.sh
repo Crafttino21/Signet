@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# Sets up a Toolbox sync server on this machine.
+# Sets up a Signet sync server on this machine.
 #
 # Run it on the machine that should hold the notes, from a checkout of this
 # repository. It is safe to run again: an existing registration secret is never
 # regenerated, and an existing container is rebuilt rather than replaced.
 #
-#   git clone https://github.com/Crafttino21/ObsidianToolbox.git
-#   cd ObsidianToolbox/packages/server
+#   git clone https://github.com/Crafttino21/Signet.git
+#   cd Signet/packages/server
 #   ./install.sh
 #
 # Read it before you run it. It installs Docker if it is missing, writes a
@@ -16,7 +16,7 @@
 
 set -euo pipefail
 
-PORT="${TOOLBOX_PORT:-8787}"
+PORT="${SIGNET_PORT:-8787}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE"
 
@@ -95,8 +95,11 @@ fi
 
 step "Registrierungsschlüssel"
 
-if [ -f .env ] && grep -q '^TOOLBOX_REGISTRATION_SECRET=..*' .env; then
-	SECRET="$(grep '^TOOLBOX_REGISTRATION_SECRET=' .env | head -n1 | cut -d= -f2-)"
+# Both spellings: this project was called Toolbox, and a server set up then has
+# the old name in its .env. Generating a second secret beside it would work and
+# would silently replace the one written down somewhere.
+if [ -f .env ] && grep -qE '^(SIGNET|TOOLBOX)_REGISTRATION_SECRET=..*' .env; then
+	SECRET="$(grep -E '^(SIGNET|TOOLBOX)_REGISTRATION_SECRET=' .env | head -n1 | cut -d= -f2-)"
 	echo "Vorhandener Schlüssel in .env wird weiterverwendet."
 else
 	if command -v openssl >/dev/null 2>&1; then
@@ -112,7 +115,7 @@ else
 	chmod 600 .env
 	{
 		echo "# Von install.sh erzeugt. Der Schlüssel legt Vaults an — nicht weitergeben."
-		echo "TOOLBOX_REGISTRATION_SECRET=$SECRET"
+		echo "SIGNET_REGISTRATION_SECRET=$SECRET"
 	} >>.env
 	echo "Neuer Schlüssel erzeugt und in .env abgelegt (nur für dich lesbar)."
 fi
@@ -137,7 +140,7 @@ if ask "Port $PORT im lokalen Netz öffnen?"; then
 		# Das !override ist wichtig: ohne es ergänzt Compose die Portliste, statt sie
 		# zu ersetzen, und der Container startet nicht, weil er beides binden will.
 		services:
-		    toolbox-sync:
+		    signet-sync:
 		        ports: !override
 		            - '0.0.0.0:$PORT:$PORT'
 	YAML
@@ -187,7 +190,7 @@ fi
 
 step "Fertig"
 echo
-bold "In Obsidian: Toolbox → Ring erstellen. Dann diese beiden Angaben eintragen."
+bold "In Obsidian: Signet → Ring erstellen. Dann diese beiden Angaben eintragen."
 echo
 echo "  Serveradresse:          $ADDRESS"
 echo "  Registrierungsschlüssel: $SECRET"

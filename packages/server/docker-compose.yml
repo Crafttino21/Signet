@@ -3,14 +3,17 @@
 # The build context is the repository root because the server is bundled together
 # with the shared protocol package.
 services:
-    toolbox-sync:
+    signet-sync:
         build:
             context: ../..
             dockerfile: packages/server/Dockerfile
-        container_name: toolbox-sync
+        container_name: signet-sync
         restart: unless-stopped
         env_file: .env
         volumes:
+            # Keeps the name it was created under. The project was called Toolbox
+            # once; renaming the volume would leave the notes in the old one and
+            # start the server on an empty new one.
             - toolbox-data:/data
         ports:
             # Bound to localhost only. Put a reverse proxy in front for TLS — the notes

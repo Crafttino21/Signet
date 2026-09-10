@@ -1,7 +1,7 @@
 import { Modal, Setting } from 'obsidian';
 import type { App } from 'obsidian';
 import { t } from '../i18n';
-import type ToolboxPlugin from '../main';
+import type SignetPlugin from '../main';
 
 /**
  * The guided setup.
@@ -33,13 +33,13 @@ export interface SetupStep {
 export class SetupModal extends Modal {
 	constructor(
 		app: App,
-		private readonly plugin: ToolboxPlugin
+		private readonly plugin: SignetPlugin
 	) {
 		super(app);
 	}
 
 	override onOpen(): void {
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(t('setup.title'));
 		this.render();
 	}
@@ -59,7 +59,7 @@ export class SetupModal extends Modal {
 	private render(): void {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.addClass('toolbox-setup');
+		contentEl.addClass('signet-setup');
 
 		const steps = this.steps();
 		if (steps.length === 0) {
@@ -69,19 +69,19 @@ export class SetupModal extends Modal {
 
 		const outstanding = steps.filter((step) => !step.satisfied());
 		if (outstanding.length === 0) {
-			contentEl.createEl('p', { cls: 'toolbox-setup__done', text: t('setup.allDone') });
+			contentEl.createEl('p', { cls: 'signet-setup__done', text: t('setup.allDone') });
 		}
 
 		steps.forEach((step, index) => {
 			const done = step.satisfied();
 			const section = contentEl.createDiv({
-				cls: done ? 'toolbox-setup__step toolbox-setup__step--done' : 'toolbox-setup__step',
+				cls: done ? 'signet-setup__step signet-setup__step--done' : 'signet-setup__step',
 			});
 
 			section.createEl('h3', {
 				text: `${String(index + 1)}. ${step.title}${done ? ' ✓' : ''}`,
 			});
-			section.createEl('p', { cls: 'toolbox-setup__hint', text: step.hint });
+			section.createEl('p', { cls: 'signet-setup__hint', text: step.hint });
 
 			// A finished step collapses to its heading: it is there for reassurance,
 			// not for another round of decisions.

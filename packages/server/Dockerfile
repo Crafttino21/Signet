@@ -21,21 +21,21 @@ RUN node build.mjs
 # framework, nothing to keep patched on a machine that holds someone's notes.
 FROM node:22-alpine
 
-RUN addgroup -S toolbox && adduser -S toolbox -G toolbox
+RUN addgroup -S signet && adduser -S signet -G signet
 
 WORKDIR /app
 COPY --from=build /build/packages/server/dist/server.js ./server.js
 
 # The data directory is a volume; ownership matters because the process is not root.
-RUN mkdir -p /data && chown -R toolbox:toolbox /data
+RUN mkdir -p /data && chown -R signet:signet /data
 VOLUME /data
 
-USER toolbox
-ENV TOOLBOX_DATA_DIR=/data
-ENV TOOLBOX_PORT=8787
+USER signet
+ENV SIGNET_DATA_DIR=/data
+ENV SIGNET_PORT=8787
 EXPOSE 8787
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \
-	CMD node -e "fetch('http://127.0.0.1:'+(process.env.TOOLBOX_PORT||8787)+'/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+	CMD node -e "fetch('http://127.0.0.1:'+(process.env.SIGNET_PORT||8787)+'/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "server.js"]

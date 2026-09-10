@@ -4,7 +4,7 @@ Notes for anyone — human or AI — working in this repository.
 
 ## Architecture
 
-Every feature is a module under `src/modules/<name>/index.ts`: a `ToolboxModule`
+Every feature is a module under `src/modules/<name>/index.ts`: a `SignetModule`
 subclass plus an exported `ModuleDescriptor`, registered in `src/modules/index.ts`.
 Nothing feature-specific belongs in `src/main.ts` or `src/core/` — those stay generic.
 
@@ -12,7 +12,7 @@ A module is an Obsidian `Component`, which is what makes runtime toggling work.
 `this.register*()` cleans up when _that component_ unloads, so:
 
 - Register through `this.*`, never `this.plugin.*`. `this.addCommand()` and
-  `this.addRibbonIcon()` exist on `ToolboxModule` precisely because the `Plugin`
+  `this.addRibbonIcon()` exist on `SignetModule` precisely because the `Plugin`
   versions cannot be undone per module.
 - `onload()` sets up, `onunload()` runs on both switch-off and plugin unload,
   `onDisable()` runs only on a deliberate switch-off.
@@ -105,7 +105,7 @@ through the vault API.
 The ring applies changes another device published, which means running code from
 elsewhere. Three rules are not negotiable:
 
-- Toolbox never appears in a diff or an operation. Disabling the plugin that is
+- Signet never appears in a diff or an operation. Disabling the plugin that is
   running the apply loop would cut the loop off silently, so it is filtered when
   collecting, again in `planApply`, and once more in `applyPlans`.
 - Changes are applied one plugin at a time as `disable -> write -> enable`, never

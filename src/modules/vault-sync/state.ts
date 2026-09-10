@@ -1,6 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
-import type { VaultManifest } from '@toolbox/protocol';
+import type { VaultManifest } from '@signet/protocol';
 import type { IndexCache } from './local-index';
 
 /**

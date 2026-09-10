@@ -17,9 +17,9 @@ export class JoinRingModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(t('ring.join.title'));
-		this.contentEl.createEl('p', { cls: 'toolbox-ring__hint', text: t('ring.join.hint') });
+		this.contentEl.createEl('p', { cls: 'signet-ring__hint', text: t('ring.join.hint') });
 
 		new Setting(this.contentEl).setName(t('ring.join.label')).addText((text) =>
 			text.setPlaceholder(t('ring.join.placeholder')).onChange((value) => {
@@ -69,7 +69,7 @@ export class ShowCodeModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(t('ring.code.title'));
 		this.render();
 	}
@@ -79,7 +79,7 @@ export class ShowCodeModal extends Modal {
 		this.contentEl.empty();
 
 		this.contentEl.createEl('p', {
-			cls: 'toolbox-ring__hint',
+			cls: 'signet-ring__hint',
 			text: carries && this.withAddress ? t('ring.code.hintWithServer') : t('ring.code.hint'),
 		});
 
@@ -88,7 +88,7 @@ export class ShowCodeModal extends Modal {
 		// Saying so here is the only moment it can still be avoided.
 		if (this.codes.missing !== undefined) {
 			this.contentEl.createEl('p', {
-				cls: 'toolbox-ring__warning',
+				cls: 'signet-ring__warning',
 				text:
 					this.codes.missing === 'noServer'
 						? t('ring.code.noServerYet')
@@ -142,11 +142,11 @@ export class ShowCodeModal extends Modal {
 		const ring = groups.slice(0, 5).join('-');
 		const address = groups.slice(5).join('-');
 
-		const block = this.contentEl.createDiv({ cls: 'toolbox-ring__code' });
+		const block = this.contentEl.createDiv({ cls: 'signet-ring__code' });
 		block.createSpan({ text: ring });
 		if (address !== '') {
-			block.createSpan({ cls: 'toolbox-ring__code-server', text: `-${address}` });
-			this.contentEl.createEl('p', { cls: 'toolbox-ring__hint', text: t('ring.code.parts') });
+			block.createSpan({ cls: 'signet-ring__code-server', text: `-${address}` });
+			this.contentEl.createEl('p', { cls: 'signet-ring__hint', text: t('ring.code.parts') });
 		}
 	}
 
@@ -181,7 +181,7 @@ export class RingFileConflictModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(t('ring.conflict.title'));
 
 		this.contentEl.createEl('p', {
@@ -191,7 +191,7 @@ export class RingFileConflictModal extends Modal {
 					: t('ring.conflict.corrupt', { path: this.context.path }),
 		});
 		this.contentEl.createEl('p', {
-			cls: 'toolbox-ring__hint',
+			cls: 'signet-ring__hint',
 			text: t('ring.conflict.trashHint'),
 		});
 
@@ -282,12 +282,12 @@ export class RingDiffModal extends Modal {
 		const actionable = this.items.filter((item) => item.actionable);
 		const rest = this.items.filter((item) => !item.actionable);
 
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(t('ring.diff.title', { host: this.context.hostName }));
 
 		if (this.context.hostChanged) {
 			this.contentEl.createEl('p', {
-				cls: 'toolbox-ring__warning',
+				cls: 'signet-ring__warning',
 				text: t('ring.diff.hostChanged'),
 			});
 		}
@@ -334,12 +334,12 @@ export class RingDiffModal extends Modal {
 	private renderSection(title: string, items: readonly DiffItem[]): void {
 		new Setting(this.contentEl).setName(title).setHeading();
 
-		const list = this.contentEl.createEl('ul', { cls: 'toolbox-ring__list' });
+		const list = this.contentEl.createEl('ul', { cls: 'signet-ring__list' });
 		for (const item of items) {
-			const row = list.createEl('li', { cls: 'toolbox-ring__row' });
-			row.createSpan({ cls: 'toolbox-ring__name', text: item.name });
+			const row = list.createEl('li', { cls: 'signet-ring__row' });
+			row.createSpan({ cls: 'signet-ring__name', text: item.name });
 			row.createSpan({
-				cls: 'toolbox-ring__kind',
+				cls: 'signet-ring__kind',
 				text:
 					item.kind === 'missing' && item.actionable
 						? t('ring.kind.install')
@@ -348,10 +348,10 @@ export class RingDiffModal extends Modal {
 
 			const detail = this.describeVersions(item);
 			if (detail) {
-				row.createSpan({ cls: 'toolbox-ring__detail', text: detail });
+				row.createSpan({ cls: 'signet-ring__detail', text: detail });
 			}
 			if (item.reason) {
-				row.createSpan({ cls: 'toolbox-ring__reason', text: t(REASON_KEY[item.reason]) });
+				row.createSpan({ cls: 'signet-ring__reason', text: t(REASON_KEY[item.reason]) });
 			}
 		}
 	}
@@ -392,7 +392,7 @@ export class ConfirmModal extends Modal {
 	}
 
 	override onOpen(): void {
-		this.contentEl.addClass('toolbox-modal');
+		this.contentEl.addClass('signet-modal');
 		this.setTitle(this.context.title);
 		this.contentEl.createEl('p', { text: this.context.body });
 

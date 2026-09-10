@@ -24,6 +24,7 @@ import type { Bytes } from '@toolbox/protocol';
 import { deriveRingId, openSnapshot, RingDecryptionError, sealSnapshot } from '@toolbox/protocol';
 import { computeDiff, planApply } from './diff';
 import { JoinRingModal, RingDiffModal, RingFileConflictModal, ShowCodeModal } from './modals';
+import type { MissingAddress } from './modals';
 import { classifyRingFile, RingFile } from './ring-file';
 import type { RingFileVerdict } from './ring-file';
 import { collectLocalPlugins, buildSnapshot } from './snapshot';
@@ -598,12 +599,7 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 			new Notice(t('ring.notice.notInRing'));
 			return;
 		}
-		const joinCode = this.joinCode(ringCode);
-		new ShowCodeModal(this.app, {
-			ringCode,
-			joinCode,
-			missingServer: joinCode === ringCode && this.plugin.ringLink.isServerExpected(),
-		}).open();
+		new ShowCodeModal(this.app, { ringCode, ...this.joinCode(ringCode) }).open();
 	}
 
 	/**
@@ -616,17 +612,29 @@ class PluginRingModule extends ToolboxModule<PluginRingSettings> {
 	 * Carrying it here is what lets a phone reach the server before it holds a
 	 * single file of the vault.
 	 */
-	private joinCode(ringCode: string): string {
+	private joinCode(ringCode: string): {
+		joinCode: string;
+		missing?: MissingAddress;
+		url?: string;
+	} {
 		const url = this.plugin.ringLink.contribution().serverUrl;
-		const address = url ? addressFromUrl(url) : undefined;
+		if (!url) {
+			// Only a shortcoming if something was going to fill it in. A ring that
+			// keeps plugins in step and wants no server is complete as it is.
+			return this.plugin.ringLink.isServerExpected()
+				? { joinCode: ringCode, missing: 'noServer' }
+				: { joinCode: ringCode };
+		}
+
+		const address = addressFromUrl(url);
 		if (!address) {
-			return ringCode;
+			return { joinCode: ringCode, missing: 'notEncodable', url };
 		}
 
 		try {
-			return formatJoinCode(parseRingCode(ringCode), address);
+			return { joinCode: formatJoinCode(parseRingCode(ringCode), address) };
 		} catch {
-			return ringCode;
+			return { joinCode: ringCode, missing: 'notEncodable', url };
 		}
 	}
 

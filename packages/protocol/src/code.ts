@@ -316,11 +316,18 @@ export function addressFromUrl(value: string): JoinAddress | undefined {
 	return { scheme, host, port };
 }
 
-/** The address as something `requestUrl` and `new URL()` both accept. */
+/**
+ * The address as something `requestUrl` and `new URL()` both accept.
+ *
+ * The port is always written out, even when it is the scheme's own default.
+ * Leaving it off would be prettier and would lose information: `http://host:80`
+ * printed as `http://host` reads, on the device that receives it, as an address
+ * with no port at all — and a local address with no port is exactly what gets
+ * the sync server's usual port filled in. The port someone typed would quietly
+ * become a different one on the next device.
+ */
 export function addressToUrl(address: JoinAddress): string {
-	const implied = address.scheme === 'https' ? 443 : 80;
-	const port = address.port === implied ? '' : `:${String(address.port)}`;
-	return `${address.scheme}://${address.host}${port}`;
+	return `${address.scheme}://${address.host}:${String(address.port)}`;
 }
 
 function group(body: string): string {

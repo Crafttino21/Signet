@@ -162,6 +162,10 @@ snapshot announces what it found.
 - The address also rides on the join code, because the snapshot cannot reach a
   device that has never synced. That is a display form only: settings store the
   bare ring code, and `parseRingCode` ignores any suffix.
+- `addressToUrl` always writes the port, default or not. An address with no port
+  is what `completeServerUrl` fills in, so dropping `:80` on the way out turns it
+  into `:8787` on the way in. What cannot be encoded at all is reported where the
+  code is shown, never dropped in silence.
 - A joining device registers nothing. Registration creates the vault and fixes
   which token opens it; every later device derives that same token from the same
   ring code, so it only asks whether the host has been there yet. The registration

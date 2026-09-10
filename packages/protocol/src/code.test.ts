@@ -39,15 +39,18 @@ describe('join code', () => {
 		expect(body(code).slice(24)).toBe('019R9SX0');
 	});
 
-	it('round trips every kind of address', () => {
+	it('round trips every kind of address, port and all', () => {
 		const secret = generateRingSecret();
+		// Written with the port throughout, because that is what comes back out:
+		// an address travelling between devices carries its port explicitly.
 		const urls = [
 			'http://10.112.156.244:8787',
 			'https://10.112.156.244:8787',
 			'http://192.168.1.10:9000',
-			'https://sync.example.com',
+			'https://sync.example.com:443',
 			'http://nas.local:8787',
 			'https://sync.example.com:8443',
+			'http://localhost:3000',
 		];
 
 		for (const url of urls) {
@@ -56,6 +59,17 @@ describe('join code', () => {
 			const parsed = parseJoinCode(formatJoinCode(secret, address));
 			expect(parsed.secret, url).toEqual(secret);
 			expect(parsed.address, url).toEqual(address);
+			expect(addressToUrl(parsed.address as JoinAddress), url).toBe(url);
+		}
+	});
+
+	it('keeps a port that happens to be the scheme default', () => {
+		// The bug this pins: :80 printed as no port at all, and a local address
+		// with no port is precisely what gets 8787 filled in on the next device.
+		// The port someone typed became a different one, one hop later.
+		const secret = generateRingSecret();
+		for (const url of ['http://10.0.0.1:80', 'https://10.0.0.1:443']) {
+			const parsed = parseJoinCode(formatJoinCode(secret, addressFromUrl(url)));
 			expect(addressToUrl(parsed.address as JoinAddress), url).toBe(url);
 		}
 	});

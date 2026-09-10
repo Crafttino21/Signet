@@ -45,13 +45,21 @@ export class JoinRingModal extends Modal {
 }
 
 /** Shows the ring code so it can be typed on another device. */
+/** Why a code carries no server address, when it should have. */
+export type MissingAddress = 'noServer' | 'notEncodable';
+
 export class ShowCodeModal extends Modal {
 	/** Whether the code on screen is the one carrying the server address. */
 	private withAddress = true;
 
 	constructor(
 		app: App,
-		private readonly codes: { ringCode: string; joinCode: string; missingServer: boolean }
+		private readonly codes: {
+			ringCode: string;
+			joinCode: string;
+			missing?: MissingAddress;
+			url?: string;
+		}
 	) {
 		super(app);
 	}
@@ -78,10 +86,13 @@ export class ShowCodeModal extends Modal {
 		// A code handed out before the server exists carries no address, and every
 		// device that joins with it is stranded until someone types one by hand.
 		// Saying so here is the only moment it can still be avoided.
-		if (this.codes.missingServer) {
+		if (this.codes.missing !== undefined) {
 			this.contentEl.createEl('p', {
 				cls: 'toolbox-ring__warning',
-				text: t('ring.code.noServerYet'),
+				text:
+					this.codes.missing === 'noServer'
+						? t('ring.code.noServerYet')
+						: t('ring.code.addressNotInCode', { url: this.codes.url ?? '' }),
 			});
 		}
 

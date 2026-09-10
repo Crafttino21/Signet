@@ -152,8 +152,18 @@ TBX1-K3M9PQ-R7XZ2W-8HTVBN-4CDFG5-019R9S-X0
 
 Those eight characters are the address of the sync server, packed as tightly as it
 will go — the scheme, four octets of IPv4 and a port code, five bits to a
-character. A name instead of an IP costs a little more; a port other than 8787
-costs three more characters.
+character. A name instead of an IP costs a little more; a port other than 8787,
+443 or 80 costs three more characters.
+
+The port always comes back out, even when it is the scheme's own default. Writing
+`http://host:80` as `http://host` would be prettier and would lose the answer: on
+the receiving device an address with no port is exactly what gets the sync
+server's usual port filled in, so the port someone typed would quietly become a
+different one, one hop later.
+
+An address that will not fit — one with a path, a query, an IPv6 host — is not
+carried, and the dialog that shows the code says so. Silently handing out a code
+that leaves every device stranded is the one outcome worth ruling out.
 
 They are there to break a deadlock. The address also travels inside the encrypted
 snapshot, but the snapshot is an ordinary vault file: it reaches a new device only

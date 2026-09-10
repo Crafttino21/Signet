@@ -120,6 +120,8 @@ export const en = {
 	'ring.code.title': 'Your ring code',
 	'ring.code.noServerYet':
 		'This code carries no server address, because none is set up yet. Set the sync server up first, then show the code again — every device that joins with it then needs nothing else. A device that already joined with this code has to be told the address by hand.',
+	'ring.code.addressNotInCode':
+		'The address {url} does not fit into a code. A code carries a plain address like http://192.168.1.10:8787 — not one with a path, a query, or an IPv6 host. Every device joining with this code has to be given the address by hand, under Advanced in its sync settings.',
 	'ring.code.includeServer': 'Include the server address',
 	'ring.code.includeServerDesc':
 		'Switch off if the other device reaches the server at a different address — over a VPN, or by a name this network does not know.',

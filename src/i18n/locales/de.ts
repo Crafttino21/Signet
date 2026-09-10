@@ -118,6 +118,8 @@ export const de: Translations = {
 	'ring.code.title': 'Dein Ring-Code',
 	'ring.code.noServerYet':
 		'Dieser Code enthält keine Serveradresse, weil noch keine eingerichtet ist. Richte zuerst den Sync-Server ein und zeig den Code dann erneut — jedes Gerät, das damit beitritt, braucht danach nichts weiter. Einem Gerät, das mit diesem Code schon beigetreten ist, musst du die Adresse von Hand nennen.',
+	'ring.code.addressNotInCode':
+		'Die Adresse {url} passt nicht in einen Code. Ein Code trägt eine schlichte Adresse wie http://192.168.1.10:8787 — keine mit Pfad, Abfrage oder IPv6-Host. Jedem Gerät, das mit diesem Code beitritt, musst du die Adresse von Hand nennen, in seinen Sync-Einstellungen unter „Erweitert".',
 	'ring.code.includeServer': 'Serveradresse mitgeben',
 	'ring.code.includeServerDesc':
 		'Ausschalten, wenn das andere Gerät den Server unter einer anderen Adresse erreicht — über ein VPN oder unter einem Namen, den dieses Netz nicht kennt.',

@@ -169,6 +169,11 @@ snapshot announces what it found.
   `RingLink.setUpServer()`. A code shown before the server exists carries no
   address, and every device that joined with one is stranded — so the first code
   anyone sees is already the complete one.
+- Anything that walks the vault waits for `onLayoutReady`. Pasting a join code
+  sets the whole chain going — ring settings, announced address, adopt, claim,
+  first sync — during a module's own `onload`, when `vault.getFiles()` is still
+  empty. It fires immediately when the index is already there, so the wait costs
+  nothing.
 - The ring code is the vault's identity. When it changes or goes away,
   `RingLink.ringChanged()` says so and the sync drops its registration: the vault
   id, the token and every key came out of the code that just left, and a device

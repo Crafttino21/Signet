@@ -143,10 +143,13 @@ means the very first code is already the complete one. You can still answer
 **Without a server**: the ring then keeps plugins in step and nothing else, which
 is a perfectly good thing for it to be.
 
-**On every other device**: paste the code. That is the whole setup. The device
-takes the address out of it, derives its own keys, registers itself with the
-server and switches the sync on by itself — there is nothing to type and no
-registration secret to carry around.
+**On every other device**: paste the code. That is the whole setup, and it is
+meant to stay that way. From the code alone the device works out the address,
+derives every key it needs, finds the vault on the server, switches the sync on
+by itself, pulls the notes, and switches live editing on once the server has
+answered. Nothing to type, no registration secret to carry around, no switch to
+find afterwards — the server is set up once, on one device, and everything after
+that is a code and a paste.
 
 ### The code carries the address
 

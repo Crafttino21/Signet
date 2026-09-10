@@ -874,10 +874,21 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 		if (!(await this.claim(quiet))) {
 			return;
 		}
-		if (this.settings.syncOnStart) {
-			await this.autoSync();
+
+		// The catch-up walks every file in the vault, and this is reachable well
+		// before there is a list to walk: pasting a join code has the ring announce
+		// an address, which lands here during the sync module's own onload, when
+		// Obsidian's file index is not populated yet. A first sync against a vault
+		// that looks empty is not destructive — a device with no base never reads
+		// its own emptiness as a deletion — but it would upload nothing and then
+		// upload everything on the next run. `onLayoutReady` fires immediately
+		// once the index is there, so nothing is delayed that need not be.
+		this.app.workspace.onLayoutReady(() => {
+			if (this.settings.syncOnStart) {
+				void this.autoSync();
+			}
 			this.live?.start();
-		}
+		});
 	}
 
 	private async preview(): Promise<void> {

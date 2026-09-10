@@ -293,6 +293,8 @@ export const en = {
 		'No port given, so the usual one was added: {url}. Change it under Advanced if your server listens elsewhere.',
 	'vaultSync.notice.unreachable':
 		'Toolbox: {url} could not be reached. {message} Check the address including the port — the server listens on 8787 unless you changed it.',
+	'vaultSync.notice.foundOnDefaultPort':
+		'A sync server does answer at {url} — that is almost certainly the address you want.',
 	'vaultSync.notice.badServerUrl':
 		'That is not a complete address. It needs to start with http:// or https://, for example http://192.168.1.10:8787.',
 	'vaultSync.notice.needsServer': 'Enter the server address first.',

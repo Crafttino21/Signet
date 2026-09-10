@@ -293,6 +293,8 @@ export const de: Translations = {
 		'Keine Portangabe, deshalb wurde der übliche ergänzt: {url}. Unter „Erweitert“ änderbar, falls dein Server woanders lauscht.',
 	'vaultSync.notice.unreachable':
 		'Toolbox: {url} war nicht erreichbar. {message} Prüfe die Adresse samt Port — der Server lauscht auf 8787, sofern du das nicht geändert hast.',
+	'vaultSync.notice.foundOnDefaultPort':
+		'Unter {url} antwortet aber ein Sync-Server — das ist ziemlich sicher die Adresse, die du willst.',
 	'vaultSync.notice.badServerUrl':
 		'Das ist keine vollständige Adresse. Sie muss mit http:// oder https:// beginnen, zum Beispiel http://192.168.1.10:8787.',
 	'vaultSync.notice.needsServer': 'Zuerst die Serveradresse eintragen.',

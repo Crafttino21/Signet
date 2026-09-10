@@ -78,6 +78,31 @@ export function completeServerUrl(value: string): string {
 }
 
 /**
+ * The same address with the port the sync server actually listens on, or
+ * undefined when it already has it.
+ *
+ * For working out what went wrong, not for changing anything: someone who typed
+ * a port meant it, and the answer to a wrong one is to say so, not to quietly
+ * dial somewhere else.
+ */
+export function withDefaultPort(value: string): string | undefined {
+	try {
+		const url = new URL(normaliseServerUrl(value));
+		if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+			return undefined;
+		}
+		const current = url.port === '' ? (url.protocol === 'https:' ? 443 : 80) : Number(url.port);
+		if (current === DEFAULT_SYNC_PORT) {
+			return undefined;
+		}
+		url.port = String(DEFAULT_SYNC_PORT);
+		return normaliseServerUrl(url.toString());
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * The address to store after the ring announced one, or undefined to keep what
  * is already there.
  *

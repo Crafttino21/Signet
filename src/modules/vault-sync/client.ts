@@ -193,3 +193,23 @@ export class SyncClient {
 		}
 	}
 }
+
+/**
+ * Asks an address whether a sync server is there, without a vault or a token.
+ *
+ * Used only to work out what went wrong after something already failed, so it
+ * answers false rather than throwing: a diagnosis that can itself fail is not a
+ * diagnosis. `/v1/health` is the one route that needs no credentials, which is
+ * what makes this possible at all.
+ */
+export async function isSyncServerAt(baseUrl: string): Promise<boolean> {
+	try {
+		const response = await requestUrl({
+			url: `${baseUrl.replace(/\/+$/, '')}${routes.health()}`,
+			throw: false,
+		});
+		return response.status === 200 && (response.json as { ok?: unknown }).ok === true;
+	} catch {
+		return false;
+	}
+}

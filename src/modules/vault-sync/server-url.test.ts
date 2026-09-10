@@ -4,6 +4,7 @@ import {
 	isUsableServerUrl,
 	normaliseServerUrl,
 	shouldAdopt,
+	withDefaultPort,
 } from './server-url';
 import type { ServerUrlSource } from './server-url';
 
@@ -101,5 +102,25 @@ describe('completeServerUrl', () => {
 	it('hands back anything it cannot read, for the caller to reject', () => {
 		expect(completeServerUrl('  10.0.0.1:8787 ')).toBe('10.0.0.1:8787');
 		expect(completeServerUrl('')).toBe('');
+	});
+});
+
+describe('withDefaultPort', () => {
+	it('offers the port the server actually listens on', () => {
+		// The address that cost two evenings: a port was given, so nothing was
+		// guessed, and port 80 refuses the connection.
+		expect(withDefaultPort('http://10.112.156.244:80')).toBe('http://10.112.156.244:8787');
+		expect(withDefaultPort('http://10.112.156.244')).toBe('http://10.112.156.244:8787');
+		expect(withDefaultPort('https://sync.example.com')).toBe('https://sync.example.com:8787');
+	});
+
+	it('has nothing to offer when the port is already right', () => {
+		expect(withDefaultPort('http://10.0.0.1:8787')).toBeUndefined();
+	});
+
+	it('gives up on anything it cannot read', () => {
+		expect(withDefaultPort('10.0.0.1:80')).toBeUndefined();
+		expect(withDefaultPort('ftp://10.0.0.1')).toBeUndefined();
+		expect(withDefaultPort('')).toBeUndefined();
 	});
 });

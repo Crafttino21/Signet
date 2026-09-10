@@ -7,7 +7,7 @@ import type { ModuleDescriptor } from '../../core/module';
 import type { SetupStep } from '../../core/setup';
 import type ToolboxPlugin from '../../main';
 import { t } from '../../i18n';
-import { SyncClient, SyncServerError } from './client';
+import { isSyncServerAt, SyncClient, SyncServerError } from './client';
 import { isQuiet, planSync, runSync } from './engine';
 import type { SyncDeps } from './engine';
 import { LiveSession } from './live';
@@ -19,6 +19,7 @@ import {
 	isUsableServerUrl,
 	normaliseServerUrl,
 	shouldAdopt,
+	withDefaultPort,
 } from './server-url';
 import type { ServerUrlSource } from './server-url';
 import { SyncStateStore } from './state';
@@ -655,7 +656,7 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 			const health = await client.health();
 			new Notice(t('vaultSync.notice.reachable', { protocol: health.protocol }));
 		} catch (error) {
-			new Notice(this.explain(error));
+			new Notice(await this.diagnose(error));
 		}
 	}
 
@@ -706,8 +707,34 @@ class VaultSyncModule extends ToolboxModule<VaultSyncSettings> {
 				outcome === 'created' ? t('vaultSync.notice.created') : t('vaultSync.notice.joined')
 			);
 		} catch (error) {
-			new Notice(this.explain(error));
+			new Notice(await this.diagnose(error));
 		}
+	}
+
+	/**
+	 * The failure, plus the one thing worth checking before anything else.
+	 *
+	 * "Connection refused" means nothing answered on that port. It does not say
+	 * whether the machine is wrong, the network is wrong, or only the port is —
+	 * and the port is by far the likeliest, because a bare IP invites the reader
+	 * to leave it out or to guess 80. So the usual port is tried once, and if a
+	 * sync server answers there the message says so and names the address.
+	 *
+	 * Only for a transport failure. A server that answered and said no is a
+	 * different problem, and probing elsewhere would be answering a question
+	 * nobody asked.
+	 */
+	private async diagnose(error: unknown): Promise<string> {
+		const explained = this.explain(error);
+		if (error instanceof SyncServerError) {
+			return explained;
+		}
+
+		const candidate = withDefaultPort(this.settings.serverUrl);
+		if (candidate && (await isSyncServerAt(candidate))) {
+			return `${explained} ${t('vaultSync.notice.foundOnDefaultPort', { url: candidate })}`;
+		}
+		return explained;
 	}
 
 	/**

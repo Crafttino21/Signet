@@ -26,6 +26,44 @@ Settings that exist for unusual setups rather than everyday use sit behind an
 **Advanced** fold that starts closed, so the two or three that matter are not
 buried among them.
 
+## What is in it
+
+| Module                        | What it does                                                                             | Appears                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------- | -------------------------- |
+| [Plugin ring](#plugin-ring)   | Keeps installed plugins, their versions and their settings in step across your devices   | always                     |
+| [Vault sync](#vault-sync)     | Syncs the notes themselves with a server you run, encrypted before they leave the device | once there is a ring       |
+| [Live editing](#live-editing) | One note open on two devices at once, merged keystroke by keystroke                      | once a server has answered |
+
+Plus a [device roster](#the-devices-in-a-ring) in the side panel, and the
+[server](packages/server/README.md) itself — no runtime dependencies, and unable
+to read a single note it holds.
+
+Everything derives from **one ring code**. The vault id the server files your
+notes under, the token that proves membership, the key that encrypts them, the
+one that hides the filenames, the room id for live editing: all of it, each with
+a different label so no two uses share a key. That is why joining is a paste and
+nothing else, and why losing the code loses the notes.
+
+## Setting it up, end to end
+
+On the machine that should hold the notes:
+
+```bash
+git clone https://github.com/Crafttino21/ObsidianToolbox.git
+ObsidianToolbox/packages/server/install.sh
+```
+
+It installs Docker if needed, generates the registration secret, offers to open
+the port, waits until the server actually answers, and prints the two things to
+type in next.
+
+Then, in Obsidian on **one** device: **Create ring** → the address and the
+secret from above → the ring code appears, with the address already packed into
+it.
+
+On **every other device**: paste that code. Nothing else — [details
+below](#setting-it-up).
+
 ## Plugin ring
 
 Keeps the plugins and their settings in step across your devices, so setting up a
@@ -395,7 +433,10 @@ Then copy `main.js`, `manifest.json` and `styles.css` into your vault:
 ```
 
 Enable **Toolbox** under Settings → Community plugins. After a rebuild, use
-_Reload app without saving_ (or the Hot Reload plugin) to pick up the change.
+_Reload app without saving_ (or the Hot Reload plugin) to pick up the change —
+copying the files changes nothing on its own, because Obsidian holds the plugin
+it loaded in memory. The panel prints the running version at the bottom, which
+is the quickest way to tell a bug from a plugin that was never reloaded.
 
 ## Adding a module
 
@@ -472,11 +513,20 @@ configuration for that module.
 | ------------------- | ---------------------------------------------------- |
 | `npm run dev`       | Rebuild `main.js` on every change                    |
 | `npm run build`     | Typecheck, then produce a minified `main.js`         |
-| `npm run typecheck` | `tsc --noEmit`                                       |
+| `npm run typecheck` | All three projects: plugin, protocol, server         |
 | `npm run lint`      | ESLint, including Obsidian's own plugin-review rules |
 | `npm run format`    | Prettier                                             |
 | `npm test`          | Vitest                                               |
 | `npm run check`     | Typecheck + lint + tests                             |
+
+And, for the server, from anywhere in the repository:
+
+| Command                 | What it does                               |
+| ----------------------- | ------------------------------------------ |
+| `npm run server:up`     | Build and start it                         |
+| `npm run server:status` | Whether it is running, and on what address |
+| `npm run server:logs`   | Follow the log                             |
+| `npm run server:down`   | Stop it                                    |
 
 Tests run against `src/test/obsidian.stub.ts`, a hand-written stand-in for the
 `obsidian` module, which only exists inside the app at runtime. When a module starts
@@ -542,6 +592,10 @@ where the tests are.
 - Set `author` and optionally `authorUrl` / `fundingUrl` in `manifest.json`.
 - Check `minAppVersion` against the newest API you actually use. It is currently
   `1.8.7`, set by `getLanguage()`.
+- Releases carry `main.js`, `manifest.json` and `styles.css` as assets, and
+  `manifest.json` and `versions.json` stay at the repository root — that is what
+  BRAT and the community plugin registry read, which is why the plugin lives at
+  the root rather than under `packages/` with everything else.
 
 ## License
 

@@ -1,5 +1,22 @@
 // @vitest-environment node
 
+/**
+ * There is no DOM here, and the code under test schedules through `window`.
+ *
+ * That is not an oversight on its side: Obsidian can put a note in a popout
+ * window, and a timer taken from the main window never fires there, which is why
+ * `eslint-plugin-obsidianmd` insists on it. This file is the one place that runs
+ * the session against a real server instead of the app, so it brings the two
+ * timer functions the session and its socket actually use.
+ */
+const globals = globalThis as { window?: unknown };
+globals.window ??= {
+	setTimeout: (handler: () => void, ms?: number): unknown => setTimeout(handler, ms),
+	clearTimeout: (id: unknown): void => {
+		clearTimeout(id as ReturnType<typeof setTimeout>);
+	},
+};
+
 import type { AddressInfo } from 'node:net';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -60,7 +77,7 @@ class Device {
 			contentKey,
 			secret,
 			deviceName: name,
-			readFile: () => Promise.resolve(onDisk),
+			readCurrent: () => Promise.resolve(onDisk),
 			onStatus: () => undefined,
 			onError: (error) => {
 				throw error instanceof Error ? error : new Error(String(error));
@@ -297,6 +314,39 @@ describe('two devices in one note', () => {
 
 		expect(one.text).toBe('one copy\n');
 		expect(two.text).toBe('one copy\n');
+	});
+
+	it('says it is seeded only once the document is the note', async () => {
+		// What binding an editor waits for. Before this resolves the document is
+		// empty, or half a note, and an editor pointed at it is shown the rest
+		// arriving as an edit — which is how the note came to be displayed twice.
+		const shared = await note('Notes/Seeded.md');
+
+		const one = shared.open('Laptop', 'on disk\n');
+		expect(one.session.isSeeded).toBe(false);
+
+		await one.session.whenSeeded;
+
+		expect(one.session.isSeeded).toBe(true);
+		expect(one.text).toBe('on disk\n');
+	});
+
+	it('hands a late joiner the room, not the room plus its own file', async () => {
+		// The case the reconciliation in editor-binding.ts has to survive: the room
+		// already holds something and the joining device's file says otherwise. By
+		// the time it reports itself seeded it must hold the room's text exactly
+		// once, with nothing of its own stuck to the front or the back.
+		const shared = await note('Notes/Late.md');
+
+		const one = shared.open('Laptop', 'the room wins\n');
+		await until('the room is seeded', () => one.text === 'the room wins\n');
+		await shared.stored();
+
+		const two = shared.open('Phone', 'a stale copy\n');
+		await two.session.whenSeeded;
+
+		expect(two.text).toBe('the room wins\n');
+		expect(two.text).not.toContain('a stale copy');
 	});
 
 	it('shows two names in a room of two', async () => {

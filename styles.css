@@ -205,6 +205,34 @@
 	gap: var(--size-4-2);
 }
 
+/* A list of things the panel is reporting on: notes, versions, leftovers. */
+
+.signet-panel__list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--size-4-1);
+	margin-bottom: var(--size-4-2);
+}
+
+.signet-panel__row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+}
+
+.signet-panel__name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.signet-panel__meta {
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
 .signet-panel__empty {
 	color: var(--text-muted);
 }

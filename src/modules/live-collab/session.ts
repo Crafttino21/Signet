@@ -16,6 +16,12 @@ import type { Bytes } from '@signet/protocol';
  * file on disk may be an older copy. A room with no history at all is new, and
  * then the file is all there is. Getting that backwards would either discard
  * everyone else's work or duplicate the file's contents into the document.
+ *
+ * Until the seeding has happened the document is not the note. It is empty, or
+ * half of one, and an editor bound to it in that state is shown the difference as
+ * an edit — which is how the text used to appear twice. So the moment seeding is
+ * finished is a fact the module outside needs, and {@link CollabSession.whenSeeded}
+ * is how it is told.
  */
 
 export interface SessionOptions {
@@ -28,14 +34,33 @@ export interface SessionOptions {
 	secret: Bytes;
 	/** Shown to the others as the name beside their cursor. */
 	deviceName: string;
-	/** Read when the room turns out to be empty and needs seeding. */
-	readFile: () => Promise<string>;
+	/**
+	 * The note as it stands right now, read when the room turns out to be empty.
+	 *
+	 * Deliberately not "read the file": somebody can type into an open note in the
+	 * moment between opening it and the room answering, and the file on disk does
+	 * not have those characters. Seeding from the buffer the user is looking at
+	 * puts them into the room instead of losing them at the first sync.
+	 */
+	readCurrent: () => Promise<string>;
 	onStatus: (connected: boolean, peers: number) => void;
 	onError: (error: unknown) => void;
 }
 
 /** Past this many updates in a room, the next joiner offers a merged replacement. */
 const COMPACT_AFTER = 200;
+
+/**
+ * How long to wait for the room before seeding from the note anyway.
+ *
+ * A server that is down must not leave a note unbound forever: the editor would
+ * never join its own document, and nothing typed would ever be collaborative. So
+ * after this the note seeds itself, exactly as an empty room would, and the
+ * socket merges whatever it finds when it eventually connects. That merge is safe
+ * because a seed is built under {@link SEED_CLIENT_ID} — two devices seeding the
+ * same text produce the same bytes, and a CRDT applies them once.
+ */
+const SEED_TIMEOUT_MS = 5_000;
 
 export class CollabSession {
 	readonly doc = new Y.Doc();
@@ -45,6 +70,20 @@ export class CollabSession {
 	private readonly socket: RoomSocket;
 	private seeded = false;
 	private generation = 0;
+	private seedTimer: number | undefined;
+	private announceSeeded!: () => void;
+
+	/**
+	 * Resolves once this document holds the note.
+	 *
+	 * Nothing binds an editor before this. Resolved rather than rejected when the
+	 * room cannot be reached, because the document is then seeded from the note and
+	 * is just as bindable — a caller waiting on this is asking "is the document the
+	 * text yet", not "is the server up".
+	 */
+	readonly whenSeeded = new Promise<void>((resolve) => {
+		this.announceSeeded = resolve;
+	});
 
 	constructor(private readonly options: SessionOptions) {
 		this.text = this.doc.getText('content');
@@ -117,6 +156,17 @@ export class CollabSession {
 
 	start(): void {
 		this.socket.connect();
+		this.seedTimer = window.setTimeout(() => {
+			this.seedTimer = undefined;
+			if (!this.seeded) {
+				void this.seed([], this.generation);
+			}
+		}, SEED_TIMEOUT_MS);
+	}
+
+	/** Whether the document is the note yet. See {@link whenSeeded}. */
+	get isSeeded(): boolean {
+		return this.seeded;
 	}
 
 	/**
@@ -144,28 +194,36 @@ export class CollabSession {
 			return;
 		}
 		this.seeded = true;
+		if (this.seedTimer !== undefined) {
+			window.clearTimeout(this.seedTimer);
+			this.seedTimer = undefined;
+		}
 
-		if (updates.length === 0) {
-			const contents = await this.options.readFile();
-			if (contents.length > 0) {
-				// Not marked as remote: this is genuinely new content for the room.
-				Y.applyUpdate(this.doc, seedUpdate(contents));
+		try {
+			if (updates.length === 0) {
+				const contents = await this.options.readCurrent();
+				if (contents.length > 0) {
+					// Not marked as remote: this is genuinely new content for the room.
+					Y.applyUpdate(this.doc, seedUpdate(contents));
+				}
+				return;
 			}
+
+			for (const update of updates) {
+				Y.applyUpdate(this.doc, update, this);
+			}
+
+			if (updates.length > COMPACT_AFTER) {
+				// The whole document as one update, offered in place of the log that
+				// produced it. The server keeps the old generation regardless.
+				void this.socket.sendCompacted(Y.encodeStateAsUpdate(this.doc), this.generation);
+			}
+		} finally {
+			// Whatever happened above, the document is as close to the note as it is
+			// going to get. A reader that never hears this leaves the note unbound.
+			this.announceSeeded();
 			this.announce();
-			return;
 		}
-
-		for (const update of updates) {
-			Y.applyUpdate(this.doc, update, this);
-		}
-
-		if (updates.length > COMPACT_AFTER) {
-			// The whole document as one update, offered in place of the log that
-			// produced it. The server keeps the old generation regardless.
-			void this.socket.sendCompacted(Y.encodeStateAsUpdate(this.doc), this.generation);
-		}
-
-		this.announce();
 	}
 
 	/**
@@ -193,6 +251,13 @@ export class CollabSession {
 	}
 
 	destroy(): void {
+		if (this.seedTimer !== undefined) {
+			window.clearTimeout(this.seedTimer);
+			this.seedTimer = undefined;
+		}
+		// A note closed before the room answered must not leave anything waiting on
+		// a promise that will now never be kept by the socket.
+		this.announceSeeded();
 		this.socket.close();
 		this.awareness.destroy();
 		this.doc.destroy();

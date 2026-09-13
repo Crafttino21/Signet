@@ -69,6 +69,17 @@ interface SyncSettings {
 class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	/** One session per open note, keyed by vault path. */
 	private readonly sessions = new Map<string, CollabSession>();
+	/**
+	 * Sessions being opened right now.
+	 *
+	 * Opening one awaits the key derivations, and `file-open`, `active-leaf-change`
+	 * and the editor announcing itself all arrive within that window for the same
+	 * note. Without this each of them started a session of its own: two sockets,
+	 * two documents and two writers for one file, with only the last one findable.
+	 */
+	private readonly opening = new Map<string, Promise<CollabSession>>();
+	/** Paths whose room has not answered yet, for what the panel says. */
+	private readonly connecting = new Set<string>();
 	/** Editors currently on screen, so a session can find the one to bind. */
 	private readonly editors = new Map<EditorView, string>();
 	private readonly binding = new CollabEditorBinding({
@@ -151,6 +162,62 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			);
 	}
 
+	/**
+	 * What live editing is doing, for the shared panel.
+	 *
+	 * Joining a room takes a moment, and until it is done the note is an ordinary
+	 * note — nobody else's cursor, nothing shared. That is a state rather than an
+	 * event, so it is said here rather than in a notice, and it is what explains
+	 * the pause between opening a note and the others appearing in it.
+	 */
+	override displayPanel(containerEl: HTMLElement): void {
+		if (!this.settings.enabled) {
+			return;
+		}
+
+		containerEl.createEl('h3', { text: t('collab.panel.title') });
+
+		if (!this.ready()) {
+			containerEl.createEl('p', {
+				cls: 'signet-panel__state',
+				text: t('collab.panel.needsSync'),
+			});
+			return;
+		}
+
+		if (this.connecting.size > 0) {
+			containerEl.createEl('p', {
+				cls: 'signet-panel__state',
+				text: t('collab.panel.connecting', { count: this.connecting.size }),
+			});
+		}
+
+		const joined = [...this.sessions].filter(([path]) => !this.connecting.has(path));
+		if (joined.length === 0) {
+			if (this.connecting.size === 0) {
+				containerEl.createEl('p', {
+					cls: 'signet-panel__state',
+					text: t('collab.panel.idle'),
+				});
+			}
+			return;
+		}
+
+		const list = containerEl.createDiv({ cls: 'signet-panel__list' });
+		for (const [path, session] of joined) {
+			const row = list.createDiv({ cls: 'signet-panel__row' });
+			row.createSpan({ cls: 'signet-panel__name', text: path });
+			row.createSpan({
+				cls: 'signet-panel__meta',
+				text: !session.connected
+					? t('collab.panel.offline')
+					: session.peers === 0
+						? t('collab.panel.alone')
+						: t('collab.panel.peers', { count: session.peers }),
+			});
+		}
+	}
+
 	// --- sessions -----------------------------------------------------------
 
 	private async attachToActive(): Promise<void> {
@@ -160,7 +227,15 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		}
 	}
 
-	/** Opens a session for this note if it should have one, and binds its editor. */
+	/**
+	 * Opens a session for this note if it should have one, and binds its editor.
+	 *
+	 * Binding waits for the session to be seeded, and that wait is the whole point.
+	 * An editor bound to a document that is not the note yet is shown the note
+	 * arriving as an edit — the text appears twice and every remote change after it
+	 * lands at the wrong place, until a write-back to disk hides the damage. So the
+	 * order is: wait, correct the buffer, then bind.
+	 */
 	private async attachToPath(path: string): Promise<void> {
 		if (!this.settings.enabled || !this.ready() || this.isExcluded(path)) {
 			return;
@@ -172,19 +247,60 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		}
 
 		try {
-			const session = this.sessions.get(path) ?? (await this.open(file));
+			const session = this.sessions.get(path) ?? (await this.openOnce(file));
+			if (!session.isSeeded) {
+				this.connecting.add(path);
+				this.refreshPanel();
+				await session.whenSeeded;
+				this.connecting.delete(path);
+				this.refreshPanel();
+			}
+
+			// The session may have been ended while we were waiting — the note
+			// closed, the module switched off — and binding to a destroyed document
+			// would leave an editor following nothing.
+			if (this.sessions.get(path) !== session) {
+				return;
+			}
+
+			const text = session.contents();
 			for (const [view, shown] of this.editors) {
-				if (shown === path) {
-					this.binding.bind(
-						view,
-						yCollab(session.text, session.awareness, { undoManager: false })
-					);
+				// `shown` is re-read now rather than before the wait: the user can have
+				// moved on to another note in the meantime.
+				if (shown !== path || this.binding.isBoundTo(view, session)) {
+					continue;
 				}
+				this.binding.syncDoc(view, text);
+				this.binding.bind(
+					view,
+					yCollab(session.text, session.awareness, { undoManager: false }),
+					session
+				);
 			}
 		} catch (error) {
+			this.connecting.delete(path);
 			console.error('Signet: could not start a collaborative session.', error);
 			new Notice(t('collab.notice.failed'));
 		}
+	}
+
+	/**
+	 * {@link open}, but never twice at once for the same note.
+	 *
+	 * The entry is removed as soon as the session is in `sessions`, so this holds
+	 * nothing between opens and a failed attempt can be retried.
+	 */
+	private async openOnce(file: TFile): Promise<CollabSession> {
+		const pending = this.opening.get(file.path);
+		if (pending) {
+			return pending;
+		}
+
+		const started = this.open(file).finally(() => {
+			this.opening.delete(file.path);
+		});
+		this.opening.set(file.path, started);
+		return started;
 	}
 
 	private async open(file: TFile): Promise<CollabSession> {
@@ -202,7 +318,7 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			contentKey: context.contentKey,
 			secret: context.secret,
 			deviceName: context.deviceName,
-			readFile: () => this.app.vault.read(file),
+			readCurrent: () => this.currentText(file),
 			onStatus: () => {
 				this.refreshPanel();
 			},
@@ -240,11 +356,34 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		}
 	}
 
+	/**
+	 * The note as the user currently sees it.
+	 *
+	 * An editor showing this file is more current than the file: nothing has been
+	 * written back yet for whatever was typed since it was opened, and seeding the
+	 * room from disk would quietly drop those characters.
+	 */
+	private async currentText(file: TFile): Promise<string> {
+		for (const [view, shown] of this.editors) {
+			if (shown === file.path) {
+				return view.state.doc.toString();
+			}
+		}
+		return this.app.vault.read(file);
+	}
+
 	private end(path: string): void {
+		this.connecting.delete(path);
 		const session = this.sessions.get(path);
 		if (!session) {
 			return;
 		}
+
+		// Taken out of the map first, so that ending is done as far as anyone
+		// asking is concerned. An attach still waiting for this session to be
+		// seeded looks here to find out whether it is still the current one, and
+		// the write-back below takes long enough for that to matter.
+		this.sessions.delete(path);
 
 		// Write what the room produced back to the file before letting go, so the
 		// note on disk is the merged text rather than whatever this device last
@@ -257,7 +396,8 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 
 		void this.flushOne(path, session).finally(() => {
 			session.destroy();
-			this.sessions.delete(path);
+			// Released only once the file has been written: until then the sync must
+			// keep its hands off a note that is still being saved.
 			this.plugin.liveEditing.release(path);
 			this.refreshPanel();
 		});
@@ -302,9 +442,10 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 
 		try {
 			const contents = session.contents();
-			if ((await this.app.vault.read(file)) !== contents) {
-				await this.app.vault.modify(file, contents);
-			}
+			// `process` rather than read-then-modify: it is the documented way to edit
+			// a file nobody is looking at, and it closes the gap in which a sync could
+			// land between the two halves of the old version.
+			await this.app.vault.process(file, (data) => (data === contents ? data : contents));
 		} catch (error) {
 			console.error(`Signet: could not write ${path} back to disk.`, error);
 		}

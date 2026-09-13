@@ -402,6 +402,8 @@ export const de: Translations = {
 	'collab.panel.alone': 'verbunden, sonst niemand da',
 	'collab.panel.peers': 'verbunden · {count} weitere(s) Gerät(e)',
 	'collab.panel.offline': 'nicht verbunden',
+	'collab.panel.connecting':
+		'Trete dem Raum für {count} Notiz(en) bei. Sie lassen sich währenddessen ganz normal bearbeiten.',
 	'collab.settings.enabled': 'Notizen gemeinsam bearbeiten',
 	'collab.settings.enabledDesc':
 		'Solange eine Notiz offen ist, wird sie Anschlag für Anschlag mit allen abgeglichen, die sie ebenfalls offen haben. Diese Notiz bleibt so lange aus dem normalen Dateisync heraus, damit beide sich nicht gegenseitig überschreiben.',

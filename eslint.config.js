@@ -126,6 +126,9 @@ export default defineConfig(
 			// window there either, and no `window` object to hang a timer off.
 			'obsidianmd/no-nodejs-modules': 'off',
 			'obsidianmd/prefer-window-timers': 'off',
+			// And where a test has to supply the `window` the code under test reaches
+			// for, `globalThis` is the only place to put it.
+			'obsidianmd/no-global-this': 'off',
 		},
 	},
 

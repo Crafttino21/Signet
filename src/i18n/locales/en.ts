@@ -399,6 +399,7 @@ export const en = {
 	'collab.panel.alone': 'connected, nobody else here',
 	'collab.panel.peers': 'connected · {count} other device(s)',
 	'collab.panel.offline': 'not connected',
+	'collab.panel.connecting': 'Joining the room for {count} note(s). They edit as usual meanwhile.',
 	'collab.settings.enabled': 'Edit notes together',
 	'collab.settings.enabledDesc':
 		'While a note is open it is kept in step keystroke by keystroke with anyone else who has it open. That note is left out of the ordinary file sync until it is closed, so the two cannot write over each other.',

@@ -77,6 +77,11 @@ export class SignetPanelView extends ItemView {
 		// here until that stops being true rather than being said once and lost.
 		this.renderUpdate(contentEl);
 
+		// After the update line and before the setup: it is an account of something
+		// that already happened, which outranks a suggestion and is outranked by the
+		// thing still waiting to be done.
+		this.renderPort(contentEl);
+
 		// The shortest path from "installed" to "working" belongs at the top, and
 		// disappears once there is nothing left to set up.
 		const outstanding = this.plugin.registry
@@ -145,6 +150,54 @@ export class SignetPanelView extends ItemView {
 			cls: 'signet-panel__version',
 			text: t('panel.version', { version: this.plugin.manifest.version }),
 		});
+	}
+
+	/**
+	 * What the move out of the old name did, and what it did not.
+	 *
+	 * It runs on its own and moves things into the trash, so it owes an account of
+	 * itself — a notice would be gone before anybody read the list. Dismissed
+	 * rather than timed out: whoever wants to check the trash against it should be
+	 * able to leave it up while they do.
+	 */
+	private renderPort(containerEl: HTMLElement): void {
+		const report = this.plugin.portReport;
+		if (!report) {
+			return;
+		}
+
+		const section = containerEl.createDiv({ cls: 'signet-panel__port' });
+		section.createEl('h3', { text: t('port.panel.title') });
+
+		if (report.tidied.length > 0) {
+			section.createEl('p', { cls: 'signet-panel__state', text: t('port.panel.tidied') });
+			const list = section.createEl('ul');
+			for (const item of report.tidied) {
+				list.createEl('li', { text: t(`port.kind.${item.kind}`, { at: item.at }) });
+			}
+		}
+
+		if (report.leftAlone.length > 0) {
+			section.createEl('p', {
+				cls: 'signet-panel__state signet-panel__state--warn',
+				text: t('port.panel.leftAlone'),
+			});
+			const list = section.createEl('ul');
+			for (const item of report.leftAlone) {
+				list.createEl('li', {
+					text: `${t(`port.kind.${item.kind}`, { at: item.at })} — ${t(
+						`port.reason.${item.reason}`
+					)}`,
+				});
+			}
+		}
+
+		section
+			.createEl('button', { text: t('port.panel.dismiss') })
+			.addEventListener('click', () => {
+				this.plugin.portReport = undefined;
+				this.render();
+			});
 	}
 
 	/**

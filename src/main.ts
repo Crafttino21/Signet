@@ -15,6 +15,10 @@ import { SignetSettingTab } from './core/settings-tab';
 import { SetupModal } from './core/setup';
 import { PluginApi } from './core/obsidian-internals';
 import { adoptLegacyFolder } from './core/rename';
+import { coreLeftovers, LEGACY_VAULT_FOLDER, legacyPluginFolder } from './core/legacy-leftovers';
+import { isEmptyReport, runPort } from './core/legacy-port';
+import type { Leftover, PortReport } from './core/legacy-port';
+import { pathExists } from './core/vault-fs';
 import { registerViewOnce } from './core/view';
 import {
 	lastSeenVersion,
@@ -56,6 +60,8 @@ export default class SignetPlugin extends Plugin {
 	 * from it, and none of them should have to know where the answer came from.
 	 */
 	readonly updates = new UpdateWatch(this.manifest.version);
+	/** What the last port found, for the panel. Undefined when it found nothing. */
+	portReport: PortReport | undefined;
 	private settingTab!: SignetSettingTab;
 	/** Guards against a module's own load calling back into reconciliation. */
 	private reconciling = false;
@@ -127,12 +133,92 @@ export default class SignetPlugin extends Plugin {
 			);
 		}
 
-		// Nothing here may hold the load up: a plugin that waits on the network to
-		// finish starting is a plugin that does not start on a train.
+		this.addCommand({
+			id: 'port-legacy',
+			name: t('port.command'),
+			callback: () => {
+				void this.portFromToolbox('always');
+			},
+		});
+
+		// Everything here waits for the layout and none of it is awaited: the vault
+		// index is not there during onload, and a plugin that waits on the network
+		// to finish starting is a plugin that does not start on a train.
 		this.app.workspace.onLayoutReady(() => {
 			this.showWhatIsNew();
 			void this.lookForUpdates();
+			void this.portFromToolbox('ifAnything').catch((error: unknown) => {
+				console.error('Signet: could not finish the move out of the old folder.', error);
+			});
 		});
+	}
+
+	/**
+	 * Finishes the move out of the plugin that used to be called Toolbox.
+	 *
+	 * After the modules are up, because half of what there is to find belongs to
+	 * them, and inside `onLayoutReady`, because the rest of it is in the vault and
+	 * the vault index is not there during `onload` — the reasoning is written out
+	 * in `core/vault-fs.ts`.
+	 *
+	 * No marker records that this has run. It begins with two existence checks and
+	 * stops on the spot when both come back empty, which is what every start after
+	 * the first one costs — and it means a leftover that arrives later, dropped in
+	 * by whatever else syncs this vault, is still picked up.
+	 */
+	async portFromToolbox(announce: 'always' | 'ifAnything'): Promise<void> {
+		const leftovers = await this.collectLeftovers();
+		if (leftovers.length === 0) {
+			this.portReport = undefined;
+			this.refreshPanel();
+			if (announce === 'always') {
+				new Notice(t('port.notice.nothing'));
+			}
+			return;
+		}
+
+		const report = await runPort(leftovers);
+		this.portReport = isEmptyReport(report) ? undefined : report;
+		this.refreshPanel();
+
+		if (report.tidied.length > 0) {
+			new Notice(t('port.notice.tidied', { count: report.tidied.length }));
+		} else if (announce === 'always') {
+			new Notice(t('port.notice.nothing'));
+		}
+	}
+
+	private async collectLeftovers(): Promise<Leftover[]> {
+		const there =
+			(await pathExists(this.app, legacyPluginFolder(this.app))) ||
+			(await pathExists(this.app, LEGACY_VAULT_FOLDER)) ||
+			this.app.workspace.getLeavesOfType(LEGACY_PANEL_TYPE).length > 0;
+		if (!there) {
+			return [];
+		}
+
+		const modules = this.registry
+			.visible()
+			.map((descriptor) => this.registry.getActive(descriptor.id))
+			.filter((module) => module !== undefined);
+
+		const fromModules: Leftover[] = [];
+		for (const module of modules) {
+			fromModules.push(...(await module.legacyLeftovers()));
+		}
+
+		const core = coreLeftovers({
+			app: this.app,
+			pluginFolder: this.folder(),
+			plugins: PluginApi.detect(this.app),
+			// Every module that has an opinion has to agree. One of them saying the
+			// old folder holds something this one does not is enough to keep it.
+			settingsAreHere: (theirs) => modules.every((module) => module.legacyDataIsHere(theirs)),
+		});
+
+		// The modules first: what they own lives inside `Toolbox/`, and the folder
+		// itself is the last thing core retires — only once it is empty.
+		return [...fromModules, ...core];
 	}
 
 	/**

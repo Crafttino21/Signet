@@ -430,6 +430,27 @@ export const en = {
 		'Signet says when there is a newer version, and shows what changed the first time you start it.',
 	'changelog.0-4-0.port':
 		'Whatever the old Toolbox plugin left in this vault is carried over and tidied away at startup. Nothing is deleted — it goes to the trash, and only once it is provably somewhere else.',
+	'port.command': 'Finish the move from Toolbox',
+	'port.notice.tidied':
+		'Signet tidied away {count} leftover(s) from Toolbox. They are in the trash.',
+	'port.notice.nothing': 'Nothing left over from Toolbox.',
+	'port.panel.title': 'Coming from Toolbox',
+	'port.panel.tidied': 'Moved to the trash:',
+	'port.panel.leftAlone': 'Left alone for now:',
+	'port.panel.dismiss': 'Done',
+	'port.kind.pluginFolder': 'the old plugin folder, {at}',
+	'port.kind.panelLeaf': 'a panel still open under the old name',
+	'port.kind.hotkeys': 'hotkeys bound to the old commands',
+	'port.kind.ringFile': 'the ring file at {at}',
+	'port.kind.rosterFolder': 'the device list at {at}',
+	'port.kind.ringFilePath': 'a ring path still stored as {at}',
+	'port.kind.folder': 'the folder {at}',
+	'port.reason.notCarried': 'nothing at the new place holds what this holds yet',
+	'port.reason.differentRing': 'it belongs to a different ring than this device is in',
+	'port.reason.unreadable': 'it cannot be read, so what is in it is unknown',
+	'port.reason.stillRunning': 'Obsidian still has the old plugin switched on',
+	'port.reason.failed': 'moving it to the trash did not work',
+	'port.reason.notEmpty': 'it still has something in it that Signet did not put there',
 };
 
 export type TranslationKey = keyof typeof en;

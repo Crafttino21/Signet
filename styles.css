@@ -264,6 +264,30 @@
 	margin: var(--size-4-4) 0 0;
 }
 
+/* What the move out of the old name did */
+
+.signet-panel__port {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-3);
+	margin-bottom: var(--size-4-4);
+}
+
+.signet-panel__port h3 {
+	margin-top: 0;
+}
+
+.signet-panel__port ul {
+	margin: 0 0 var(--size-4-3);
+	padding-left: var(--size-4-5);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-muted);
+}
+
+.signet-panel__port li + li {
+	margin-top: var(--size-4-1);
+}
+
 /* What changed in this version */
 
 .signet-whats-new__intro {

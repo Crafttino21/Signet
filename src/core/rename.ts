@@ -35,7 +35,8 @@ import type { App } from 'obsidian';
  * adopt as though it were current.
  */
 
-const LEGACY_ID = 'toolbox';
+/** What this plugin's id was before the rename. */
+export const LEGACY_ID = 'toolbox';
 
 /** Files worth carrying over, and the only ones this plugin ever wrote. */
 const CARRIED = ['data.json', 'vault-sync-state.json'];

@@ -415,29 +415,49 @@ So the first start after the update carries `data.json` and the sync state
 across from `.obsidian/plugins/toolbox/`, switches the old copy off if it is
 still running, and says so. Two copies in one vault is the thing worth avoiding:
 they write two heartbeats under two device ids, both answer a publish, and both
-sync the same notes to the same server. The old folder is copied rather than
-moved, so it is still there to look at; delete it once everything looks right.
+sync the same notes to the same server. The ring file moves the same way, from
+`Toolbox/plugin-ring.json` to `Signet/plugin-ring.json`, envelope for envelope —
+same ring, same sequence, nothing republished.
 
-The ring file moved from `Toolbox/plugin-ring.json` to `Signet/plugin-ring.json`
-the same way. Where it is is worked out from the vault rather than remembered,
-never decided once and stored — two devices in one vault disagreeing about which
-file is the ring is a ring that shares nothing. A device that still finds it only
-under the old name copies it across at startup, envelope for envelope, before it
-writes anything: same ring, same sequence, nothing republished. From then on
-`Signet/` is the only place anything is written.
+**Then it clears up after itself.** That used to be your job, and this document
+used to ask you to do it. Every start, Signet looks for what the old name left
+behind and finishes the move:
 
-Which makes `Toolbox/` disposable, and that is the point — delete it. Nothing
-recreates it and nothing puts anything back. An old roster left inside it is
-still read while it is there, so a device that has not been updated yet is still
-listed with the version it is running, which is how you find the last one.
+- the old plugin folder under `.obsidian/plugins/toolbox/`, which Obsidian
+  otherwise keeps reporting as an installed plugin
+- `Toolbox/plugin-ring.json` and `Toolbox/devices/`, and then `Toolbox/` itself
+- a panel still open under the old view name, which becomes an ordinary Signet
+  panel in place
+- hotkeys bound to `toolbox:…` in `.obsidian/hotkeys.json`, rebound to
+  `signet:…`; the command ids never changed, only the prefix
+- a ring path still stored as the old default
 
-Two things do not migrate:
+Two rules make that safe enough to do without asking.
 
-- **Custom hotkeys.** Obsidian stores them as `<plugin id>:<command>` in
-  `.obsidian/hotkeys.json`, outside any plugin's folder, so anything bound to
-  `toolbox:…` has to be set again.
-- **The server's container name.** See `packages/server/README.md` — the volume
-  and the environment variables are unchanged, the container is not.
+**Nothing is deleted.** Everything goes to the trash — the system one where the
+vault is set up for it, the vault's own `.trash` otherwise. The worst case is a
+folder you have to fish back out, not a ring code you have to retype on four
+devices.
+
+**Nothing is cleared away that was not proven to be somewhere else first**, in
+the same run. Proven means the specific thing in each case: a ring file at the
+new path that opens with _this_ ring's id and a sequence at least as far on; a
+heartbeat for the same device that is at least as new; settings carried across
+that name the same ring. Anything that fails that test is left exactly where it
+is and named in the panel with the reason — a file that will not open might be a
+sync client caught mid-write, and an old folder holding a _different_ ring is
+somebody who set this up fresh and has not noticed the old one yet. Neither is
+ours to throw away.
+
+The panel says what moved and what did not, until you dismiss it. **Finish the
+move from Toolbox** in the command palette runs the same thing by hand.
+
+Nothing recreates any of it, so on a vault that has been through this the check
+costs two existence lookups per start and then stops.
+
+One thing still does not migrate: **the server's container name**. See
+`packages/server/README.md` — the volume and the environment variables are
+unchanged, the container is not.
 
 ## Staying up to date
 

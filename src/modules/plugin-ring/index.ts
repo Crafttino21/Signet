@@ -45,6 +45,8 @@ import {
 	rosterFolderFor,
 	rosterFolders,
 } from './ring-path';
+import { ringLeftovers } from './legacy';
+import type { Leftover } from '../../core/legacy-port';
 import { ownIds } from './self';
 import { collectLocalPlugins, buildSnapshot } from './snapshot';
 import { isRingSnapshot } from './types';
@@ -274,16 +276,27 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			// so starting both at once let the first heartbeat of the session land
 			// in the folder this device was about to leave — invisible to everyone,
 			// including its own panel, until the next beat five minutes later.
-			void this.resolveRingPath().then(async () => {
-				// Before anything is written, so that this device's heartbeat and
-				// everything after it go to the new folder — and so that deleting the
-				// old one is safe from here on.
-				await this.migrateRingFile();
-				void this.refreshFileVerdict();
-				this.warnAboutConflictCopies();
-				await this.beat();
-				await this.refreshDevices();
-			});
+			//
+			// Held on to as a promise as well, because the startup port has to wait
+			// for it: what it decides is whether the old ring file can go, and the
+			// answer before `migrateRingFile` has run is always no.
+			this.settled = this.resolveRingPath()
+				.then(async () => {
+					// Before anything is written, so that this device's heartbeat and
+					// everything after it go to the new folder — and so that deleting the
+					// old one is safe from here on.
+					await this.migrateRingFile();
+					void this.refreshFileVerdict();
+					this.warnAboutConflictCopies();
+					await this.beat();
+					await this.refreshDevices();
+				})
+				// Never rejects, so that a caller waiting on it is waiting for "the
+				// ring has settled" rather than for "the ring has settled without
+				// trouble". A startup that went wrong still has to let the port ask.
+				.catch((error: unknown) => {
+					console.error('Signet: the ring could not finish starting up.', error);
+				});
 
 			// A snapshot that arrived while this device was closed raises no vault
 			// event: by the time Obsidian starts, the file is simply there and
@@ -346,6 +359,45 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			this.fileVerdict = undefined;
 		}
 		this.refreshPanel();
+	}
+
+	/**
+	 * What this ring left under the plugin's old name, for the startup port.
+	 *
+	 * The knowledge stays here rather than in core: whether the file at the new
+	 * path really holds this ring, and whether a heartbeat in the old folder is
+	 * newer than the one beside it, are questions only something that can open a
+	 * ring file can answer.
+	 */
+	override async legacyLeftovers(): Promise<Leftover[]> {
+		// The ring copies its own file to the new path at startup, and that is what
+		// makes the old one redundant. Asked before it has finished, the honest
+		// answer would be "not carried" — true, and useless.
+		await this.settled;
+
+		return ringLeftovers({
+			app: this.app,
+			code: this.settings.code,
+			storedPath: this.settings.ringFilePath,
+			clearStoredPath: async () => {
+				await this.patchSettings({ ringFilePath: '' });
+				await this.resolveRingPath();
+			},
+		});
+	}
+
+	/**
+	 * Whether the ring in the old plugin's settings is the one this device is in.
+	 *
+	 * What decides whether the old plugin folder can go. A folder holding a
+	 * different ring code is the one case where clearing it away would destroy
+	 * something: somebody who set this up fresh and only afterwards noticed the
+	 * old folder still sitting there. An old folder with no ring in it at all has
+	 * nothing to lose, so it counts as carried.
+	 */
+	override legacyDataIsHere(theirs: unknown): boolean {
+		const code = ringCodeIn(theirs);
+		return code === undefined || code === this.settings.code;
 	}
 
 	override displayPanel(containerEl: HTMLElement): void {
@@ -1417,6 +1469,8 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		}
 	}
 
+	/** Startup work, for anything that must not read the ring before it is done. */
+	private settled: Promise<void> = Promise.resolve();
 	private fileVerdict: RingFileVerdict | undefined;
 	/** The roster, as last read. The panel draws from this rather than the disk. */
 	private devices: DeviceHealth[] = [];
@@ -1712,4 +1766,30 @@ function describeSeen(device: DeviceHealth): string {
 	return hours < 24
 		? t('ring.device.hours', { count: hours })
 		: t('ring.device.days', { count: Math.floor(hours / 24) });
+}
+
+/**
+ * The ring code inside another install's `data.json`.
+ *
+ * Reaches into a stored settings blob rather than a type, deliberately: this is
+ * a file written by an older build, so nothing about its shape is guaranteed and
+ * every step has to be checked. Undefined means "no ring in there", which is a
+ * different answer from "a different ring".
+ */
+function ringCodeIn(stored: unknown): string | null | undefined {
+	if (typeof stored !== 'object' || stored === null) {
+		return undefined;
+	}
+	const { moduleSettings } = stored as Record<string, unknown>;
+	if (typeof moduleSettings !== 'object' || moduleSettings === null) {
+		return undefined;
+	}
+
+	const mine = (moduleSettings as Record<string, unknown>)[pluginRingModule.id];
+	if (typeof mine !== 'object' || mine === null) {
+		return undefined;
+	}
+
+	const { code } = mine as Record<string, unknown>;
+	return typeof code === 'string' && code !== '' ? code : undefined;
 }

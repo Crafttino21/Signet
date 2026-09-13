@@ -277,3 +277,26 @@ export const Platform = {
  * release could run here is testing the comparison rather than this number.
  */
 export const apiVersion = '1.8.7';
+
+/**
+ * Enough of a side-panel view to be extended.
+ *
+ * The panel itself is not under test; what needs it is that importing the module
+ * the panel lives in must not throw, because the view-type names live there and
+ * the port reads them.
+ */
+export class ItemView extends Component {
+	contentEl: HTMLElement = document.createElement('div');
+
+	constructor(public leaf: unknown) {
+		super();
+	}
+
+	getViewType(): string {
+		return '';
+	}
+
+	getDisplayText(): string {
+		return '';
+	}
+}

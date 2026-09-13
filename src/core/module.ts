@@ -1,5 +1,6 @@
 import { Component, Platform } from 'obsidian';
 import type { App, Command, IconName } from 'obsidian';
+import type { Leftover } from './legacy-port';
 import type { SetupStep } from './setup';
 import type SignetPlugin from '../main';
 
@@ -177,6 +178,39 @@ export abstract class SignetModule<S = unknown> extends Component {
 	 */
 	setupStep(): SetupStep | undefined {
 		return undefined;
+	}
+
+	/**
+	 * Optional: what this module left behind under the plugin's old name.
+	 *
+	 * Collected the same way as {@link setupStep}, and for the same reason. The
+	 * ring file moved out of `Toolbox/` and the roster followed it; only the ring
+	 * knows which file is which, whether the copy at the new path really holds the
+	 * same ring, and whether a heartbeat in the old folder is newer than the one
+	 * beside it. Core doing that on its behalf would mean core learning to open a
+	 * ring file.
+	 *
+	 * Only asked of a module that is switched on. A vault that does not use the
+	 * ring has no business having its `Toolbox/` folder cleared away by it.
+	 */
+	legacyLeftovers(): Promise<Leftover[]> {
+		return Promise.resolve([]);
+	}
+
+	/**
+	 * Optional: whether this module's slice of the old plugin's `data.json` is
+	 * already accounted for here.
+	 *
+	 * The question behind clearing away the old plugin folder, and the one core
+	 * cannot answer for itself: two `data.json` files both have a `plugin-ring`
+	 * section, and whether they describe the same ring is a fact about ring codes.
+	 * Answering `false` leaves the whole folder alone and says why.
+	 *
+	 * The default is yes. A module with no opinion must not be the reason a folder
+	 * is kept forever.
+	 */
+	legacyDataIsHere(_theirs: unknown): boolean {
+		return true;
 	}
 
 	/**

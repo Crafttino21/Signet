@@ -247,6 +247,43 @@ Getting from a note to its CodeMirror view goes through `editor-binding.ts`, whi
 uses `editorInfoField` and a `Compartment` — both exported by Obsidian. Do not
 reach for the undocumented `.cm` property on a Markdown view.
 
+## Coming from Toolbox
+
+Three files, in the order they run.
+
+`src/core/rename.ts` carries `data.json` and the sync state across before
+anything is loaded, because `data.json` is where the ring code is and the ring
+code is the key to everything else. It copies rather than moves, and it does
+nothing at all when this folder already has settings.
+
+`src/core/legacy-port.ts` is the engine that finishes the job, and its one rule
+is not negotiable: a leftover is **carried** and then **retired**, and retiring
+is reached only when carrying returned success in that same run. Nothing is
+deleted — everything goes to a trash. Anything that cannot be carried is left
+where it is and named in the report with a reason code, which the panel
+translates; `diff.ts` and its modal are the same arrangement.
+
+`src/core/legacy-leftovers.ts` holds what the plugin itself left: the old folder
+under `plugins/`, a panel leaf still open under the old view type, hotkeys keyed
+`toolbox:`, and the `Toolbox/` folder — last, and only once it is empty.
+
+What a module left is the module's own. `SignetModule.legacyLeftovers()` is
+collected the way `setupStep()` is, and `plugin-ring/legacy.ts` is the one
+implementation: whether the file at the new path really holds this ring, and
+whether a heartbeat in the old folder says more than the one beside it, are
+questions only something that can open a ring file may answer. A module that is
+switched off contributes nothing, which is why a vault that does not use the ring
+keeps its `Toolbox/` folder.
+
+`legacyDataIsHere()` is the other half, and it decides whether the old plugin
+folder may go. Two `data.json` files both have a `plugin-ring` section; whether
+they name the same ring is a fact about ring codes, so core asks rather than
+guesses. Every module that has an opinion has to agree.
+
+There is no "already ported" marker, on purpose. The scan begins with two
+existence checks and stops when both come back empty, so a leftover that arrives
+later — dropped in by whatever else syncs this vault — is still picked up.
+
 ## Privacy
 
 No telemetry, ever, and no remote code loading. Nothing about the user, their

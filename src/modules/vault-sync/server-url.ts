@@ -48,6 +48,55 @@ export function normaliseServerUrl(value: string): string {
 	return value.trim().replace(/\/+$/, '');
 }
 
+/**
+ * Whether an address sends the bearer token across a network somebody else can
+ * read.
+ *
+ * The notes are sealed before they leave, so plain HTTP does not expose what is
+ * in them. It does expose the token in the `Authorization` header — and on the
+ * way to creating a vault, the registration secret too. Whoever reads those can
+ * read every blob, push commits and fill the vault's quota. They cannot decrypt
+ * anything, which is why this warns rather than refuses: somebody with a
+ * WireGuard tunnel is right, and a plugin that argues with them is wrong.
+ *
+ * Deliberately stricter than {@link isLocalHost}, which treats any dotted quad as
+ * local because it is answering a different question — which port to assume. That
+ * is harmless when the answer is a port number and wrong when the answer is
+ * whether a network can be trusted: `8.8.8.8` is neither a typo nor a home
+ * network.
+ */
+export function isInsecureRemote(value: string): boolean {
+	try {
+		const url = new URL(normaliseServerUrl(value));
+		return url.protocol === 'http:' && !isPrivateHost(url.hostname);
+	} catch {
+		// Not an address yet. Whoever is typing gets told that separately.
+		return false;
+	}
+}
+
+/** Loopback, link-local, and the three private IPv4 ranges. Nothing else. */
+function isPrivateHost(host: string): boolean {
+	if (host === 'localhost' || host === '::1' || host.endsWith('.local')) {
+		return true;
+	}
+
+	const quad = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/.exec(host);
+	if (!quad) {
+		return false;
+	}
+
+	const first = Number(quad[1]);
+	const second = Number(quad[2]);
+	return (
+		first === 127 ||
+		first === 10 ||
+		(first === 172 && second >= 16 && second <= 31) ||
+		(first === 192 && second === 168) ||
+		(first === 169 && second === 254)
+	);
+}
+
 /** An address on this network, where nothing is listening on port 80. */
 function isLocalHost(host: string): boolean {
 	return host === 'localhost' || host.endsWith('.local') || /^\d{1,3}(\.\d{1,3}){3}$/.test(host);

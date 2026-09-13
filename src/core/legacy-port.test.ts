@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isEmptyReport, NOT_FOUND, runPort } from './legacy-port';
 import type { LeftAloneReason, Leftover } from './legacy-port';
-import { rewritePrefixes } from './legacy-leftovers';
+import { staleHotkeys } from './legacy-leftovers';
 
 /**
  * The rule this file exists to hold down: nothing is retired that was not
@@ -137,46 +137,46 @@ describe('runPort', () => {
 	});
 });
 
-describe('rewritePrefixes', () => {
-	it('moves a binding to the new prefix', () => {
-		expect(rewritePrefixes({ 'toolbox:open-panel': [1] }, 'toolbox', 'signet')).toEqual({
-			'signet:open-panel': [1],
-		});
+describe('staleHotkeys', () => {
+	it('finds a binding nothing answers to any more', () => {
+		expect(staleHotkeys({ 'toolbox:open-panel': [1] }, 'toolbox', 'signet')).toEqual([
+			'toolbox:open-panel',
+		]);
 	});
 
-	it('leaves every other plugin alone', () => {
+	it('leaves every other plugin out of it', () => {
 		const stored = { 'toolbox:sync-now': [1], 'dataview:refresh': [2], 'editor:save': [3] };
-		expect(rewritePrefixes(stored, 'toolbox', 'signet')).toEqual({
-			'signet:sync-now': [1],
-			'dataview:refresh': [2],
-			'editor:save': [3],
-		});
+		expect(staleHotkeys(stored, 'toolbox', 'signet')).toEqual(['toolbox:sync-now']);
 	});
 
-	it('does not overwrite a binding somebody has already chosen', () => {
-		// The old key is the stale one — nothing has answered to it since the
-		// rename — so it goes, and the one that was chosen since then stays.
+	it('says nothing about one that has already been set again', () => {
+		// Telling somebody to bind a key they have already bound is telling them
+		// something untrue.
 		const stored = { 'toolbox:open-panel': ['old'], 'signet:open-panel': ['new'] };
-		expect(rewritePrefixes(stored, 'toolbox', 'signet')).toEqual({
-			'signet:open-panel': ['new'],
-		});
+		expect(staleHotkeys(stored, 'toolbox', 'signet')).toEqual([]);
 	});
 
-	it('says there is nothing to do rather than rewriting the file for nothing', () => {
-		// This file belongs to Obsidian and holds every hotkey the user has. It is
-		// not written unless there is a reason.
-		expect(rewritePrefixes({ 'dataview:refresh': [1] }, 'toolbox', 'signet')).toBeUndefined();
-		expect(rewritePrefixes({}, 'toolbox', 'signet')).toBeUndefined();
+	it('finds nothing in a file that has none', () => {
+		expect(staleHotkeys({ 'dataview:refresh': [1] }, 'toolbox', 'signet')).toEqual([]);
+		expect(staleHotkeys({}, 'toolbox', 'signet')).toEqual([]);
+	});
+
+	it('does not mistake a longer plugin name for the prefix', () => {
+		expect(staleHotkeys({ 'toolboxer:go': [1] }, 'toolbox', 'signet')).toEqual([]);
 	});
 
 	it('refuses anything that is not an object of bindings', () => {
-		expect(rewritePrefixes(null, 'toolbox', 'signet')).toBeUndefined();
-		expect(rewritePrefixes([], 'toolbox', 'signet')).toBeUndefined();
-		expect(rewritePrefixes('toolbox:open-panel', 'toolbox', 'signet')).toBeUndefined();
+		expect(staleHotkeys(null, 'toolbox', 'signet')).toEqual([]);
+		expect(staleHotkeys([], 'toolbox', 'signet')).toEqual([]);
+		expect(staleHotkeys('toolbox:open-panel', 'toolbox', 'signet')).toEqual([]);
 	});
 
-	it('does not touch a key that merely starts with the same letters', () => {
-		const stored = { 'toolboxer:go': [1] };
-		expect(rewritePrefixes(stored, 'toolbox', 'signet')).toBeUndefined();
+	it('does not lose a key called __proto__ on the way through', () => {
+		// It used to build a new object and copy keys into it, and assigning
+		// `__proto__` sets a prototype rather than a property — so such a key
+		// disappeared when the file was written back. Nothing is built now, and
+		// hotkeys.json is a file nobody can easily rebuild.
+		const stored = JSON.parse('{"__proto__": {"x": 1}, "toolbox:open-panel": [1]}');
+		expect(staleHotkeys(stored, 'toolbox', 'signet')).toEqual(['toolbox:open-panel']);
 	});
 });

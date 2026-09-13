@@ -57,6 +57,14 @@ export type LeftAloneReason =
 	| 'stillRunning'
 	/** The folder still has something in it that nothing here claimed. */
 	| 'notEmpty'
+	/**
+	 * Nothing can carry this; the user has to do it.
+	 *
+	 * For a hotkey bound to the old plugin's commands. The file it lives in
+	 * belongs to Obsidian, which holds it in memory and writes it back over
+	 * anything written from outside, so this is named rather than fixed.
+	 */
+	| 'rebindByHand'
 	/** Moving it to the trash did not work. */
 	| 'failed';
 

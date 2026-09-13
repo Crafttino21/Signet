@@ -160,7 +160,10 @@ export async function fetchLatestVersion(
 		}
 
 		const { version, minAppVersion } = manifest as Record<string, unknown>;
-		if (typeof version !== 'string' || version === '') {
+		// Bounded as well as typed. It is a string out of a file on somebody else's
+		// server, it ends up on screen and in `compareVersions`, which splits it —
+		// and nothing else here would have stopped a megabyte of dots.
+		if (typeof version !== 'string' || version === '' || version.length > 32) {
 			return undefined;
 		}
 		return isRunnableHere(minAppVersion, appVersion) ? version : undefined;

@@ -303,6 +303,8 @@ export const en = {
 	'vaultSync.settings.syncOnStartDesc':
 		'Also runs when the app comes back to the front, which is how a phone picks up what it missed.',
 	'vaultSync.notice.restartNeeded': 'Takes effect after the module is switched off and on again.',
+	'vaultSync.warn.plaintext':
+		'This address is plain http:// to a host outside your own network. Your notes stay encrypted, but the access token does not — anyone who can read the traffic can read and write this vault on the server. Use https:// with a reverse proxy in front, or reach the server over a VPN.',
 
 	'common.advanced': 'Advanced',
 
@@ -451,6 +453,8 @@ export const en = {
 	'port.reason.stillRunning': 'Obsidian still has the old plugin switched on',
 	'port.reason.failed': 'moving it to the trash did not work',
 	'port.reason.notEmpty': 'it still has something in it that Signet did not put there',
+	'port.reason.rebindByHand':
+		'Obsidian keeps this file to itself, so these have to be set again by hand',
 };
 
 export type TranslationKey = keyof typeof en;

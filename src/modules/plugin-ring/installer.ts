@@ -91,6 +91,10 @@ export async function installPlugin(
 	const fetchJson = deps.fetchJson ?? requestJson;
 	const manifest = await fetchReleaseManifest(listed.repo, request.version, fetchJson);
 	if (!manifest) {
+		// The catalogue named this repository and the repository disagrees, so the
+		// cached list may be the thing that is wrong. Dropped, so the next attempt
+		// asks Obsidian again rather than repeating this for the cache's lifetime.
+		deps.catalog.forget();
 		return {
 			ok: false,
 			refusal: 'noRelease',
@@ -109,8 +113,22 @@ export async function installPlugin(
 		};
 	}
 
-	await deps.api.install(listed.repo, manifest.version, manifest);
+	// A release whose manifest declares a different version than the tag it was
+	// found under is malformed, and the two were being used for different things:
+	// the tag decided what was downloaded, the manifest decided what the installed
+	// copy would claim to be. Refused rather than reconciled — picking either one
+	// leaves the other wrong.
+	if (manifest.version !== request.version) {
+		deps.catalog.forget();
+		return {
+			ok: false,
+			refusal: 'noRelease',
+			detail: `${listed.repo} release ${request.version} declares version "${manifest.version}"`,
+		};
+	}
+
+	await deps.api.install(listed.repo, request.version, manifest);
 	await deps.api.reloadManifests();
 
-	return { ok: true, repo: listed.repo, version: manifest.version };
+	return { ok: true, repo: listed.repo, version: request.version };
 }

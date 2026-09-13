@@ -135,14 +135,22 @@ function panelLeafLeftovers(app: App): Leftover[] {
 /**
  * Hotkeys still bound to the old plugin's commands.
  *
- * Obsidian keys them `<plugin id>:<command>` in a file outside any plugin's
- * folder, which is why the README has had to say these do not migrate. They can:
- * the command ids never changed, only the prefix.
+ * Reported, not rebound. The command ids never changed — only the prefix — so
+ * rewriting `.obsidian/hotkeys.json` looks like a two-line job, and for a moment
+ * it was one.
  *
- * A binding that already exists under the new name is left exactly as it is. The
- * old one is stale by definition — nothing has answered to `toolbox:` since the
- * rename — and quietly replacing a key somebody has chosen since then would be
- * taking something away rather than carrying something over.
+ * It does not work. Obsidian reads that file at startup and writes it back out of
+ * memory the next time anybody changes a hotkey, so a rewrite from here survives
+ * until the user opens the hotkeys pane and then silently undoes itself — with the
+ * old `toolbox:` bindings back and the new ones gone. There is no public API for
+ * it either: `obsidian.d.ts` has the `Hotkey` type and no manager, so doing this
+ * properly would mean another bet on an internal, in a file that is not allowed to
+ * make one, for a convenience worth much less than the bet.
+ *
+ * A migration that appears to have worked and has not is worse than none. So this
+ * finds the bindings that are dead and says so, and the panel tells the user to
+ * set them again — which is what the README asked for before, except that now
+ * there is a list.
  */
 function hotkeyLeftover(app: App): Leftover {
 	const path = normalizePath(`${app.vault.configDir}/hotkeys.json`);
@@ -152,25 +160,11 @@ function hotkeyLeftover(app: App): Leftover {
 		at: path,
 		carry: async () => {
 			const stored = await readJson(app, path);
-			if (stored === undefined) {
-				return NOT_FOUND;
-			}
-
-			const moved = rewritePrefixes(stored, LEGACY_ID, 'signet');
-			if (moved === undefined) {
-				return NOT_FOUND;
-			}
-
-			// Written as a whole object through `JSON.stringify`, never patched as
-			// text: this file belongs to Obsidian, and half-rewriting it would cost
-			// somebody every hotkey they have.
-			await app.vault.adapter.write(path, JSON.stringify(moved, null, 2));
-
-			const readBack = await readJson(app, path);
-			return readBack !== undefined && !hasPrefix(readBack, LEGACY_ID) ? undefined : 'failed';
+			return staleHotkeys(stored, LEGACY_ID, 'signet').length > 0
+				? 'rebindByHand'
+				: NOT_FOUND;
 		},
-		// The write above already removed the old keys. There is no old file left
-		// to move anywhere.
+		// Never reached: nothing here is carried, so nothing here is retired.
 		retire: () => Promise.resolve(),
 	};
 }
@@ -199,48 +193,30 @@ function vaultFolderLeftover(app: App): Leftover {
 }
 
 /**
- * Rewrites every `<from>:` key to `<to>:`, or nothing when there is nothing to do.
+ * The old plugin's hotkey bindings that nothing answers to any more.
  *
- * Pure, and exported for its own tests: this rewrites a file the user cannot
- * easily rebuild, so the rule about what it leaves alone is worth being able to
- * check without a vault.
+ * Returns the command names, not the whole file: this used to build a rewritten
+ * object and write it back, and it does not do that any more — see
+ * {@link hotkeyLeftover}. Reporting needs the names and nothing else, and not
+ * building an object is also how a key called `__proto__` stopped being able to
+ * vanish on the way through. Pure, and exported for its own tests, because this
+ * reads a file the user cannot easily rebuild.
+ *
+ * A binding that already exists under the new name is left out. The old one is
+ * stale by definition, and telling somebody to set a hotkey they have already set
+ * is telling them something untrue.
  */
-export function rewritePrefixes(
-	stored: unknown,
-	from: string,
-	to: string
-): Record<string, unknown> | undefined {
+export function staleHotkeys(stored: unknown, from: string, to: string): string[] {
 	if (typeof stored !== 'object' || stored === null || Array.isArray(stored)) {
-		return undefined;
+		return [];
 	}
 
 	const source = stored as Record<string, unknown>;
-	const result: Record<string, unknown> = {};
-	let moved = 0;
+	const prefix = `${from}:`;
 
-	for (const [key, value] of Object.entries(source)) {
-		if (!key.startsWith(`${from}:`)) {
-			result[key] = value;
-			continue;
-		}
-
-		moved += 1;
-		const renamed = `${to}:${key.slice(from.length + 1)}`;
-		// Already bound under the new name. The old key is dropped rather than
-		// carried: it is the stale one, and the new one is what somebody chose.
-		if (!(renamed in source)) {
-			result[renamed] = value;
-		}
-	}
-
-	return moved === 0 ? undefined : result;
-}
-
-function hasPrefix(stored: unknown, prefix: string): boolean {
-	if (typeof stored !== 'object' || stored === null) {
-		return false;
-	}
-	return Object.keys(stored).some((key) => key.startsWith(`${prefix}:`));
+	return Object.keys(source)
+		.filter((key) => key.startsWith(prefix))
+		.filter((key) => !(`${to}:${key.slice(prefix.length)}` in source));
 }
 
 /** Reads and parses a file under the config folder. Undefined for anything unusable. */

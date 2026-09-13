@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
 	completeServerUrl,
+	isInsecureRemote,
 	isUsableServerUrl,
 	normaliseServerUrl,
 	shouldAdopt,
@@ -122,5 +123,49 @@ describe('withDefaultPort', () => {
 		expect(withDefaultPort('10.0.0.1:80')).toBeUndefined();
 		expect(withDefaultPort('ftp://10.0.0.1')).toBeUndefined();
 		expect(withDefaultPort('')).toBeUndefined();
+	});
+});
+
+describe('isInsecureRemote', () => {
+	it('warns about plain http to a host outside your network', () => {
+		// The notes are sealed before they leave; the token is not.
+		expect(isInsecureRemote('http://sync.example.com')).toBe(true);
+		expect(isInsecureRemote('http://sync.example.com:8787')).toBe(true);
+		expect(isInsecureRemote('http://8.8.8.8:8787')).toBe(true);
+	});
+
+	it('says nothing about https, wherever it points', () => {
+		expect(isInsecureRemote('https://sync.example.com')).toBe(false);
+		expect(isInsecureRemote('https://192.168.1.10:8787')).toBe(false);
+	});
+
+	it('says nothing about your own network', () => {
+		for (const url of [
+			'http://localhost:8787',
+			'http://127.0.0.1:8787',
+			'http://10.0.0.5:8787',
+			'http://172.16.4.1:8787',
+			'http://172.31.255.1:8787',
+			'http://192.168.1.10:8787',
+			'http://nas.local:8787',
+		]) {
+			expect(isInsecureRemote(url)).toBe(false);
+		}
+	});
+
+	it('is stricter than the port-guessing check it sits beside', () => {
+		// `completeServerUrl` treats any dotted quad as local because it is deciding
+		// which port to assume, and being wrong there costs nothing. Being wrong
+		// about whether a network can be trusted costs the token.
+		expect(completeServerUrl('http://8.8.8.8')).toBe('http://8.8.8.8:8787');
+		expect(isInsecureRemote('http://8.8.8.8')).toBe(true);
+	});
+
+	it('says nothing about something that is not an address yet', () => {
+		// Half-typed input is told about separately, and a warning that flickers
+		// while somebody types is a warning they learn to ignore.
+		expect(isInsecureRemote('')).toBe(false);
+		expect(isInsecureRemote('sync.example.com')).toBe(false);
+		expect(isInsecureRemote('http://')).toBe(false);
 	});
 });

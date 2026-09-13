@@ -303,6 +303,8 @@ export const de: Translations = {
 		'Läuft auch, wenn die App wieder in den Vordergrund kommt — so holt sich ein Handy, was es verpasst hat.',
 	'vaultSync.notice.restartNeeded':
 		'Wirkt, nachdem das Modul aus- und wieder eingeschaltet wurde.',
+	'vaultSync.warn.plaintext':
+		'Diese Adresse ist einfaches http:// zu einem Host außerhalb deines eigenen Netzes. Deine Notizen bleiben verschlüsselt, das Zugriffstoken nicht — wer den Verkehr mitlesen kann, kann diesen Vault auf dem Server lesen und beschreiben. Nimm https:// mit einem Reverse-Proxy davor, oder erreiche den Server über ein VPN.',
 
 	'common.advanced': 'Erweitert',
 
@@ -454,4 +456,6 @@ export const de: Translations = {
 	'port.reason.stillRunning': 'Obsidian hat das alte Plugin noch eingeschaltet',
 	'port.reason.failed': 'das Verschieben in den Papierkorb hat nicht geklappt',
 	'port.reason.notEmpty': 'es liegt noch etwas darin, das nicht von Signet stammt',
+	'port.reason.rebindByHand':
+		'Obsidian verwaltet diese Datei selbst, sie müssen also von Hand neu gesetzt werden',
 };

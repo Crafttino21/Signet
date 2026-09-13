@@ -20,6 +20,7 @@ import { SyncIndicator } from './indicator';
 import type { SyncState } from './indicator';
 import {
 	completeServerUrl,
+	isInsecureRemote,
 	isUsableServerUrl,
 	normaliseServerUrl,
 	SERVER_PLACEHOLDER,
@@ -380,6 +381,26 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	}
 
 	/**
+	 * Says when the address will send the token across the open internet.
+	 *
+	 * A warning, never a refusal. The notes are sealed before they leave, so plain
+	 * HTTP does not expose what is in them — it exposes the token, and on the way
+	 * to creating a vault the registration secret. Somebody running this down a
+	 * WireGuard tunnel is right to, and a plugin that argues with them is wrong; a
+	 * home network is right too, which is why the check asks whether the host is
+	 * actually private rather than whether it merely looks like an IP address.
+	 */
+	private warnAboutPlaintext(containerEl: HTMLElement): void {
+		if (!isInsecureRemote(this.settings.serverUrl)) {
+			return;
+		}
+		containerEl.createEl('p', {
+			cls: 'signet-ring__warning',
+			text: t('vaultSync.warn.plaintext'),
+		});
+	}
+
+	/**
 	 * The one device that has to be told where the server is, once.
 	 *
 	 * Someone has to say where it lives and prove they may create a vault on it.
@@ -388,6 +409,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	 */
 	private renderConnect(containerEl: HTMLElement): void {
 		new Setting(containerEl).setName(t('vaultSync.settings.connect')).setHeading();
+		this.warnAboutPlaintext(containerEl);
 
 		new Setting(containerEl)
 			.setName(t('vaultSync.settings.server'))

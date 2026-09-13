@@ -428,8 +428,6 @@ behind and finishes the move:
 - `Toolbox/plugin-ring.json` and `Toolbox/devices/`, and then `Toolbox/` itself
 - a panel still open under the old view name, which becomes an ordinary Signet
   panel in place
-- hotkeys bound to `toolbox:…` in `.obsidian/hotkeys.json`, rebound to
-  `signet:…`; the command ids never changed, only the prefix
 - a ring path still stored as the old default
 
 Two rules make that safe enough to do without asking.
@@ -455,9 +453,61 @@ move from Toolbox** in the command palette runs the same thing by hand.
 Nothing recreates any of it, so on a vault that has been through this the check
 costs two existence lookups per start and then stops.
 
-One thing still does not migrate: **the server's container name**. See
-`packages/server/README.md` — the volume and the environment variables are
-unchanged, the container is not.
+Two things still do not migrate.
+
+**Custom hotkeys.** Anything bound to `toolbox:…` lives in
+`.obsidian/hotkeys.json`, which belongs to Obsidian: it reads that file at
+startup and writes it back out of memory the next time you change a hotkey. A
+rewrite from a plugin therefore survives until you open the hotkeys pane and then
+silently undoes itself, which is worse than not trying — so Signet lists the dead
+bindings in the panel instead and leaves the setting to you. The command ids never
+changed, only the prefix, so `toolbox:open-panel` is now `signet:open-panel`.
+
+**The server's container name.** See `packages/server/README.md` — the volume and
+the environment variables are unchanged, the container is not.
+
+### What the server sees
+
+The notes are encrypted before they leave the device and the server has no key,
+so it cannot read a single one. That is worth being precise about rather than
+leaving as a slogan, because there are things it does learn.
+
+- **How many files there are and roughly how big each one is.** Unavoidable for
+  something that stores them. Signet compresses before it encrypts, so the stored
+  size also says something about how compressible a file was.
+- **Which files are byte-identical.** A blob is filed under a keyed hash of its
+  own contents, so two identical files land under one id. The key is yours, so
+  this never reveals anything _across_ vaults — but inside yours, the server can
+  see that two files match, and can see an old id reappear when a file goes back
+  to a version it had before.
+- **When you edit which note, to the keystroke.** A collaboration room is named
+  by a keyed hash of the note's path, and that name is stable forever. The server
+  cannot tell which note it is, but it gets a permanent per-note label and sees
+  every update frame arrive: which note is being edited, for how long, from how
+  many devices at once. This is the biggest of the three and the least obvious.
+
+None of it is sent anywhere. It is what a machine holding your bytes cannot help
+knowing, and the reason the server is meant to be yours.
+
+### What a ring code cannot do
+
+The ring code is the key to everything derived from it — the vault id, the access
+token, the key the notes are encrypted with. That has a consequence worth stating
+plainly:
+
+**There is no revocation.** Removing a device from the ring is cooperative: it
+tells that device it is no longer wanted, and a device that keeps the code can
+still read the ring. Nothing is re-encrypted and nothing on the server is
+rewritten, so a code that leaks exposes the whole history, not just what happens
+next.
+
+**The only real answer is a new ring.** Create one, and every key changes; then
+every device you still want has to join it with the new code. Do that if a device
+is lost rather than merely retired.
+
+This is a deliberate trade. Key rotation across devices that are not all online
+at once, over a sync somebody's phone joins once a week, is how sync tools lose
+data — and quietly losing notes is a worse failure than this one.
 
 ## Staying up to date
 

@@ -118,7 +118,7 @@ function ringFileLeftover(options: RingLegacyOptions): Leftover {
 
 			return undefined;
 		},
-		retire: () => trashVaultPath(app, LEGACY_RING_FILE),
+		retire: () => trashPath(app, LEGACY_RING_FILE),
 	};
 }
 
@@ -161,7 +161,7 @@ function rosterLeftover(options: RingLegacyOptions, oldFolder: string): Leftover
 
 			return undefined;
 		},
-		retire: () => trashVaultPath(app, oldFolder),
+		retire: () => trashPath(app, oldFolder),
 	};
 }
 
@@ -191,23 +191,6 @@ function storedPathLeftover(options: RingLegacyOptions): Leftover {
 		carry: () => Promise.resolve(undefined),
 		retire: () => options.clearStoredPath(),
 	};
-}
-
-/**
- * Sends a visible vault path to the trash.
- *
- * Through the vault where it can, because that is the documented way and it is
- * what puts a file where the user expects to find it again; `trashPath` covers
- * the folder that the index does not know about.
- */
-async function trashVaultPath(app: App, path: string): Promise<void> {
-	const normalised = normalizePath(path);
-	const file = app.vault.getFileByPath(normalised) ?? app.vault.getFolderByPath(normalised);
-	if (file) {
-		await app.fileManager.trashFile(file);
-		return;
-	}
-	await trashPath(app, normalised);
 }
 
 /**

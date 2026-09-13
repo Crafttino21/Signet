@@ -141,16 +141,30 @@ export async function runPort(leftovers: readonly Leftover[]): Promise<PortRepor
 }
 
 /**
- * Moves something to a trash, preferring the system one.
+ * Moves something out of the way, whatever kind of thing it is.
  *
- * `trashSystem` is what Obsidian's own delete does when the vault is set up for
- * it, and it returns false rather than throwing when the platform has no system
- * trash — a phone, a flatpak — in which case the vault's own `.trash` is the
- * answer. Reached through the adapter because the config folder is hidden, and
- * hidden folders are not in the vault index at all.
+ * Two paths, because the leftovers are of two kinds. A visible vault file or
+ * folder goes through `FileManager`, which is the documented way and the one that
+ * respects the user's own "deleted files" setting — and which the index has to
+ * know about, or Obsidian goes on showing something that is not there.
+ *
+ * The config folder is hidden, and hidden paths are not in the index at all, so
+ * those go through the adapter. `trashSystem` is what Obsidian's own delete does
+ * where the platform has a system trash and returns false rather than throwing
+ * where it does not — a phone, a flatpak — leaving the vault's own `.trash`.
+ *
+ * Never a hard delete, either way. That is what makes running this without
+ * asking defensible.
  */
 export async function trashPath(app: App, path: string): Promise<void> {
 	const normalised = normalizePath(path);
+
+	const known = app.vault.getFileByPath(normalised) ?? app.vault.getFolderByPath(normalised);
+	if (known) {
+		await app.fileManager.trashFile(known);
+		return;
+	}
+
 	if (await app.vault.adapter.trashSystem(normalised)) {
 		return;
 	}

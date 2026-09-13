@@ -435,6 +435,13 @@ export const de: Translations = {
 		'Signet sagt Bescheid, wenn es eine neuere Version gibt, und zeigt beim ersten Start, was sich geändert hat.',
 	'changelog.0-4-0.port':
 		'Was das alte Toolbox-Plugin in diesem Vault hinterlassen hat, wird beim Start übernommen und aufgeräumt. Gelöscht wird nichts — es wandert in den Papierkorb, und erst, wenn es nachweislich anderswo liegt.',
+	'changelog.0-4-0.integrity':
+		'Dateien führen ihr Komprimierungs-Flag jetzt innerhalb der Verschlüsselung statt daneben, und was der Server zurückgibt, wird gegen den im Manifest angekündigten Hash geprüft. Ohne beides hätte ein Server eine Notiz durch eine andere ersetzen oder verstümmeln können, ohne dass es auffällt. Von älteren Versionen gespeicherte Dateien werden weiterhin gelesen.',
+	'changelog.0-4-0.paths':
+		'Eine Datei, die von einem anderen Gerät kommt, kann nicht mehr außerhalb deines Vaults oder in den Plugin-Ordner von Obsidian geschrieben werden. Was es versucht, wird gemeldet und übersprungen.',
+	'changelog.0-4-0.server':
+		'Wenn du den Sync-Server selbst betreibst: er lauscht jetzt nur auf localhost, sofern du nichts anderes sagst, begrenzt den Platz pro Vault und verlangt ein Registrierungsgeheimnis von mindestens 32 Zeichen — ein bestehender Server mit einem kürzeren sagt das und startet nicht. Siehe die Server-Readme.',
+
 	'port.command': 'Umzug von Toolbox abschließen',
 	'port.notice.tidied':
 		'Signet hat {count} Überbleibsel von Toolbox aufgeräumt. Sie liegen im Papierkorb.',

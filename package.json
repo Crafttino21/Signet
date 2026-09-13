@@ -20,10 +20,10 @@
 		"test:watch": "vitest",
 		"check": "npm run typecheck && npm run lint && npm run test",
 		"version-bump": "node version-bump.mjs",
-		"server:up": "docker compose -f packages/server/docker-compose.yml up -d --build --remove-orphans",
-		"server:down": "docker compose -f packages/server/docker-compose.yml down",
-		"server:logs": "docker compose -f packages/server/docker-compose.yml logs -f --tail 100",
-		"server:status": "docker compose -f packages/server/docker-compose.yml ps"
+		"server:up": "cd packages/server && docker compose up -d --build --remove-orphans",
+		"server:down": "cd packages/server && docker compose down",
+		"server:logs": "cd packages/server && docker compose logs -f --tail 100",
+		"server:status": "cd packages/server && docker compose ps"
 	},
 	"keywords": [
 		"obsidian",

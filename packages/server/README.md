@@ -92,6 +92,12 @@ services:
 The `!override` tag matters: without it Compose _adds_ to the port list rather
 than replacing it, and the container fails to start because it tries to bind both.
 
+Compose only looks for an override file when it is not given `-f`, so every one
+of these commands runs from `packages/server` rather than pointing at the compose
+file from the repository root. The `npm run server:*` scripts used to point at it
+and therefore ignored the override in silence — the server came up on loopback
+only, and the devices that were supposed to reach it could not.
+
 Do this only for testing on a network you trust. Your notes stay encrypted, but
 the bearer token does not, and anyone who can read it can read and write the
 vault.

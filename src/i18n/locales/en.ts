@@ -432,6 +432,13 @@ export const en = {
 		'Signet says when there is a newer version, and shows what changed the first time you start it.',
 	'changelog.0-4-0.port':
 		'Whatever the old Toolbox plugin left in this vault is carried over and tidied away at startup. Nothing is deleted — it goes to the trash, and only once it is provably somewhere else.',
+	'changelog.0-4-0.integrity':
+		'Files now carry their compression flag inside the encryption rather than beside it, and what comes back from the server is checked against the hash the manifest announced. Without either, a server could have returned one note in place of another, or garbled one, without anything noticing. Files stored by an earlier version are still read.',
+	'changelog.0-4-0.paths':
+		'A file arriving from another device can no longer be written outside your vault or into the folder Obsidian keeps its plugins in. Anything that tries is reported and skipped instead.',
+	'changelog.0-4-0.server':
+		'If you run the sync server: it now listens on localhost unless you say otherwise, limits how much one vault may store, and wants a registration secret of at least 32 characters — an existing server with a shorter one will say so and stop rather than start. See the server readme.',
+
 	'port.command': 'Finish the move from Toolbox',
 	'port.notice.tidied':
 		'Signet tidied away {count} leftover(s) from Toolbox. They are in the trash.',

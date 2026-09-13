@@ -26,7 +26,14 @@ export interface ReleaseNote {
 export const CHANGELOG: readonly ReleaseNote[] = [
 	{
 		version: '0.4.0',
-		entries: ['changelog.0-4-0.smoothOpen', 'changelog.0-4-0.updates', 'changelog.0-4-0.port'],
+		entries: [
+			'changelog.0-4-0.smoothOpen',
+			'changelog.0-4-0.updates',
+			'changelog.0-4-0.port',
+			'changelog.0-4-0.integrity',
+			'changelog.0-4-0.paths',
+			'changelog.0-4-0.server',
+		],
 	},
 ];
 

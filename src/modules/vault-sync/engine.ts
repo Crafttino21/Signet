@@ -5,6 +5,7 @@ import {
 	deriveBlobId,
 	deriveContentKey,
 	deriveNameKey,
+	hashContent,
 	isVaultManifest,
 	openBlob,
 	openSnapshot,
@@ -134,12 +135,31 @@ async function writeFile(app: App, path: string, bytes: Bytes): Promise<void> {
 	await app.vault.createBinary(normalised, buffer);
 }
 
+/**
+ * Fetches one file's contents and checks that they are the ones announced.
+ *
+ * The hash comparison is the point. AES-GCM proves the bytes were sealed by
+ * somebody holding the content key — it says nothing about *which* file they
+ * were sealed as, and the server chooses which blob it hands back for a given
+ * id. Without this, a server could answer the request for one note with another
+ * note's blob, or with an older version of the same one, and the tag would
+ * verify either way.
+ *
+ * The manifest already carries the hash, so the check costs a digest and closes
+ * the gap between "these bytes are genuine" and "these bytes are this file".
+ */
 async function download(deps: SyncDeps, contentKey: CryptoKey, entry: FileEntry): Promise<Bytes> {
 	const sealed = await deps.client.getBlob(entry.blob);
 	if (!sealed) {
 		throw new Error('The server is missing the contents of this file.');
 	}
-	return openBlob(contentKey, sealed);
+
+	const plaintext = await openBlob(contentKey, sealed);
+	const actual = await hashContent(plaintext);
+	if (actual !== entry.hash) {
+		throw new Error('The contents the server returned are not the ones this file announced.');
+	}
+	return plaintext;
 }
 
 /**
@@ -299,6 +319,22 @@ export interface SyncResult {
  */
 export async function runSync(deps: SyncDeps, attempt = 0): Promise<SyncResult> {
 	const head = await deps.client.head();
+
+	// A head behind what this device has already applied is the server going
+	// backwards, which it has no legitimate reason to do: commits are append-only
+	// and a sequence only ever grows. Working from it would reconcile against a
+	// manifest that predates this device's own state — every file missing from it
+	// re-uploaded, every one that differs kept as a conflicted copy. Restoring a
+	// server from an old backup looks exactly like this, and the right answer
+	// there is also to stop and say so rather than to churn.
+	if (head.seq < deps.state.baseSeq) {
+		throw new Error(
+			`The server is at commit ${String(head.seq)}, behind the ${String(
+				deps.state.baseSeq
+			)} this device has already synced.`
+		);
+	}
+
 	const remote = await fetchRemote(deps, head.seq);
 
 	const before = await buildLocalIndex(deps.app, {

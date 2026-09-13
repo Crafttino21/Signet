@@ -336,3 +336,79 @@ describe('a device in the ring that sends something it should not', () => {
 		expect(victim.vault.text('.obsidian/plugins/evil/main.js')).toBeUndefined();
 	});
 });
+
+describe('a server that answers with the wrong bytes', () => {
+	/**
+	 * The server is not trusted, and AES-GCM alone does not make it trustworthy.
+	 * A tag proves the bytes were sealed by somebody with the content key; it says
+	 * nothing about *which* file they were sealed as, and the server picks which
+	 * blob it returns for a given id. So it can answer the request for one note
+	 * with another note's blob, or with an older version of the same one, and
+	 * every cryptographic check still passes.
+	 *
+	 * The manifest already carries the hash. It simply was not compared.
+	 */
+	it('is not believed when the contents do not match the manifest', async () => {
+		const client = new SyncClient(base, vaultId, token);
+		const contentKey = await deriveContentKey(secret);
+		const nameKey = await deriveNameKey(secret);
+
+		const announced = new TextEncoder().encode('what the manifest says\n');
+		const substituted = new TextEncoder().encode('what the server returns\n');
+
+		// The id is derived from the announced content, as an honest client would —
+		// then a different note's ciphertext is stored under it.
+		const hash = await hashContent(announced);
+		const blob = await deriveBlobId(nameKey, hash);
+		await client.putBlob(blob, await sealBlob(contentKey, substituted));
+
+		const head = await client.head();
+		await client.push(
+			head.seq,
+			await sealSnapshot(secret, {
+				version: 1,
+				seq: head.seq + 1,
+				device: { id: 'swapper', name: 'Swapper' },
+				updatedAt: new Date().toISOString(),
+				files: [{ path: 'Swapped.md', hash, blob, size: announced.byteLength, mtime: 1 }],
+				deleted: [],
+			})
+		);
+
+		const victim = new Device('victim-swap');
+		const report = await victim.sync();
+
+		expect(report.failed.map((failure) => failure.path)).toContain('Swapped.md');
+		expect(victim.vault.text('Swapped.md')).toBeUndefined();
+	});
+});
+
+describe('a server that goes backwards', () => {
+	it('is refused rather than reconciled against', async () => {
+		// Commits are append-only and a sequence only grows, so a head behind what
+		// this device has applied is the server having lost history — a restore
+		// from an old backup looks exactly like this. Reconciling against it would
+		// re-upload everything missing and keep a conflicted copy of everything
+		// that differs.
+		const device = new Device('time-traveller');
+		await device.sync();
+
+		// Only `head` is reached, because that is where the refusal happens — so a
+		// stub that answers it and nothing else is the honest shape of this test.
+		const rolled = {
+			head: () => Promise.resolve({ seq: 0, updatedAt: null }),
+		} as unknown as SyncClient;
+
+		const store = new SyncStateStore(device.vault.app as App, '.obsidian/plugins/signet');
+		await expect(
+			runSync({
+				app: device.vault.app as App,
+				client: rolled,
+				secret,
+				device: { id: 'time-traveller', name: 'time-traveller' },
+				excluded: [],
+				state: await store.load('time-traveller'),
+			})
+		).rejects.toThrow(/behind/);
+	});
+});

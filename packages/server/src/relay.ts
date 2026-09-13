@@ -3,7 +3,7 @@ import type { WebSocket } from 'ws';
 import type { IncomingMessage, Server } from 'node:http';
 import { COMPACT_THRESHOLD } from './rooms';
 import type { RoomStore } from './rooms';
-import { isSafeId, isRoomFrame } from '@signet/protocol';
+import { isSafeId, isRoomFrame, ROOM_SUBPROTOCOL } from '@signet/protocol';
 import type { RoomFrame } from '@signet/protocol';
 import { secretsMatch, sha256Hex } from './storage';
 import type { VaultStore } from './storage';
@@ -20,7 +20,28 @@ import type { VaultStore } from './storage';
  * The token travels as a WebSocket subprotocol rather than in the query string,
  * because query strings end up in proxy logs and browser history and a bearer
  * token has no business in either.
+ *
+ * That was only half the job. `ws` picks the first subprotocol a client offers
+ * and writes it back in the 101 response unless told otherwise — so the token was
+ * in a *response* header too, which the other half of a proxy's log configuration
+ * captures. A client cannot simply stop offering it, and a server cannot simply
+ * agree to nothing: a client whose offer is declined closes the connection.
+ *
+ * So there is a second name with nothing secret in it, `ROOM_SUBPROTOCOL`. The
+ * client offers the token first and that after it, and this agrees to that one
+ * whenever it is there. A client from before it existed offers only the token and
+ * still gets the old answer, which is why the order is what it is.
  */
+
+/**
+ * The largest frame a room will carry.
+ *
+ * Generous for what it holds — a sealed Yjs update, or a whole compacted document
+ * — and nothing like the 100 MiB `ws` allows by default. One socket sending one
+ * default-sized frame is 100 MiB parsed into memory and appended to a log that
+ * has no cap of its own.
+ */
+const MAX_FRAME_BYTES = 12 * 1024 * 1024;
 
 const ROOM_PATH = /^\/v1\/vaults\/([0-9a-f]{16,128})\/rooms\/([0-9a-f]{16,128})$/;
 
@@ -31,7 +52,19 @@ interface Member {
 }
 
 export class CollabRelay {
-	private readonly wss = new WebSocketServer({ noServer: true });
+	private readonly wss = new WebSocketServer({
+		noServer: true,
+		// Agree to the name that is not a secret, so the 101 response does not
+		// repeat the token back. A client that offers only the token is from before
+		// that name existed; it still gets the old answer rather than a broken
+		// handshake, because a client whose offered subprotocol is declined closes
+		// the connection.
+		handleProtocols: (protocols) =>
+			protocols.has(ROOM_SUBPROTOCOL)
+				? ROOM_SUBPROTOCOL
+				: (protocols.values().next().value ?? false),
+		maxPayload: MAX_FRAME_BYTES,
+	});
 	/** Sockets by `vaultId/roomId`, so a message reaches exactly one room. */
 	private readonly rooms = new Map<string, Set<Member>>();
 
@@ -52,8 +85,15 @@ export class CollabRelay {
 		const match = ROOM_PATH.exec(url.pathname);
 
 		const reject = (status: string): void => {
-			const raw = socket as unknown as { end: (data: string) => void };
+			// Ended and then destroyed: a client that ignores the response would
+			// otherwise leave the connection half-open for as long as TCP allows,
+			// and an upgrade nobody authenticated is the cheapest thing to send.
+			const raw = socket as unknown as {
+				end: (data: string) => void;
+				destroy: () => void;
+			};
 			raw.end(`HTTP/1.1 ${status}\r\n\r\n`);
+			raw.destroy();
 		};
 
 		if (!match) {
@@ -74,7 +114,9 @@ export class CollabRelay {
 			.split(',')
 			.map((value) => value.trim())
 			.filter((value) => value.length > 0);
-		const token = offered[0];
+		// The token is whichever offer is not the protocol name. Reading offer zero
+		// worked only because the token happens to come first.
+		const token = offered.find((value) => value !== ROOM_SUBPROTOCOL);
 		const auth = await this.vaults.readAuth(vaultId);
 
 		if (!token || !auth || !secretsMatch(sha256Hex(token), auth.tokenHash)) {
@@ -136,7 +178,17 @@ export class CollabRelay {
 		}
 
 		if (frame.type === 'update') {
-			await this.store.append(member.vaultId, member.roomId, frame.payload);
+			const stored = await this.store.append(member.vaultId, member.roomId, frame.payload);
+			if (stored === 'full') {
+				// Not relayed either. Letting it through would put the edit on every
+				// other device while this room's history no longer records it, and a
+				// history that disagrees with the devices is worse than a refusal.
+				this.send(member.socket, {
+					type: 'error',
+					message: 'This note has too much history. Close and reopen it to compact.',
+				});
+				return;
+			}
 			this.broadcast(member, frame);
 			return;
 		}

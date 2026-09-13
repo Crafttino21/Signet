@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 /**
@@ -42,16 +42,27 @@ export function sha256Hex(value: string): string {
 	return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
-/** Constant-time comparison, so a wrong token cannot be guessed byte by byte. */
+/**
+ * Constant-time comparison, so a wrong secret cannot be guessed byte by byte.
+ *
+ * Both sides are digested first, which is what makes the comparison genuinely
+ * length-blind. The previous version returned early when the lengths differed
+ * and compared a buffer against itself to burn the same time — but a short
+ * buffer takes less time than a long one, so the early return still leaked how
+ * long the configured secret is. On the token path both sides are always 64 hex
+ * characters and it never mattered; on the registration path one side is
+ * whatever the caller sent.
+ *
+ * Digesting is safe here because both inputs are already high-entropy: a token
+ * derived from a 120-bit secret, or a registration secret this server refuses to
+ * start without 32 characters of. It is not a password hash and must never be
+ * used as one.
+ */
 export function secretsMatch(a: string, b: string): boolean {
-	const left = Buffer.from(a, 'utf8');
-	const right = Buffer.from(b, 'utf8');
-	if (left.length !== right.length) {
-		// Compare against itself anyway so the timing does not reveal the length.
-		timingSafeEqual(left, left);
-		return false;
-	}
-	return timingSafeEqual(left, right);
+	return timingSafeEqual(
+		createHash('sha256').update(a, 'utf8').digest(),
+		createHash('sha256').update(b, 'utf8').digest()
+	);
 }
 
 export class VaultStore {
@@ -217,9 +228,17 @@ export class VaultStore {
 		});
 	}
 
+	/**
+	 * Whether the store already holds this blob.
+	 *
+	 * Asks for the size rather than the contents. Reading the whole file to answer
+	 * a yes-or-no question meant re-uploading an existing 100 MB blob read 100 MB
+	 * off disk to decide to do nothing, which is a free amplifier for anybody who
+	 * wants one.
+	 */
 	async hasBlob(vaultId: string, blobId: string): Promise<boolean> {
 		try {
-			await readFile(this.blobPath(vaultId, blobId));
+			await stat(this.blobPath(vaultId, blobId));
 			return true;
 		} catch {
 			return false;
@@ -238,13 +257,64 @@ export class VaultStore {
 	 * Stores a blob. Content-addressed, so writing one that already exists is a
 	 * no-op rather than an overwrite — there is no way for a client to replace the
 	 * bytes another version still refers to.
+	 *
+	 * Refuses once the vault is at its ceiling. Nothing here is ever deleted, which
+	 * is what makes the store safe and also means a ceiling is the only thing that
+	 * bounds it: every blob id is derived from its own contents, so a client
+	 * uploading junk has a fresh id every time and the de-duplication above never
+	 * fires. One member in a loop is the whole disk.
 	 */
-	async writeBlob(vaultId: string, blobId: string, bytes: Buffer): Promise<void> {
-		const path = this.blobPath(vaultId, blobId);
+	async writeBlob(
+		vaultId: string,
+		blobId: string,
+		bytes: Buffer,
+		maxVaultBytes = 0
+	): Promise<'stored' | 'exists' | 'full'> {
 		if (await this.hasBlob(vaultId, blobId)) {
-			return;
+			return 'exists';
 		}
-		await this.writeAtomic(path, bytes);
+
+		if (maxVaultBytes > 0 && (await this.usage(vaultId)) + bytes.byteLength > maxVaultBytes) {
+			return 'full';
+		}
+
+		await this.writeAtomic(this.blobPath(vaultId, blobId), bytes);
+		return 'stored';
+	}
+
+	/**
+	 * How many bytes a vault occupies.
+	 *
+	 * Walked rather than tracked in a counter. A counter is a second source of
+	 * truth that a crash mid-write leaves wrong, and this runs once per upload of
+	 * something the client has already spent longer encrypting.
+	 */
+	async usage(vaultId: string): Promise<number> {
+		let total = 0;
+
+		const walk = async (dir: string): Promise<void> => {
+			let entries;
+			try {
+				entries = await readdir(dir, { withFileTypes: true });
+			} catch {
+				return;
+			}
+			for (const entry of entries) {
+				const path = join(dir, entry.name);
+				if (entry.isDirectory()) {
+					await walk(path);
+				} else {
+					try {
+						total += (await stat(path)).size;
+					} catch {
+						// Gone between the listing and the question. Not ours to mind.
+					}
+				}
+			}
+		};
+
+		await walk(this.vaultDir(vaultId));
+		return total;
 	}
 
 	/** Rough figures for the health endpoint. Never touches note content. */

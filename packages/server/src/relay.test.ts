@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WebSocket from 'ws';
+import { ROOM_SUBPROTOCOL } from '@signet/protocol';
 import type { RoomFrame } from '@signet/protocol';
 import { createSyncServer } from './http';
 import { CollabRelay } from './relay';
@@ -41,8 +42,13 @@ class Client {
 	private waiting: ((frame: RoomFrame) => void) | undefined;
 
 	constructor(room = ROOM, token = TOKEN) {
-		// The token travels as a subprotocol, so it stays out of URLs and proxy logs.
-		this.socket = new WebSocket(`${base}/v1/vaults/${VAULT}/rooms/${room}`, [token]);
+		// The token travels as a subprotocol, so it stays out of URLs and proxy
+		// logs. The second name is what the server agrees to, so the token is not
+		// repeated back in the response — see the test at the bottom of this file.
+		this.socket = new WebSocket(`${base}/v1/vaults/${VAULT}/rooms/${room}`, [
+			token,
+			ROOM_SUBPROTOCOL,
+		]);
 		this.socket.on('message', (data: Buffer) => {
 			const frame = JSON.parse(data.toString('utf8')) as RoomFrame;
 			const waiting = this.waiting;
@@ -112,6 +118,7 @@ beforeAll(async () => {
 			registrationSecret: 'r'.repeat(32),
 			maxBlobBytes: 1024,
 			maxManifestBytes: 1024,
+			maxVaultBytes: 0,
 		},
 		vaults
 	);
@@ -278,5 +285,36 @@ describe('compaction', () => {
 			ok: false,
 			generation: 2,
 		});
+	});
+});
+
+describe('the token on the way back', () => {
+	/**
+	 * `ws` agrees to the first subprotocol a client offers unless told otherwise,
+	 * and repeats it in the 101 response. The first thing offered is the bearer
+	 * token, so it was in a response header — which is exactly the kind of place
+	 * the token was moved out of the query string to avoid.
+	 */
+	it('is not repeated in the handshake response', async () => {
+		const client = new Client();
+		await client.next();
+
+		expect(client.socket.protocol).toBe(ROOM_SUBPROTOCOL);
+		expect(client.socket.protocol).not.toContain(TOKEN);
+
+		client.socket.close();
+	});
+
+	it('is still read from a client that only knows the old way', async () => {
+		// A device on an older build offers the token and nothing else. Declining
+		// would close its connection, so it gets the answer it expects.
+		const socket = new WebSocket(`${base}/v1/vaults/${VAULT}/rooms/${ROOM}`, [TOKEN]);
+		await new Promise<void>((resolve, reject) => {
+			socket.on('open', () => resolve());
+			socket.on('error', reject);
+		});
+
+		expect(socket.protocol).toBe(TOKEN);
+		socket.close();
 	});
 });

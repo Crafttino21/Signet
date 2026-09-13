@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 
 /**
@@ -23,6 +23,17 @@ export interface RoomLog {
 
 /** Past this many updates, the next client to join is asked to compact. */
 export const COMPACT_THRESHOLD = 200;
+
+/**
+ * The largest a single room's current log may grow before appends are refused.
+ *
+ * `COMPACT_THRESHOLD` is advice to clients and always was: nothing here checked
+ * it, so a room nobody compacted grew for as long as somebody kept typing. A byte
+ * ceiling is the version that does not depend on the client cooperating.
+ * Generous — an ordinary note compacts long before this — and reached only by a
+ * client that is not compacting when it is asked to.
+ */
+const MAX_LOG_BYTES = 64 * 1024 * 1024;
 
 export class RoomStore {
 	/** One promise chain per room, so two appends cannot interleave. */
@@ -82,16 +93,27 @@ export class RoomStore {
 		}
 	}
 
-	async append(vaultId: string, roomId: string, update: string): Promise<void> {
+	async append(vaultId: string, roomId: string, update: string): Promise<'stored' | 'full'> {
 		return this.serialise(`${vaultId}/${roomId}`, async () => {
 			const generation = Math.max(1, await this.latestGeneration(vaultId, roomId));
 			const path = this.logPath(vaultId, roomId, generation);
+
+			let held = 0;
+			try {
+				held = (await stat(path)).size;
+			} catch {
+				// No log yet, which is the ordinary case for a room's first update.
+			}
+			if (held + update.length + 1 > MAX_LOG_BYTES) {
+				return 'full';
+			}
 
 			await mkdir(dirname(path), { recursive: true });
 			// Append rather than rewrite: a room under active editing is written to
 			// constantly, and rewriting the whole log each time would not scale.
 			const { appendFile } = await import('node:fs/promises');
 			await appendFile(path, `${update}\n`);
+			return 'stored';
 		});
 	}
 

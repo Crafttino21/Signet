@@ -1,4 +1,4 @@
-import { isRoomFrame, openBlob, routes, sealBlob } from '@signet/protocol';
+import { isRoomFrame, openBlob, ROOM_SUBPROTOCOL, routes, sealBlob } from '@signet/protocol';
 import type { Bytes, RoomFrame } from '@signet/protocol';
 
 /**
@@ -55,7 +55,10 @@ export class RoomSocket {
 			return;
 		}
 
-		const socket = new WebSocket(this.url(), [this.options.token]);
+		// The token first, so a server that predates the second name still reads it
+		// where it expects to; the second name is what a current server agrees to,
+		// so the token is not repeated back in the response.
+		const socket = new WebSocket(this.url(), [this.options.token, ROOM_SUBPROTOCOL]);
 		this.socket = socket;
 
 		socket.addEventListener('open', () => {

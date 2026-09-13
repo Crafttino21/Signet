@@ -70,7 +70,7 @@ Check it:
 
 ```bash
 curl http://127.0.0.1:8787/v1/health
-# {"ok":true,"protocol":1,"vaults":0}
+# {"ok":true,"protocol":1}
 ```
 
 The container listens on `127.0.0.1` only, and the data lives in a Docker volume
@@ -112,17 +112,50 @@ Or with nginx, a normal `proxy_pass` to `http://127.0.0.1:8787` behind certbot.
 
 ### Configuration
 
-| Variable                     | Default      | Meaning                                                                                                                                                           |
-| ---------------------------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SIGNET_REGISTRATION_SECRET` | _(required)_ | Needed to create a new vault. Without it the server refuses to start, because a sync server that silently accepts strangers is worse than one that will not boot. |
-| `SIGNET_PORT`                | `8787`       | Listening port.                                                                                                                                                   |
-| `SIGNET_DATA_DIR`            | `/data`      | Where vaults are kept.                                                                                                                                            |
-| `SIGNET_MAX_BLOB_BYTES`      | `104857600`  | Largest single file.                                                                                                                                              |
-| `SIGNET_MAX_MANIFEST_BYTES`  | `33554432`   | Largest manifest.                                                                                                                                                 |
+| Variable                     | Default       | Meaning                                                                                                                                                           |
+| ---------------------------- | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SIGNET_REGISTRATION_SECRET` | _(required)_  | Needed to create a new vault. Without it the server refuses to start, because a sync server that silently accepts strangers is worse than one that will not boot. |
+| `SIGNET_PORT`                | `8787`        | Listening port.                                                                                                                                                   |
+| `SIGNET_DATA_DIR`            | `/data`       | Where vaults are kept.                                                                                                                                            |
+| `SIGNET_MAX_BLOB_BYTES`      | `104857600`   | Largest single file.                                                                                                                                              |
+| `SIGNET_MAX_MANIFEST_BYTES`  | `33554432`    | Largest manifest.                                                                                                                                                 |
+| `SIGNET_MAX_VAULT_BYTES`     | `53687091200` | Ceiling on what one vault may occupy. `0` switches the check off.                                                                                                 |
+| `SIGNET_HOST`                | `127.0.0.1`   | Interface to listen on. Set it to `0.0.0.0` deliberately, and put TLS in front — see below.                                                                       |
 
 The registration secret is only needed once per vault, when a device first
 creates it. Everyday syncing authenticates with a token derived from your ring
 code, which never reaches the server — only its hash does.
+
+It must be at least 32 characters and there is no lockout beyond ten attempts a
+quarter of an hour, so let `openssl rand -hex 32` choose it rather than choosing
+it yourself.
+
+### What this server does not protect you from
+
+Worth knowing before you point four devices at it.
+
+**It never deletes anything.** A commit is written under a new sequence number
+and a blob under the id of its own content, and neither is ever rewritten or
+removed. That is what makes the store safe — no client can overwrite bytes an
+older version still refers to — and it means disk use only ever grows. Old
+versions of every file stay for good. `SIGNET_MAX_VAULT_BYTES` is the only thing
+that bounds it, and reaching it stops that vault syncing rather than deleting
+anything, so watch the volume and raise it or start a new vault deliberately.
+
+**Anybody in your ring can fill it.** The ring code is the key to everything, so
+every device holding it can upload as much as the ceiling allows. There is no
+per-device accounting and no way for the server to tell a runaway client from a
+busy one — it cannot read what it stores.
+
+**Whoever registers a vault id owns it.** Registration fixes which token opens a
+vault and is never rotated, on purpose: rotating it would lock out every other
+device. The consequence is that if somebody with your registration secret
+registers a vault id before you do, that id is theirs and there is no way back
+except a new ring code. Treat the registration secret as the server-wide
+credential it is, and do not put it on a device that only needs to sync.
+
+**It speaks plain HTTP.** The notes are encrypted before they leave the device,
+but the bearer token is not. On anything but a trusted network, put TLS in front.
 
 ### Upgrading a server set up before the rename
 
@@ -142,6 +175,14 @@ docker compose up -d --build --remove-orphans
 ```
 
 `install.sh` does this for you. Nothing about the volume or the data changes.
+
+One thing may stop an existing server booting: the registration secret now has
+to be at least 32 characters, where it used to be 16. If yours is shorter the
+server says so and exits rather than starting with a credential short enough to
+sit on and guess. Put a longer one in `.env` — `openssl rand -hex 32` — and
+restart. Nothing else is affected: the secret is only used to create a vault, and
+every vault that already exists authenticates with a token derived from its ring
+code.
 
 ## Backups
 

@@ -225,6 +225,25 @@ export function isVaultManifest(value: unknown): value is VaultManifest {
 }
 
 /** Both sides build their URLs from here, so a typo cannot go unnoticed. */
+/**
+ * The subprotocol a room socket names alongside its token.
+ *
+ * A browser WebSocket cannot set request headers, so the token travels as a
+ * subprotocol — which keeps it out of the query string, and out of the proxy logs
+ * and browser history that query strings end up in.
+ *
+ * It does not keep it out of the *response*: a server that agrees to a
+ * subprotocol repeats it in the 101, and `ws` agrees to the first one offered
+ * unless told otherwise. So the token was in a response header too, which the
+ * other half of a proxy's log configuration captures.
+ *
+ * Hence a second name with nothing secret in it. The client offers the token
+ * first and this after it; the server agrees to this one when it is there. The
+ * order matters for nothing but compatibility: a server that predates this picks
+ * the first thing offered, which is still the token, and goes on working.
+ */
+export const ROOM_SUBPROTOCOL = 'signet.v1';
+
 export const routes = {
 	register: (vaultId: string) => `/v1/vaults/${vaultId}/register`,
 	head: (vaultId: string) => `/v1/vaults/${vaultId}/head`,

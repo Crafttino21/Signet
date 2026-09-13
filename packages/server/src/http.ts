@@ -57,7 +57,13 @@ function fail(res: ServerResponse, status: number, message: string): void {
 }
 
 function sendBytes(res: ServerResponse, contentType: string, body: Buffer): void {
-	res.writeHead(200, { 'content-type': contentType, 'content-length': body.byteLength });
+	res.writeHead(200, {
+		'content-type': contentType,
+		'content-length': body.byteLength,
+		// A blob is opaque bytes somebody else chose. Nothing should be guessing at
+		// what they are, least of all a browser that has been pointed at the URL.
+		'x-content-type-options': 'nosniff',
+	});
 	res.end(body);
 }
 
@@ -76,6 +82,45 @@ async function readBody(req: IncomingMessage, limit: number): Promise<Buffer> {
 	}
 
 	return Buffer.concat(chunks);
+}
+
+/**
+ * How often one caller may try the registration secret.
+ *
+ * The comparison is constant-time and the secret is now at least thirty-two
+ * characters, so this is not what stands between the port and a new vault — it is
+ * what stops somebody sitting on it. Ten tries a quarter of an hour is far more
+ * than registering a vault ever needs and far less than guessing needs.
+ *
+ * Counted per remote address, which behind a reverse proxy is one bucket for
+ * everybody. That is a real limitation and still the right shape: the bucket is
+ * generous enough that sharing it costs a legitimate device nothing, and a proxy
+ * is where per-client limits belong anyway.
+ */
+const REGISTER_TRIES = 10;
+const REGISTER_WINDOW_MS = 15 * 60 * 1000;
+
+const registerTries = new Map<string, { count: number; resetAt: number }>();
+
+function tooManyRegisterTries(req: IncomingMessage, now = Date.now()): boolean {
+	const who = req.socket.remoteAddress ?? 'unknown';
+
+	// Swept on the way through, so a long-running server does not accumulate an
+	// entry per address that ever tried.
+	for (const [key, seen] of registerTries) {
+		if (seen.resetAt <= now) {
+			registerTries.delete(key);
+		}
+	}
+
+	const seen = registerTries.get(who);
+	if (!seen) {
+		registerTries.set(who, { count: 1, resetAt: now + REGISTER_WINDOW_MS });
+		return false;
+	}
+
+	seen.count += 1;
+	return seen.count > REGISTER_TRIES;
 }
 
 function bearer(req: IncomingMessage): string | undefined {
@@ -110,11 +155,12 @@ const routes: Route[] = [
 		method: 'GET',
 		pattern: /^\/v1\/health$/,
 		handler: async (ctx) => {
-			send(ctx.res, 200, {
-				ok: true,
-				protocol: PROTOCOL_VERSION,
-				...(await ctx.store.stats()),
-			});
+			// Deliberately without the vault count. This route exists so a device can
+			// ask "is a Signet server here and does it speak my protocol" before it
+			// has any credentials, and that is all an unauthenticated caller needs.
+			// How many vaults a server holds, and watching that number grow, is not
+			// part of the question.
+			send(ctx.res, 200, { ok: true, protocol: PROTOCOL_VERSION });
 		},
 	},
 
@@ -125,6 +171,13 @@ const routes: Route[] = [
 			const vaultId = ctx.params[0] ?? '';
 			if (!isSafeId(vaultId)) {
 				fail(ctx.res, 400, 'Malformed vault id.');
+				return;
+			}
+
+			// Counted before the secret is compared, so a wrong answer costs a try
+			// whether or not it was close.
+			if (tooManyRegisterTries(ctx.req)) {
+				fail(ctx.res, 429, 'Too many registration attempts. Try again later.');
 				return;
 			}
 
@@ -284,11 +337,18 @@ const routes: Route[] = [
 				return;
 			}
 
-			await ctx.store.writeBlob(
+			const outcome = await ctx.store.writeBlob(
 				vaultId,
 				blobId,
-				await readBody(ctx.req, ctx.config.maxBlobBytes)
+				await readBody(ctx.req, ctx.config.maxBlobBytes),
+				ctx.config.maxVaultBytes
 			);
+			if (outcome === 'full') {
+				// 507, not 400: nothing is wrong with the request. The client is told
+				// plainly so the sync can report it rather than retrying forever.
+				fail(ctx.res, 507, 'This vault has reached its size limit on this server.');
+				return;
+			}
 			send(ctx.res, 201, { stored: blobId });
 		},
 	},

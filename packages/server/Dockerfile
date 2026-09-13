@@ -33,6 +33,12 @@ VOLUME /data
 USER signet
 ENV SIGNET_DATA_DIR=/data
 ENV SIGNET_PORT=8787
+# Inside a container, every interface *is* the isolation boundary: Docker forwards
+# to the container's own address, so a process bound to the container's loopback
+# is reachable from nowhere at all. What decides who can reach it is the published
+# port in docker-compose.yml, which is bound to the host's 127.0.0.1. Outside a
+# container the default is the other way round — see SIGNET_HOST in config.ts.
+ENV SIGNET_HOST=0.0.0.0
 EXPOSE 8787
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s \

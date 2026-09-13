@@ -86,6 +86,7 @@ beforeAll(async () => {
 			registrationSecret: REGISTRATION_SECRET,
 			maxBlobBytes: 1024 * 1024,
 			maxManifestBytes: 1024 * 1024,
+			maxVaultBytes: 0,
 		},
 		new VaultStore(dir)
 	);

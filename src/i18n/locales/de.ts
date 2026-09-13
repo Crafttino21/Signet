@@ -410,4 +410,27 @@ export const de: Translations = {
 	'collab.settings.excluded': 'Diese Ordner nie gemeinsam bearbeiten',
 	'collab.settings.excludedDesc': 'Ein Pfad pro Zeile.',
 	'collab.notice.failed': 'Signet: Gemeinsames Bearbeiten konnte für diese Notiz nicht starten.',
+	'update.panel.available': 'Signet {version} ist da. Dieses Gerät läuft auf {installed}.',
+	'update.panel.fromRing': 'Ein anderes Gerät in deinem Ring hat es schon.',
+	'update.panel.openReleases': 'Zur Release-Seite',
+	'update.settings.heading': 'Aktualisierungen',
+	'update.settings.check': 'Nach neuen Versionen sehen',
+	'update.settings.checkDesc':
+		'Fragt höchstens einmal am Tag im Repository nach, aus dem dieses Plugin stammt, ob es eine neuere Fassung gibt. Es wird nichts über dich oder deinen Vault gesendet und nie etwas installiert — du erfährst davon, alles Weitere entscheidest du. Ausgeschaltet sagen sich die Geräte in deinem Ring weiterhin gegenseitig, welche Version sie fahren.',
+	'update.settings.whatsNew': 'Was ist neu',
+	'update.settings.whatsNewDesc': 'Die Notizen zu dieser Version und zu allen übersprungenen.',
+	'update.settings.showNotes': 'Notizen anzeigen',
+
+	'whatsNew.title': 'Was ist neu in Signet',
+	'whatsNew.intro': 'Von {from} auf {to} aktualisiert.',
+	'whatsNew.version': 'Version {version}',
+	'whatsNew.nothing': 'Seit deinem letzten Blick nichts Erwähnenswertes.',
+	'whatsNew.done': 'Alles klar',
+
+	'changelog.0-4-0.smoothOpen':
+		'Beim Öffnen einer Notiz erscheint der Text nicht mehr doppelt, während dem Raum beigetreten wird. Der Editor wird erst auf das gemeinsame Dokument gerichtet, wenn dieses Dokument die Notiz ist.',
+	'changelog.0-4-0.updates':
+		'Signet sagt Bescheid, wenn es eine neuere Version gibt, und zeigt beim ersten Start, was sich geändert hat.',
+	'changelog.0-4-0.port':
+		'Was das alte Toolbox-Plugin in diesem Vault hinterlassen hat, wird beim Start übernommen und aufgeräumt. Gelöscht wird nichts — es wandert in den Papierkorb, und erst, wenn es nachweislich anderswo liegt.',
 };

@@ -1,6 +1,6 @@
 {
 	"name": "signet",
-	"version": "0.1.0",
+	"version": "0.4.0",
 	"description": "An Obsidian plugin that keeps several devices in step, against a sync server you run yourself.",
 	"type": "module",
 	"private": true,
@@ -19,6 +19,7 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"check": "npm run typecheck && npm run lint && npm run test",
+		"version-bump": "node version-bump.mjs",
 		"server:up": "docker compose -f packages/server/docker-compose.yml up -d --build --remove-orphans",
 		"server:down": "docker compose -f packages/server/docker-compose.yml down",
 		"server:logs": "docker compose -f packages/server/docker-compose.yml logs -f --tail 100",

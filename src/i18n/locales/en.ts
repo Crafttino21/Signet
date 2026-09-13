@@ -399,13 +399,37 @@ export const en = {
 	'collab.panel.alone': 'connected, nobody else here',
 	'collab.panel.peers': 'connected · {count} other device(s)',
 	'collab.panel.offline': 'not connected',
-	'collab.panel.connecting': 'Joining the room for {count} note(s). They edit as usual meanwhile.',
+	'collab.panel.connecting':
+		'Joining the room for {count} note(s). They edit as usual meanwhile.',
 	'collab.settings.enabled': 'Edit notes together',
 	'collab.settings.enabledDesc':
 		'While a note is open it is kept in step keystroke by keystroke with anyone else who has it open. That note is left out of the ordinary file sync until it is closed, so the two cannot write over each other.',
 	'collab.settings.excluded': 'Never edit these folders together',
 	'collab.settings.excludedDesc': 'One path per line.',
 	'collab.notice.failed': 'Signet: could not start live editing for this note.',
+	'update.panel.available': 'Signet {version} is out. This device is on {installed}.',
+	'update.panel.fromRing': 'Another device in your ring is already running it.',
+	'update.panel.openReleases': 'Open the releases page',
+	'update.settings.heading': 'Updates',
+	'update.settings.check': 'Look for new versions',
+	'update.settings.checkDesc':
+		'Asks the repository this plugin comes from, at most once a day, whether there is a newer release. Nothing about you or your vault is sent, and nothing is ever installed — you are told, and the rest is up to you. Switched off, the devices in your ring still tell each other which version they are running.',
+	'update.settings.whatsNew': 'What is new',
+	'update.settings.whatsNewDesc': 'The notes for this version, and for any you skipped.',
+	'update.settings.showNotes': 'Show the notes',
+
+	'whatsNew.title': 'What is new in Signet',
+	'whatsNew.intro': 'Updated from {from} to {to}.',
+	'whatsNew.version': 'Version {version}',
+	'whatsNew.nothing': 'Nothing worth writing down since you last looked.',
+	'whatsNew.done': 'Got it',
+
+	'changelog.0-4-0.smoothOpen':
+		'Opening a note no longer shows its text twice while the room is being joined. The editor is pointed at the shared document only once that document is the note.',
+	'changelog.0-4-0.updates':
+		'Signet says when there is a newer version, and shows what changed the first time you start it.',
+	'changelog.0-4-0.port':
+		'Whatever the old Toolbox plugin left in this vault is carried over and tidied away at startup. Nothing is deleted — it goes to the trash, and only once it is provably somewhere else.',
 };
 
 export type TranslationKey = keyof typeof en;

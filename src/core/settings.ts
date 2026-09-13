@@ -4,7 +4,7 @@ import type { ModuleDescriptor } from './module';
  * Bump this whenever the shape of {@link SignetSettings} changes in a way that
  * stored data cannot satisfy on its own, and add a step to {@link runMigrations}.
  */
-export const SETTINGS_VERSION = 3;
+export const SETTINGS_VERSION = 4;
 
 export interface SignetSettings {
 	version: number;
@@ -17,6 +17,16 @@ export interface SignetSettings {
 	 * that a later "off" is a decision and stays one.
 	 */
 	autoEnabled: string[];
+	/**
+	 * Whether to ask the repository whether there is a newer Signet.
+	 *
+	 * Stored here rather than per device, because it is a preference about what
+	 * this plugin is allowed to do and somebody who switches it off on one device
+	 * means it. Which version this device last showed the notes for is the
+	 * opposite — that is bookkeeping about one machine, and it lives outside
+	 * these settings so it cannot travel to another one. See core/device-state.
+	 */
+	checkForUpdates: boolean;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -45,6 +55,12 @@ function runMigrations(
 	}
 	if (fromVersion < 3) {
 		source = switchOffWhatIsNotInUse(source);
+	}
+	if (fromVersion < 4) {
+		// New field, and the default is "yes". Existing installs get the same
+		// answer a new one gets: writing it explicitly here rather than leaving it
+		// to fall through below is what makes the decision visible in data.json.
+		source = { ...source, checkForUpdates: true };
 	}
 	return source;
 }
@@ -154,5 +170,12 @@ export function migrateSettings(
 		? migrated.autoEnabled.filter((id): id is string => typeof id === 'string')
 		: [];
 
-	return { version: SETTINGS_VERSION, enabledModules, moduleSettings, autoEnabled };
+	return {
+		version: SETTINGS_VERSION,
+		enabledModules,
+		moduleSettings,
+		autoEnabled,
+		checkForUpdates:
+			typeof migrated.checkForUpdates === 'boolean' ? migrated.checkForUpdates : true,
+	};
 }

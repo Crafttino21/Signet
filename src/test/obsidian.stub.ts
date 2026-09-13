@@ -269,3 +269,11 @@ export const Platform = {
 	isDesktopApp: true,
 	isMobile: false,
 };
+
+/**
+ * The Obsidian the plugin believes it is running inside.
+ *
+ * Chosen to be comfortably newer than `minAppVersion`, so a test about whether a
+ * release could run here is testing the comparison rather than this number.
+ */
+export const apiVersion = '1.8.7';

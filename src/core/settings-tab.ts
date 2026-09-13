@@ -2,6 +2,9 @@ import { PluginSettingTab, Setting } from 'obsidian';
 import type { App } from 'obsidian';
 import type SignetPlugin from '../main';
 import { t } from '../i18n';
+import { lastSeenVersion } from './device-state';
+import { notesFor, notesSince } from './release';
+import { WhatsNewModal } from './whats-new';
 
 /**
  * Obsidian 1.13 introduced a declarative settings API (`getSettingDefinitions()`)
@@ -67,5 +70,49 @@ export class SignetSettingTab extends PluginSettingTab {
 
 			this.plugin.registry.getActive(descriptor.id)?.displaySettings(page);
 		}
+
+		// Last, because it is about the plugin rather than about anything it does,
+		// and because a settings page should open on what the user came for.
+		this.displayUpdates(page);
+	}
+
+	/**
+	 * Whether to look for new versions, and the notes for this one.
+	 *
+	 * The notes are reachable again rather than only at the moment of the update:
+	 * they appear once, on a start that is usually the middle of doing something
+	 * else, and "what was that dialog" is a fair question to be able to answer.
+	 */
+	private displayUpdates(page: HTMLElement): void {
+		new Setting(page).setName(t('update.settings.heading')).setHeading();
+
+		new Setting(page)
+			.setName(t('update.settings.check'))
+			.setDesc(t('update.settings.checkDesc'))
+			.addToggle((toggle) =>
+				toggle.setValue(this.plugin.settings.checkForUpdates).onChange(async (value) => {
+					this.plugin.settings.checkForUpdates = value;
+					await this.plugin.saveSettings();
+				})
+			);
+
+		const installed = this.plugin.manifest.version;
+		// Everything this device has not acknowledged, not only the newest release:
+		// somebody who skipped three versions wants all three. Once they have been
+		// acknowledged the button still works and shows this version's own notes.
+		const outstanding = notesSince(installed, lastSeenVersion(this.app));
+		const shown = outstanding.length > 0 ? outstanding : notesFor(installed);
+		if (shown.length === 0) {
+			return;
+		}
+
+		new Setting(page)
+			.setName(t('update.settings.whatsNew'))
+			.setDesc(t('update.settings.whatsNewDesc'))
+			.addButton((button) =>
+				button.setButtonText(t('update.settings.showNotes')).onClick(() => {
+					new WhatsNewModal(this.app, shown, undefined, installed).open();
+				})
+			);
 	}
 }

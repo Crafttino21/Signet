@@ -1,6 +1,7 @@
 import { ItemView } from 'obsidian';
 import type { IconName, WorkspaceLeaf } from 'obsidian';
 import { t } from '../i18n';
+import { RELEASES_URL } from './update-check';
 import type SignetPlugin from '../main';
 
 export const SIGNET_PANEL_TYPE = 'signet-panel';
@@ -70,6 +71,12 @@ export class SignetPanelView extends ItemView {
 		contentEl.empty();
 		contentEl.addClass('signet-panel');
 
+		// Above the setup banner, because somebody who has not finished setting up
+		// should install the version they are going to keep before they do. It is a
+		// state, not an event — there is a newer Signet than this one — so it stays
+		// here until that stops being true rather than being said once and lost.
+		this.renderUpdate(contentEl);
+
 		// The shortest path from "installed" to "working" belongs at the top, and
 		// disappears once there is nothing left to set up.
 		const outstanding = this.plugin.registry
@@ -138,5 +145,44 @@ export class SignetPanelView extends ItemView {
 			cls: 'signet-panel__version',
 			text: t('panel.version', { version: this.plugin.manifest.version }),
 		});
+	}
+
+	/**
+	 * That there is a newer version, and where to get it.
+	 *
+	 * A link rather than a button that installs it. Updating a plugin is
+	 * Obsidian's job and the user's decision, and a plugin that replaces itself
+	 * while it is in the middle of syncing somebody's notes is not a feature.
+	 */
+	private renderUpdate(containerEl: HTMLElement): void {
+		const update = this.plugin.updates.latest();
+		if (!update) {
+			return;
+		}
+
+		const banner = containerEl.createDiv({ cls: 'signet-panel__update' });
+		banner.createEl('p', {
+			text: t('update.panel.available', {
+				version: update.version,
+				installed: this.plugin.manifest.version,
+			}),
+		});
+
+		// Worth saying, because it is the difference between "somebody released
+		// this" and "you are the odd one out in your own ring".
+		if (update.from === 'ring') {
+			banner.createEl('p', {
+				cls: 'signet-panel__state',
+				text: t('update.panel.fromRing'),
+			});
+		}
+
+		banner
+			.createEl('a', {
+				cls: 'signet-panel__update-link',
+				text: t('update.panel.openReleases'),
+				href: RELEASES_URL,
+			})
+			.setAttribute('rel', 'noopener');
 	}
 }

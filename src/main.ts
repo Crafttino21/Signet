@@ -16,6 +16,14 @@ import { SetupModal } from './core/setup';
 import { PluginApi } from './core/obsidian-internals';
 import { adoptLegacyFolder } from './core/rename';
 import { registerViewOnce } from './core/view';
+import {
+	lastSeenVersion,
+	lastUpdateCheck,
+	rememberUpdateCheck,
+	rememberVersion,
+} from './core/device-state';
+import { fetchLatestVersion, isCheckDue, UpdateWatch } from './core/update-check';
+import { WhatsNewModal } from './core/whats-new';
 import { SIGNET_MODULES } from './modules';
 
 /**
@@ -40,6 +48,14 @@ export default class SignetPlugin extends Plugin {
 	 * Kept here so the two modules can agree without importing each other.
 	 */
 	readonly ringLink = new RingLink();
+	/**
+	 * Whether anything has said there is a newer Signet than this one.
+	 *
+	 * Shared rather than asked for, for the same reason as the two above: the ring
+	 * fills it in whenever it reads a roster, the panel and the settings both draw
+	 * from it, and none of them should have to know where the answer came from.
+	 */
+	readonly updates = new UpdateWatch(this.manifest.version);
 	private settingTab!: SignetSettingTab;
 	/** Guards against a module's own load calling back into reconciliation. */
 	private reconciling = false;
@@ -92,6 +108,15 @@ export default class SignetPlugin extends Plugin {
 
 		await this.registry.syncWithSettings();
 
+		// Redraw both surfaces when something turns out to be newer than this. The
+		// ring finds that out whenever it reads a roster, which is long after this.
+		this.register(
+			this.updates.onChange(() => {
+				this.refreshPanel();
+				this.refreshSettings();
+			})
+		);
+
 		// Said once, after everything is up, because it explains why the plugin
 		// looks set up already and where the old folder went.
 		if (moved) {
@@ -100,6 +125,58 @@ export default class SignetPlugin extends Plugin {
 					from: moved.from,
 				})
 			);
+		}
+
+		// Nothing here may hold the load up: a plugin that waits on the network to
+		// finish starting is a plugin that does not start on a train.
+		this.app.workspace.onLayoutReady(() => {
+			this.showWhatIsNew();
+			void this.lookForUpdates();
+		});
+	}
+
+	/**
+	 * The notes for this version, the first time this device runs it.
+	 *
+	 * The version is recorded whether or not there was anything to show, so that a
+	 * first install is silent once rather than on every start, and so that the next
+	 * update has somewhere to count from.
+	 */
+	private showWhatIsNew(): void {
+		const installed = this.manifest.version;
+		const seen = lastSeenVersion(this.app);
+		if (seen === installed) {
+			return;
+		}
+
+		WhatsNewModal.openIfAnything(this.app, installed, seen);
+		rememberVersion(this.app, installed);
+	}
+
+	/**
+	 * Asks the repository whether there is a newer release, at most once a day.
+	 *
+	 * What came back last time is offered again even when it is not time to ask,
+	 * because the answer outlives the session that fetched it — otherwise the
+	 * banner would appear on the day of the check and vanish on the day after.
+	 */
+	private async lookForUpdates(): Promise<void> {
+		if (!this.settings.checkForUpdates) {
+			return;
+		}
+
+		const previous = lastUpdateCheck(this.app);
+		if (previous?.version !== undefined) {
+			this.updates.sawRelease(previous.version);
+		}
+		if (!isCheckDue(previous, Date.now())) {
+			return;
+		}
+
+		const version = await fetchLatestVersion();
+		rememberUpdateCheck(this.app, { at: Date.now(), version });
+		if (version !== undefined) {
+			this.updates.sawRelease(version);
 		}
 	}
 

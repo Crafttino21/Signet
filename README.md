@@ -125,7 +125,8 @@ The ring reads and writes other plugins' `data.json` and switches plugins on and
 off. It does that through `app.plugins`, which is an internal Obsidian API that is
 not part of the public typings — `src/core/obsidian-internals.ts` isolates it and
 disables the feature if a future Obsidian release changes it. The ring itself makes
-no network requests.
+no network requests beyond the two Obsidian already makes to install a plugin: the
+community list, and the release manifest of the plugin being installed.
 
 ## Vault sync
 
@@ -438,6 +439,39 @@ Two things do not migrate:
 - **The server's container name.** See `packages/server/README.md` — the volume
   and the environment variables are unchanged, the container is not.
 
+## Staying up to date
+
+Signet tells you when there is a newer version than the one you are running, and
+tells you what changed the first time you start it.
+
+The two are deliberately different shapes. **What changed** is shown once, in a
+dialog, on the first start after an update — it is a thing to read, not a thing
+to do, so it does not come back. **There is a newer version** is a state rather
+than an event, so it sits at the top of the panel until it stops being true.
+Neither of them installs anything: that stays Obsidian's job and your decision.
+
+There are two ways it finds out, and neither is telemetry.
+
+- **Your ring.** Every device writes the version it is running into its
+  heartbeat, so a vault whose phone has already been updated knows without asking
+  anybody. No network call, nothing leaves the vault, and it says so when this is
+  the reason — being the odd one out in your own ring is worth knowing separately
+  from a release existing at all. What it cannot do is tell the first device:
+  until one of them has been updated by hand, every heartbeat agrees.
+- **The repository.** Once a day at most, Signet asks
+  `raw.githubusercontent.com` for this project's `manifest.json` — the same file
+  the community plugin registry reads, a few hundred bytes, no token, and
+  nothing about you or your vault in the request. This is the only call the
+  plugin makes on its own behalf, so it is a switch: **Settings → Signet →
+  Updates → Look for new versions**, on by default. Switched off, your ring still
+  tells you.
+
+A release that needs a newer Obsidian than you are running is not offered. Being
+told to install something the app will then refuse to load is worse than not
+being told.
+
+The notes are reachable again afterwards, under **Updates → What is new**.
+
 ## Languages
 
 The interface follows Obsidian's own language setting. English and German are
@@ -629,11 +663,28 @@ In both modules the files without an Obsidian import — `code.ts`, `crypto.ts`,
 `diff.ts`, `patterns.ts`, `health.ts` — hold the logic worth testing, and that is
 where the tests are.
 
+## Cutting a release
+
+```bash
+npm run version-bump 0.5.0
+```
+
+One number, written into `manifest.json`, `versions.json` and `package.json` at
+once — three files that have to agree, and that drifted apart when nothing kept
+them together. `minAppVersion` is carried over from the manifest rather than
+invented, so needing a newer Obsidian stays a separate decision, made there
+first.
+
+It refuses a version that is not in `CHANGELOG` in `src/core/release.ts`. That
+list is what the plugin shows people on the first start after an update, and a
+release missing from it updates them in silence — which is the thing this whole
+feature exists to stop. Write the entry first; the entries are i18n keys, so
+`de.ts` will not compile until it has German for each one.
+
+Then tag it and attach `main.js`, `manifest.json` and `styles.css`.
+
 ## Before a public release
 
-- Decide on the final `id` and `name` in `manifest.json` (the `id` is permanent) and
-  update `name` in `package.json` to match.
-- Set `author` and optionally `authorUrl` / `fundingUrl` in `manifest.json`.
 - Check `minAppVersion` against the newest API you actually use. It is currently
   `1.8.7`, set by `getLanguage()`.
 - Releases carry `main.js`, `manifest.json` and `styles.css` as assets, and

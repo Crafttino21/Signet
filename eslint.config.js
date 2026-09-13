@@ -83,10 +83,20 @@ export default defineConfig(
 	},
 
 	{
-		// Build and test configuration runs in Node, never inside Obsidian.
-		files: ['*.config.js', '*.config.mjs', '*.config.ts', '*.config.mts', '**/build.mjs'],
+		// Build and release tooling runs in Node, never inside Obsidian, and a
+		// command run from a terminal that says nothing is a command nobody can
+		// tell succeeded.
+		files: [
+			'*.config.js',
+			'*.config.mjs',
+			'*.config.ts',
+			'*.config.mts',
+			'**/build.mjs',
+			'version-bump.mjs',
+		],
 		rules: {
 			'obsidianmd/no-nodejs-modules': 'off',
+			'obsidianmd/rule-custom-message': 'off',
 			// Build tooling is a devDependency of the workspace root.
 			'import/no-extraneous-dependencies': 'off',
 		},

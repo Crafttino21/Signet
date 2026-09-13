@@ -1608,6 +1608,16 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			selfId: this.settings.deviceId,
 			hostId: this.settings.role === 'host' ? this.settings.deviceId : this.settings.hostId,
 		});
+
+		// A device that has already been updated is the one source of "there is a
+		// newer Signet" that costs nothing and leaves the vault. Every heartbeat
+		// carries the version that wrote it, and this is where they are all in one
+		// place — including the stale ones, since a device being away says nothing
+		// about whether the version it reported exists.
+		for (const device of this.devices) {
+			this.plugin.updates.sawInRing(device.version);
+		}
+
 		this.refreshPanel();
 	}
 

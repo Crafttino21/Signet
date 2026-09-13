@@ -249,9 +249,38 @@ reach for the undocumented `.cm` property on a Markdown view.
 
 ## Privacy
 
-The plugin works offline and stays that way: no network calls, no telemetry, no
-remote code loading. Anything that would change that needs an explicit decision
-first, not a pull request.
+No telemetry, ever, and no remote code loading. Nothing about the user, their
+vault or their notes is ever sent anywhere except the sync server they run.
+
+Outbound requests are countable, and the list is meant to stay short. There are
+three, all to hosts a plugin cannot avoid:
+
+- The community plugin list and a release manifest, when the ring installs
+  something. Obsidian's own installer does the fetching.
+- The sync server. That is the user's own machine.
+- This project's `manifest.json`, at most once a day, to find out whether there
+  is a newer Signet — `src/core/update-check.ts`. It carries nothing, it is a
+  setting the user can switch off, and the ring answers the same question
+  without it wherever a second device has already been updated.
+
+A fourth needs a decision first, not a pull request.
+
+## Releases
+
+`CHANGELOG` in `src/core/release.ts` is what somebody sees on the first start
+after an update. A released version missing from it updates them in silence, so
+`npm run version-bump` refuses one that is not there. Entries are i18n keys like
+every other string, which is what makes `de.ts` fail to compile until they are
+translated.
+
+Three files carry the version — `manifest.json`, `versions.json`,
+`package.json` — and they have drifted before. Only the bump script writes them.
+
+The version this device last showed notes for is **not** a setting. `data.json`
+travels between devices, and a per-device fact stored there marks every other
+device as having seen something it has not. That kind of bookkeeping goes in
+`src/core/device-state.ts`, which is the only file allowed to touch
+`app.loadLocalStorage`.
 
 ## Before finishing a change
 

@@ -53,6 +53,7 @@ class TestPlugin extends Plugin {
 		enabledModules: {},
 		moduleSettings: {},
 		autoEnabled: [],
+		checkForUpdates: true,
 	};
 	saveSettings = vi.fn(() => Promise.resolve());
 }

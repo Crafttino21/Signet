@@ -237,6 +237,54 @@
 	color: var(--text-muted);
 }
 
+/* There is a newer version than this one */
+
+.signet-panel__update {
+	border: 1px solid var(--interactive-accent);
+	border-radius: var(--radius-m);
+	padding: var(--size-4-3);
+	margin-bottom: var(--size-4-4);
+}
+
+.signet-panel__update p {
+	margin: 0 0 var(--size-4-2);
+}
+
+.signet-panel__update p:last-of-type {
+	margin-bottom: var(--size-4-2);
+}
+
+.signet-panel__update-link {
+	font-size: var(--font-ui-smaller);
+}
+
+.signet-panel__version {
+	color: var(--text-faint);
+	font-size: var(--font-ui-smaller);
+	margin: var(--size-4-4) 0 0;
+}
+
+/* What changed in this version */
+
+.signet-whats-new__intro {
+	color: var(--text-muted);
+	margin-top: 0;
+}
+
+.signet-whats-new__release h3 {
+	margin: var(--size-4-4) 0 var(--size-4-2);
+	font-size: var(--font-ui-medium);
+}
+
+.signet-whats-new__release ul {
+	margin: 0;
+	padding-left: var(--size-4-5);
+}
+
+.signet-whats-new__release li + li {
+	margin-top: var(--size-4-2);
+}
+
 /* Collapsed settings */
 
 .signet-advanced {

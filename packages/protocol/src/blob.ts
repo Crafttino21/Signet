@@ -15,12 +15,38 @@ import type { Bytes } from './code';
  *     [2..13]  AES-GCM initialisation vector
  *     [14..]   ciphertext including the authentication tag
  *
- * The server stores this opaquely. It cannot tell a note from an image, and
- * because AES-GCM authenticates, a server that altered a byte would be caught the
- * moment the client tried to open it.
+ * The header travels in the clear, and from version 2 it is also **authenticated**:
+ * those fourteen bytes are passed to AES-GCM as additional data, so altering any
+ * of them makes decryption fail.
+ *
+ * Version 1 did not do that, and the gap was not academic. The flags byte tells the
+ * reader whether to gunzip what comes out, and it sat outside the authentication
+ * while being acted upon. A server — the one party this design declares untrusted —
+ * could clear bit 0 on a stored blob, the tag would still verify, no error would be
+ * raised anywhere, and the client would hand Obsidian a gzip stream as if it were
+ * the note's text. The next commit would then write that back as the file's
+ * contents. Silent corruption, by the party explicitly not trusted, needing nothing
+ * but one flipped bit.
+ *
+ * The IV never needed this: AES-GCM binds it cryptographically, so a changed IV
+ * fails the tag on its own. It is covered anyway because covering the whole header
+ * is one expression and leaves nothing to reason about later.
  */
 
-const FORMAT_VERSION = 1;
+/** What new blobs are written as: the header is authenticated. */
+const FORMAT_VERSION = 2;
+
+/**
+ * The first format, whose header was not authenticated.
+ *
+ * Still read, because every blob already on a server is one of these and they are
+ * not rewritten — nothing in this design ever rewrites a blob. Still opened rather
+ * than refused, because refusing would be a worse outcome than the weakness: a
+ * vault that will not sync is certain damage, where a server willing to flip bits
+ * in it is a possibility. New blobs are never written in this format.
+ */
+const LEGACY_FORMAT_VERSION = 1;
+
 const FLAG_COMPRESSED = 1;
 const IV_BYTES = 12;
 const HEADER_BYTES = 2 + IV_BYTES;
@@ -99,14 +125,24 @@ export async function sealBlob(key: CryptoKey, plaintext: Uint8Array): Promise<B
 	const iv = new Uint8Array(IV_BYTES);
 	globalThis.crypto.getRandomValues(iv);
 
+	// The header is built before the encryption rather than after it, because it
+	// is an input to it: these are the bytes AES-GCM authenticates alongside the
+	// ciphertext, and the tag has to cover the flags the reader will act on.
+	const header = new Uint8Array(HEADER_BYTES);
+	header[0] = FORMAT_VERSION;
+	header[1] = flags;
+	header.set(iv, 2);
+
 	const ciphertext = new Uint8Array(
-		await subtle().encrypt({ name: 'AES-GCM', iv }, key, payload as BufferSource)
+		await subtle().encrypt(
+			{ name: 'AES-GCM', iv, additionalData: header as BufferSource },
+			key,
+			payload as BufferSource
+		)
 	);
 
 	const sealed = new Uint8Array(HEADER_BYTES + ciphertext.byteLength);
-	sealed[0] = FORMAT_VERSION;
-	sealed[1] = flags;
-	sealed.set(iv, 2);
+	sealed.set(header, 0);
 	sealed.set(ciphertext, HEADER_BYTES);
 	return sealed;
 }
@@ -116,8 +152,10 @@ export async function openBlob(key: CryptoKey, sealed: Uint8Array): Promise<Byte
 	if (sealed.byteLength <= HEADER_BYTES) {
 		throw new BlobFormatError('Blob is too short to contain a header.');
 	}
-	if (sealed[0] !== FORMAT_VERSION) {
-		throw new BlobFormatError(`Unknown blob format version: ${String(sealed[0])}`);
+
+	const version = sealed[0];
+	if (version !== FORMAT_VERSION && version !== LEGACY_FORMAT_VERSION) {
+		throw new BlobFormatError(`Unknown blob format version: ${String(version)}`);
 	}
 
 	const flags = sealed[1] ?? 0;
@@ -126,7 +164,19 @@ export async function openBlob(key: CryptoKey, sealed: Uint8Array): Promise<Byte
 	let payload: Bytes;
 	try {
 		payload = new Uint8Array(
-			await subtle().decrypt({ name: 'AES-GCM', iv }, key, sealed.slice(HEADER_BYTES))
+			await subtle().decrypt(
+				{
+					name: 'AES-GCM',
+					iv,
+					// Version 1 sealed nothing alongside the ciphertext, so asking for
+					// the header back would fail every blob written before this change.
+					...(version === FORMAT_VERSION
+						? { additionalData: sealed.slice(0, HEADER_BYTES) as BufferSource }
+						: {}),
+				},
+				key,
+				sealed.slice(HEADER_BYTES)
+			)
 		);
 	} catch {
 		throw new BlobFormatError('This blob does not belong to your vault, or it was altered.');

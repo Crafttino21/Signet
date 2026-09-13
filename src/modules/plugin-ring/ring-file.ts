@@ -151,19 +151,31 @@ export class RingFile {
 /**
  * What the file lying at the ring's path actually is.
  *
- * Told apart before anything is overwritten, because the three cases want three
- * different answers and only one of them is a race:
+ * Told apart before anything is overwritten, because the cases want different
+ * answers and only one of them is a race:
  *
  * - `free` — nothing there, publish away.
  * - `ours` — our ring; the sequence number decides who is behind.
  * - `foreign` — someone else's ring, or a leftover from a ring this device used
- *   to be in. Decided from the ring id, which the envelope carries in the clear
- *   for exactly this purpose, so no decryption is attempted or needed.
- * - `corrupt` — our ring id, but the contents will not open. Usually a file
- *   caught halfway through being written by a sync client.
+ *   to be in.
+ * - `corrupt` — our ring, but the contents will not open. Usually a file caught
+ *   halfway through being written by a sync client.
  *
- * The distinction matters because `foreign` is recoverable and `corrupt` is not:
- * overwriting a file that only looks broken would throw away the ring.
+ * The distinction matters because `foreign` may be moved aside and `corrupt` may
+ * not: a file that only looks broken is a ring somebody still needs.
+ *
+ * **Decryption decides, not the ring id.** The id sits in the envelope in the
+ * clear, outside what AES-GCM authenticates, so anything that can write the vault
+ * can change it. Reading it first meant one flipped character was enough to make
+ * a device call its own ring foreign and move it to the trash. Now the file is
+ * opened first, and a file that opens with our secret is ours whatever the
+ * envelope claims — that is what a successful AEAD decryption proves, and it is
+ * the only claim here that cannot be forged.
+ *
+ * The id is still read, for the one thing it is good for: telling `foreign` from
+ * `corrupt` among the files that did **not** open. Getting that wrong is cheap in
+ * one direction and expensive in the other, so an id that says "not ours" is
+ * believed only once decryption has already failed.
  */
 export type RingFileVerdict = 'free' | 'ours' | 'foreign' | 'corrupt';
 
@@ -178,13 +190,14 @@ export async function classifyRingFile(
 		return 'corrupt';
 	}
 
-	if (state.envelope.ring !== (await deriveRingId(secret))) {
-		return 'foreign';
+	try {
+		if (isRingSnapshot(await openSnapshot(secret, state.envelope))) {
+			return 'ours';
+		}
+	} catch {
+		// Wrong key, or altered bytes — AES-GCM cannot tell those apart, which is
+		// why the question of *whose* it is falls to the id below.
 	}
 
-	try {
-		return isRingSnapshot(await openSnapshot(secret, state.envelope)) ? 'ours' : 'corrupt';
-	} catch {
-		return 'corrupt';
-	}
+	return state.envelope.ring === (await deriveRingId(secret)) ? 'corrupt' : 'foreign';
 }

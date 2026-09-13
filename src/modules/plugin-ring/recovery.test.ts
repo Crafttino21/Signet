@@ -50,12 +50,26 @@ describe('classifying the ring file', () => {
 		await expect(classifyRingFile(state, secret)).resolves.toBe('ours');
 	});
 
-	it('recognises another ring without trying to decrypt it', async () => {
+	it('recognises another ring', async () => {
 		const vault = new FakeVault();
 		vault.put(PATH, JSON.stringify(await sealSnapshot(generateRingSecret(), snapshot)));
 
 		const state = await ringFile(vault).read();
 		await expect(classifyRingFile(state, generateRingSecret())).resolves.toBe('foreign');
+	});
+
+	it('knows its own ring even when the envelope says otherwise', async () => {
+		// The ring id travels in the clear, outside what AES-GCM authenticates, so
+		// anything that can write the vault can change it. It used to be read first,
+		// which made one flipped character enough to have a device call its own ring
+		// foreign — and a foreign file may be moved aside. Decryption decides now.
+		const secret = generateRingSecret();
+		const vault = new FakeVault();
+		const envelope = await sealSnapshot(secret, snapshot);
+		vault.put(PATH, JSON.stringify({ ...envelope, ring: 'deadbeefdeadbeef' }));
+
+		const state = await ringFile(vault).read();
+		await expect(classifyRingFile(state, secret)).resolves.toBe('ours');
 	});
 
 	it('does not call a damaged file of its own foreign', async () => {

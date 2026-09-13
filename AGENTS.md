@@ -284,6 +284,34 @@ There is no "already ported" marker, on purpose. The scan begins with two
 existence checks and stops when both come back empty, so a leftover that arrives
 later — dropped in by whatever else syncs this vault — is still picked up.
 
+## Authenticated, not merely encrypted
+
+Anything a reader **acts on** must be inside what the authentication covers.
+
+The rule exists because it was broken. A sealed blob carries fourteen plaintext
+header bytes, and byte 1 tells the reader whether to gunzip what comes out of the
+decryption. It sat outside the AES-GCM tag. A server — the party this design
+declares untrusted — could clear that bit, the tag would still verify, nothing
+would raise an error, and the client would hand Obsidian a gzip stream as the
+note's text. The next commit would write it back as the file. Silent corruption
+from one flipped bit.
+
+So: `sealBlob` passes the whole header as `additionalData`, and `openBlob` asks
+for it back. New blobs are format 2; format 1 is still read, because blobs are
+never rewritten and refusing them would break a vault that has been syncing for
+months.
+
+The ring envelope keeps its plaintext `ring` id, and the answer there is the other
+one available: **stop acting on it**. `classifyRingFile` decrypts first, and a
+file that opens with our secret is ours whatever the envelope claims. The id is
+read only to tell `foreign` from `corrupt` among the files that did not open —
+which is the one question decryption cannot answer. Bumping the envelope format
+would have been the wrong trade: one shared file that every device reads, against
+a weakness whose worst outcome is a recoverable trip to the trash.
+
+Before adding a field outside an AEAD, ask what reads it. If the answer is "code
+that then does something different", it belongs inside.
+
 ## Privacy
 
 No telemetry, ever, and no remote code loading. Nothing about the user, their

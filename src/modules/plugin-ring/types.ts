@@ -87,18 +87,50 @@ export interface PluginPlan {
 	enabled?: boolean;
 }
 
+/**
+ * One plugin as it arrives, rather than as the type declares it.
+ *
+ * `id` is what this matters for: it goes on to Obsidian's plugin catalogue, to
+ * `isEnabled`, and — on the settings path — into a filesystem path. Decryption
+ * proves a snapshot was sealed by somebody holding the ring code. It proves
+ * nothing whatever about what is inside it.
+ */
+export function isRingPluginEntry(value: unknown): value is RingPluginEntry {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const candidate = value as Partial<RingPluginEntry>;
+	return (
+		typeof candidate.id === 'string' &&
+		candidate.id !== '' &&
+		typeof candidate.name === 'string' &&
+		typeof candidate.version === 'string' &&
+		typeof candidate.enabled === 'boolean' &&
+		typeof candidate.isDesktopOnly === 'boolean'
+	);
+}
+
+/**
+ * Whether a decrypted snapshot is one this version can act on.
+ *
+ * The version is compared rather than merely present. It was written on every
+ * publish and read nowhere, so a snapshot claiming a format this build has never
+ * seen was applied by it regardless — which is the opposite of what a version
+ * field is for. A newer ring is a reason to update this device, not to guess.
+ */
 export function isRingSnapshot(value: unknown): value is RingSnapshot {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
 	const candidate = value as Partial<RingSnapshot>;
 	return (
-		typeof candidate.version === 'number' &&
+		candidate.version === SNAPSHOT_VERSION &&
 		typeof candidate.seq === 'number' &&
 		typeof candidate.updatedAt === 'string' &&
 		typeof candidate.host === 'object' &&
 		candidate.host !== null &&
 		typeof candidate.host.id === 'string' &&
-		Array.isArray(candidate.plugins)
+		Array.isArray(candidate.plugins) &&
+		candidate.plugins.every(isRingPluginEntry)
 	);
 }

@@ -8,9 +8,15 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { App } from 'obsidian';
 import {
 	deriveAuthToken,
+	deriveBlobId,
+	deriveContentKey,
+	deriveNameKey,
 	deriveVaultId,
 	generateRingSecret,
 	hashAuthToken,
+	hashContent,
+	sealBlob,
+	sealSnapshot,
 } from '@signet/protocol';
 import type { Bytes } from '@signet/protocol';
 import { createSyncServer } from '../../../packages/server/src/http';
@@ -253,5 +259,80 @@ describe('a device that has only the ring code', () => {
 
 		expect(report.downloaded.length).toBeGreaterThan(0);
 		expect(joiner.vault.text('Arbeit/Notiz.md')).toBe('Wichtige Ergaenzung.\n');
+	});
+});
+
+describe('a device in the ring that sends something it should not', () => {
+	/**
+	 * The ring code is the key to everything, so a device holding it is trusted to
+	 * sync notes. That is not the same as being trusted to choose where on another
+	 * machine a file lands.
+	 *
+	 * A manifest is sealed with the ring secret, so only such a device can produce
+	 * one — which is why this is written as a device in the ring rather than as a
+	 * hostile server. A lost phone is a likelier thing than a broken cipher.
+	 */
+
+	/** Puts a manifest on the server by hand, with a blob to match each entry. */
+	async function publish(files: { path: string; text: string }[]): Promise<void> {
+		const client = new SyncClient(base, vaultId, token);
+		const contentKey = await deriveContentKey(secret);
+		const nameKey = await deriveNameKey(secret);
+
+		const entries = [];
+		for (const file of files) {
+			const bytes = new TextEncoder().encode(file.text);
+			const hash = await hashContent(bytes);
+			const blob = await deriveBlobId(nameKey, hash);
+			await client.putBlob(blob, await sealBlob(contentKey, bytes));
+			entries.push({ path: file.path, hash, blob, size: bytes.byteLength, mtime: 1 });
+		}
+
+		const head = await client.head();
+		const outcome = await client.push(
+			head.seq,
+			await sealSnapshot(secret, {
+				version: 1,
+				seq: head.seq + 1,
+				device: { id: 'hostile', name: 'Hostile' },
+				updatedAt: new Date().toISOString(),
+				files: entries,
+				deleted: [],
+			})
+		);
+		expect(outcome.ok).toBe(true);
+	}
+
+	it('does not let a path climb out of the vault', async () => {
+		await publish([
+			{ path: '../escaped.md', text: 'should never be written\n' },
+			{ path: 'Legit/Fine.md', text: 'this one is ordinary\n' },
+		]);
+
+		const victim = new Device('victim');
+		const report = await victim.sync();
+
+		// Reported per file, like any other failure, and the rest of the run goes
+		// through — one bad entry must not strand the notes beside it.
+		expect(report.failed.map((failure) => failure.path)).toContain('../escaped.md');
+		expect(victim.vault.text('Legit/Fine.md')).toBe('this one is ordinary\n');
+
+		for (const path of victim.vault.files.keys()) {
+			expect(path).not.toContain('escaped');
+		}
+	});
+
+	it('does not let a path reach into the config folder', async () => {
+		// Inside the vault, entirely legal as a path, and a file written there is
+		// code that runs on the next start.
+		await publish([{ path: '.obsidian/plugins/evil/main.js', text: 'pwned\n' }]);
+
+		const victim = new Device('victim-config');
+		const report = await victim.sync();
+
+		expect(report.failed.map((failure) => failure.path)).toContain(
+			'.obsidian/plugins/evil/main.js'
+		);
+		expect(victim.vault.text('.obsidian/plugins/evil/main.js')).toBeUndefined();
 	});
 });

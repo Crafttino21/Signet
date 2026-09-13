@@ -1,6 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App, TFile } from 'obsidian';
-import { ensureFolder, parentFolder } from '../../core/vault-fs';
+import { assertVaultPath, ensureFolder, parentFolder } from '../../core/vault-fs';
 import {
 	deriveBlobId,
 	deriveContentKey,
@@ -119,7 +119,10 @@ async function ensureParent(app: App, path: string): Promise<void> {
 }
 
 async function writeFile(app: App, path: string, bytes: Bytes): Promise<void> {
-	const normalised = normalizePath(path);
+	// The one place a path from a remote manifest becomes a file on this disk, and
+	// so the one place it has to be checked. Throws rather than returning, and the
+	// caller lets it land in `report.failed` beside every other per-file failure.
+	const normalised = assertVaultPath(app, path);
 	const existing = app.vault.getFileByPath(normalised);
 	const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 

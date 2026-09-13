@@ -97,17 +97,130 @@ export type RoomFrame =
 	| { type: 'compact'; payload: string; generation: number }
 	| { type: 'error'; message: string };
 
+/**
+ * A payload is base64 of a sealed blob, and the server writes it to a log file
+ * one entry per line.
+ *
+ * So the two things worth refusing are a newline — which would forge extra
+ * entries in that log — and anything that is not a string, which would be
+ * stringified into `undefined` or `[object Object]` and handed to the next client
+ * that joins as though it were an update. Neither can happen by accident: real
+ * payloads are base64. Both were possible on purpose.
+ */
+const MAX_PAYLOAD_CHARS = 8 * 1024 * 1024;
+
+function isPayload(value: unknown): value is string {
+	return (
+		typeof value === 'string' &&
+		value.length > 0 &&
+		value.length <= MAX_PAYLOAD_CHARS &&
+		!value.includes('\n') &&
+		!value.includes('\r')
+	);
+}
+
+/**
+ * Whether a frame off the socket is one this server will act on.
+ *
+ * This used to check `type` and nothing else, which made the union above a
+ * statement about what a well-behaved client sends rather than about what arrives.
+ * `payload` reached the room log untyped; `generation` reached a filename.
+ */
 export function isRoomFrame(value: unknown): value is RoomFrame {
 	if (typeof value !== 'object' || value === null) {
 		return false;
 	}
-	const candidate = value as { type?: unknown };
+	const candidate = value as { type?: unknown; payload?: unknown; generation?: unknown };
+
+	switch (candidate.type) {
+		case 'update':
+		case 'presence':
+			return isPayload(candidate.payload);
+		case 'compact':
+			return isPayload(candidate.payload) && isGeneration(candidate.generation);
+		case 'history': {
+			// Every entry, because they are read back out of a log file and one
+			// unusable line should be visible as such rather than arriving at the
+			// base64 decoder as `undefined`.
+			const { updates } = candidate as { updates?: unknown };
+			return (
+				Array.isArray(updates) &&
+				updates.every(isPayload) &&
+				isGeneration(candidate.generation)
+			);
+		}
+		case 'error':
+			return typeof (candidate as { message?: unknown }).message === 'string';
+		default:
+			return false;
+	}
+}
+
+/** A generation ends up in a filename, so it is a whole number and a small one. */
+function isGeneration(value: unknown): value is number {
+	return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < 1e9;
+}
+
+/** One file as of a particular commit, as it arrives rather than as it is declared. */
+export function isFileEntry(value: unknown): value is FileEntry {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const candidate = value as Partial<FileEntry>;
 	return (
-		candidate.type === 'history' ||
-		candidate.type === 'update' ||
-		candidate.type === 'presence' ||
-		candidate.type === 'compact' ||
-		candidate.type === 'error'
+		typeof candidate.path === 'string' &&
+		candidate.path !== '' &&
+		candidate.path.length <= MAX_PATH_CHARS &&
+		typeof candidate.hash === 'string' &&
+		typeof candidate.blob === 'string' &&
+		typeof candidate.size === 'number' &&
+		typeof candidate.mtime === 'number'
+	);
+}
+
+export function isTombstone(value: unknown): value is Tombstone {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const candidate = value as Partial<Tombstone>;
+	return (
+		typeof candidate.path === 'string' &&
+		candidate.path !== '' &&
+		candidate.path.length <= MAX_PATH_CHARS &&
+		typeof candidate.deletedAt === 'number'
+	);
+}
+
+/** Longer than any real vault path, short enough that a hostile one is refused. */
+const MAX_PATH_CHARS = 1024;
+
+/** More files than any vault has, and few enough to reconcile without stalling. */
+const MAX_FILES = 500_000;
+
+/**
+ * Whether a decrypted manifest is one this version can work with.
+ *
+ * Every element is checked, not just the shape around them. Decryption proves the
+ * manifest was sealed by somebody holding the ring secret; it proves nothing at
+ * all about what is inside, and `files[].path` goes on to become a path on this
+ * disk. A device with the ring code is trusted to sync notes — it is not a reason
+ * to stop reading what it sent.
+ */
+export function isVaultManifest(value: unknown): value is VaultManifest {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const candidate = value as Partial<VaultManifest>;
+	return (
+		typeof candidate.version === 'number' &&
+		typeof candidate.seq === 'number' &&
+		typeof candidate.updatedAt === 'string' &&
+		Array.isArray(candidate.files) &&
+		candidate.files.length <= MAX_FILES &&
+		candidate.files.every(isFileEntry) &&
+		Array.isArray(candidate.deleted) &&
+		candidate.deleted.length <= MAX_FILES &&
+		candidate.deleted.every(isTombstone)
 	);
 }
 
@@ -121,20 +234,6 @@ export const routes = {
 	health: () => '/v1/health',
 	room: (vaultId: string, roomId: string) => `/v1/vaults/${vaultId}/rooms/${roomId}`,
 } as const;
-
-export function isVaultManifest(value: unknown): value is VaultManifest {
-	if (typeof value !== 'object' || value === null) {
-		return false;
-	}
-	const candidate = value as Partial<VaultManifest>;
-	return (
-		typeof candidate.version === 'number' &&
-		typeof candidate.seq === 'number' &&
-		typeof candidate.updatedAt === 'string' &&
-		Array.isArray(candidate.files) &&
-		Array.isArray(candidate.deleted)
-	);
-}
 
 /** Vault ids and blob ids are hex, and both end up in a filesystem path. */
 export function isSafeId(value: string): boolean {

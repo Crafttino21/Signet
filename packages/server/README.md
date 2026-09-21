@@ -190,6 +190,24 @@ restart. Nothing else is affected: the secret is only used to create a vault, an
 every vault that already exists authenticates with a token derived from its ring
 code.
 
+The other thing that changed is where the server listens. It now defaults to
+`127.0.0.1` rather than every interface, because this server speaks plain HTTP
+and its bearer token is not encrypted — the safe deployment is behind a reverse
+proxy holding the TLS, which the compose file arranges.
+
+The compose file and the Dockerfile set `HOST` back to `0.0.0.0`, so `npm run
+server:up` is unaffected. **A hand-written `docker run`, a Portainer stack or a
+bare `node dist/server.js` is not**: it will start perfectly, log nothing
+unusual, and refuse every connection from outside, which looks exactly like the
+sync having broken. Set it explicitly:
+
+```
+HOST=0.0.0.0
+```
+
+The server now says so at startup when it detects it is listening on loopback
+inside a container. Keep it behind a reverse proxy either way.
+
 ## Backups
 
 The data directory is the whole state. Back up the Docker volume:

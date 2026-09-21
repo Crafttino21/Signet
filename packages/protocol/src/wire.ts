@@ -93,8 +93,31 @@ export type RoomFrame =
 	 * A room's history grows with every keystroke, so a client that has just
 	 * rebuilt the whole document offers it back compacted. The old generation is
 	 * kept rather than deleted, in keeping with the rest of the server.
+	 *
+	 * `basedOn` is how many log entries the merge covers. Without it the server
+	 * can only check that the *generation* has not moved, which says nothing
+	 * about entries appended to that same generation while the client was
+	 * merging — and those simply stopped being read, because only the newest
+	 * generation ever is. Optional, because a client from before this sends no
+	 * such count and must still be able to compact.
 	 */
-	| { type: 'compact'; payload: string; generation: number }
+	| { type: 'compact'; payload: string; generation: number; basedOn?: number }
+	/**
+	 * The room's log has been compacted and is now at this generation.
+	 *
+	 * Sent to everyone in the room, the compacting client included. Only that one
+	 * client used to learn the new number, and only because it had asked — so
+	 * every other peer went on believing the old generation for the life of its
+	 * connection, and each of its own compactions was refused as out of date.
+	 *
+	 * Deliberately not a `history` frame carrying no updates: a client that is
+	 * already seeded answers history by offering its whole document back, which
+	 * is the one thing that must not happen once per compaction per peer.
+	 *
+	 * A client from before this ignores it, which is what it did with the
+	 * information anyway.
+	 */
+	| { type: 'generation'; generation: number }
 	| { type: 'error'; message: string };
 
 /**
@@ -136,8 +159,14 @@ export function isRoomFrame(value: unknown): value is RoomFrame {
 		case 'update':
 		case 'presence':
 			return isPayload(candidate.payload);
-		case 'compact':
-			return isPayload(candidate.payload) && isGeneration(candidate.generation);
+		case 'compact': {
+			const { basedOn } = candidate as { basedOn?: unknown };
+			return (
+				isPayload(candidate.payload) &&
+				isGeneration(candidate.generation) &&
+				(basedOn === undefined || isGeneration(basedOn))
+			);
+		}
 		case 'history': {
 			// Every entry, because they are read back out of a log file and one
 			// unusable line should be visible as such rather than arriving at the
@@ -149,6 +178,8 @@ export function isRoomFrame(value: unknown): value is RoomFrame {
 				isGeneration(candidate.generation)
 			);
 		}
+		case 'generation':
+			return isGeneration(candidate.generation);
 		case 'error':
 			return typeof (candidate as { message?: unknown }).message === 'string';
 		default:

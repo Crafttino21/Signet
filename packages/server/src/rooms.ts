@@ -16,6 +16,21 @@ import { dirname, join } from 'node:path';
  * old one stays on disk. Nothing is destroyed, it simply stops being read.
  */
 
+/**
+ * Whether a failure to read means "there is nothing here".
+ *
+ * Only one errno does. Everything else — a permission that changed, too many
+ * open files, a volume that hiccuped — used to be swallowed into the same empty
+ * answer, and an empty answer is not inert: a client that is told a room has no
+ * history treats that as licence to seed the room from whatever is on its own
+ * disk. A momentary read failure on the server therefore published one device's
+ * possibly stale copy of a note to everybody. The room has to be able to say
+ * "ask me again" as distinct from "I am new".
+ */
+function isMissing(error: unknown): boolean {
+	return (error as { code?: unknown } | null)?.code === 'ENOENT';
+}
+
 export interface RoomLog {
 	generation: number;
 	updates: string[];
@@ -61,8 +76,11 @@ export class RoomStore {
 				.filter((value): value is string => value !== undefined)
 				.map(Number);
 			return generations.length === 0 ? 0 : Math.max(...generations);
-		} catch {
-			return 0;
+		} catch (error) {
+			if (isMissing(error)) {
+				return 0;
+			}
+			throw error;
 		}
 	}
 
@@ -88,8 +106,16 @@ export class RoomStore {
 				generation,
 				updates: raw.split('\n').filter((line) => line.length > 0),
 			};
-		} catch {
-			return { generation, updates: [] };
+		} catch (error) {
+			if (isMissing(error)) {
+				// The directory listing named this generation a moment ago, so this is
+				// a room being compacted underneath us rather than an empty one.
+				// Saying "empty" would be as wrong here as anywhere else.
+				throw new Error(
+					`Room ${roomId} lost generation ${String(generation)} while reading.`
+				);
+			}
+			throw error;
 		}
 	}
 
@@ -122,12 +148,25 @@ export class RoomStore {
 	 *
 	 * Refuses when the client compacted an older generation than the current one:
 	 * it would be discarding updates it never saw.
+	 *
+	 * The generation check alone is not enough, and that gap cost edits. A client
+	 * rebuilds the document from the log, merges it, and sends the result — and
+	 * anything appended to that same generation in between is covered by neither
+	 * the merge nor the check. The new generation would then be missing those
+	 * entries, and since only the newest generation is ever read, they stop
+	 * existing. Invisibly, too: every peer still connected holds them in memory,
+	 * so it only shows once everybody has disconnected.
+	 *
+	 * So a client that says how many entries it merged gets the rest appended
+	 * after the merge. A client that does not say is trusted as before, because
+	 * refusing it outright would leave an old client unable to compact at all.
 	 */
 	async compact(
 		vaultId: string,
 		roomId: string,
 		basedOn: number,
-		merged: string
+		merged: string,
+		covered?: number
 	): Promise<{ ok: true; generation: number } | { ok: false; generation: number }> {
 		return this.serialise(`${vaultId}/${roomId}`, async () => {
 			const current = await this.latestGeneration(vaultId, roomId);
@@ -135,8 +174,14 @@ export class RoomStore {
 				return { ok: false, generation: current };
 			}
 
+			const lines = covered === undefined ? [] : (await this.read(vaultId, roomId)).updates;
+			const tail = covered === undefined ? [] : lines.slice(covered);
+
 			const next = current + 1;
-			await this.writeAtomic(this.logPath(vaultId, roomId, next), `${merged}\n`);
+			await this.writeAtomic(
+				this.logPath(vaultId, roomId, next),
+				[merged, ...tail].map((line) => `${line}\n`).join('')
+			);
 			return { ok: true, generation: next };
 		});
 	}

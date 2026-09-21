@@ -61,6 +61,24 @@ export class BlobFormatError extends Error {
 	}
 }
 
+/**
+ * A blob written by a newer Signet than this one.
+ *
+ * Its own type because it is the one read failure that is not about this blob at
+ * all: nothing is damaged, nothing is missing, and no amount of retrying will
+ * help. Every file another device writes will fail the same way until this
+ * device is updated — so reporting it per file, as a file problem, describes a
+ * vault falling apart when the answer is one update.
+ */
+export class UnsupportedBlobVersionError extends BlobFormatError {
+	constructor(readonly version: number) {
+		super(
+			`This file was written by a newer version of Signet (blob format ${String(version)}).`
+		);
+		this.name = 'UnsupportedBlobVersionError';
+	}
+}
+
 /** Content hash of the plaintext. Drives change detection and de-duplication. */
 export async function hashContent(bytes: Uint8Array): Promise<string> {
 	return bytesToHex(new Uint8Array(await subtle().digest('SHA-256', bytes as BufferSource)));
@@ -155,7 +173,7 @@ export async function openBlob(key: CryptoKey, sealed: Uint8Array): Promise<Byte
 
 	const version = sealed[0];
 	if (version !== FORMAT_VERSION && version !== LEGACY_FORMAT_VERSION) {
-		throw new BlobFormatError(`Unknown blob format version: ${String(version)}`);
+		throw new UnsupportedBlobVersionError(version ?? 0);
 	}
 
 	const flags = sealed[1] ?? 0;

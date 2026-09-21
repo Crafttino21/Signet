@@ -49,7 +49,34 @@ interface Member {
 	socket: WebSocket;
 	vaultId: string;
 	roomId: string;
+	/** Answered the last ping. A socket that misses one is not there any more. */
+	alive: boolean;
 }
+
+/**
+ * How often to check that a socket is still attached to something.
+ *
+ * Under the sixty seconds an idle nginx waits before cutting a proxied
+ * connection, so an idle collaboration survives instead of being dropped and
+ * reconnected all day — and each of those reconnects re-offers the whole
+ * document.
+ *
+ * It is also the only way a half-open socket is ever noticed. A closed laptop, a
+ * NAT rebind or a killed network never delivers `close`, so without this the
+ * member stays in its room for the life of the process: broadcasts are written
+ * into it, and everyone else keeps seeing it in the room.
+ */
+const HEARTBEAT_MS = 30_000;
+
+/**
+ * Close code for a room whose history could not be read.
+ *
+ * In the 4000-4999 range, which is the one a library leaves to the application.
+ * It exists so the client can tell "the server said no about this room" from the
+ * far more ordinary "the connection dropped" — the first is worth stopping and
+ * reporting, the second is worth retrying quietly.
+ */
+export const ROOM_UNREADABLE = 4001;
 
 export class CollabRelay {
 	private readonly wss = new WebSocketServer({
@@ -68,10 +95,42 @@ export class CollabRelay {
 	/** Sockets by `vaultId/roomId`, so a message reaches exactly one room. */
 	private readonly rooms = new Map<string, Set<Member>>();
 
+	/** Drives the liveness check. Unref'd, so it never holds the process open. */
+	private readonly heartbeat: NodeJS.Timeout;
+
 	constructor(
 		private readonly vaults: VaultStore,
 		private readonly store: RoomStore
-	) {}
+	) {
+		this.heartbeat = setInterval(() => {
+			this.sweep();
+		}, HEARTBEAT_MS);
+		this.heartbeat.unref();
+	}
+
+	/**
+	 * Pings everyone, and drops whoever did not answer the last one.
+	 *
+	 * `terminate` rather than `close`: a socket that failed to answer a ping is
+	 * not going to complete a closing handshake either, and `close` on one of
+	 * those waits for a reply that never comes.
+	 */
+	private sweep(): void {
+		for (const members of this.rooms.values()) {
+			for (const member of [...members]) {
+				if (!member.alive) {
+					member.socket.terminate();
+					continue;
+				}
+				member.alive = false;
+				try {
+					member.socket.ping();
+				} catch {
+					member.socket.terminate();
+				}
+			}
+		}
+	}
 
 	/** Hooks the relay onto an existing HTTP server's upgrade handshake. */
 	attach(server: Server): void {
@@ -125,7 +184,7 @@ export class CollabRelay {
 		}
 
 		this.wss.handleUpgrade(request, socket, head, (ws) => {
-			void this.join({ socket: ws, vaultId, roomId }, token);
+			void this.join({ socket: ws, vaultId, roomId, alive: true }, token);
 		});
 	}
 
@@ -135,6 +194,39 @@ export class CollabRelay {
 
 	private async join(member: Member, token: string): Promise<void> {
 		const key = this.key(member);
+
+		// A socket error is not worth a stack trace on the server; the client will
+		// reconnect and the close handler tidies up either way.
+		member.socket.on('error', () => undefined);
+
+		// Read the history *before* joining the room.
+		//
+		// Joining first put this socket in the broadcast set while the read was
+		// still in flight, so another peer's update could arrive ahead of the
+		// `history` frame. On the client that lands on a document which has not been
+		// seeded yet — and `seed` then sees an empty history and puts the local file
+		// on top of it, which is how a note comes back with its content twice.
+		let log;
+		try {
+			log = await this.store.read(member.vaultId, member.roomId);
+		} catch (error) {
+			// Never as an empty room. A client told a room is empty seeds it from its
+			// own copy of the note, and that copy becomes the room for everybody.
+			console.error(`Signet: could not read room ${member.roomId}.`, error);
+			this.send(member.socket, {
+				type: 'error',
+				message: 'This note\u2019s history could not be read. Nothing was changed.',
+			});
+			member.socket.close(ROOM_UNREADABLE, 'history unavailable');
+			return;
+		}
+
+		if (member.socket.readyState !== member.socket.OPEN) {
+			// Gone while we were reading. Adding it now would leave a member nothing
+			// ever removes, because its `close` has already been and gone.
+			return;
+		}
+
 		const members = this.rooms.get(key) ?? new Set<Member>();
 		this.rooms.set(key, members);
 		members.add(member);
@@ -148,11 +240,10 @@ export class CollabRelay {
 				this.rooms.delete(key);
 			}
 		});
-		// A socket error is not worth a stack trace on the server; the client will
-		// reconnect and the close handler tidies up either way.
-		member.socket.on('error', () => undefined);
+		member.socket.on('pong', () => {
+			member.alive = true;
+		});
 
-		const log = await this.store.read(member.vaultId, member.roomId);
 		this.send(member.socket, {
 			type: 'history',
 			updates: log.updates,
@@ -205,12 +296,20 @@ export class CollabRelay {
 				member.vaultId,
 				member.roomId,
 				frame.generation,
-				frame.payload
+				frame.payload,
+				frame.basedOn
 			);
 			if (!outcome.ok) {
 				// Someone else compacted first. Nothing is lost; this client simply
 				// rebuilt from a log that has already been superseded.
 				this.send(member.socket, { type: 'error', message: 'Compaction was out of date.' });
+				return;
+			}
+
+			// Everybody is told, the compacting client included.
+			const members = this.rooms.get(this.key(member));
+			for (const other of members ?? []) {
+				this.send(other.socket, { type: 'generation', generation: outcome.generation });
 			}
 		}
 	}
@@ -230,7 +329,14 @@ export class CollabRelay {
 	private send(socket: WebSocket, frame: RoomFrame): void {
 		if (socket.readyState === socket.OPEN) {
 			socket.send(JSON.stringify(frame));
+			return;
 		}
+
+		// Nothing can be done about it here — the frame has nowhere to go, and a
+		// `RoomFrame` carries no sequence number, so the receiving end cannot see
+		// the hole either. Saying so at least makes it findable, which "silently,
+		// and neither end knows" was not.
+		console.warn(`Signet: dropped a ${frame.type} frame for a socket that is not open.`);
 	}
 
 	/** How many updates a room holds before a joining client should compact it. */
@@ -244,6 +350,7 @@ export class CollabRelay {
 	}
 
 	close(): void {
+		clearInterval(this.heartbeat);
 		for (const members of this.rooms.values()) {
 			for (const member of members) {
 				member.socket.close();

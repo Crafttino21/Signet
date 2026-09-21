@@ -236,10 +236,18 @@ export class VaultStore {
 	 * off disk to decide to do nothing, which is a free amplifier for anybody who
 	 * wants one.
 	 */
+	/**
+	 * Whether this blob is already stored, and worth keeping.
+	 *
+	 * An empty file counts as absent. Blobs are never overwritten — that is what
+	 * makes storing one idempotent and what keeps the store append-only — so a
+	 * zero-length file under an id would otherwise block every future correct
+	 * upload of that id for good, and every client fetching it would get bytes
+	 * that fail the hash their manifest announced.
+	 */
 	async hasBlob(vaultId: string, blobId: string): Promise<boolean> {
 		try {
-			await stat(this.blobPath(vaultId, blobId));
-			return true;
+			return (await stat(this.blobPath(vaultId, blobId))).size > 0;
 		} catch {
 			return false;
 		}

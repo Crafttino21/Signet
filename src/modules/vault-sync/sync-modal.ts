@@ -96,6 +96,60 @@ export class SyncPlanModal extends Modal {
 	}
 }
 
+/**
+ * Asks about a run that concluded most of the vault is gone.
+ *
+ * The engine refuses such a run rather than carrying it out, because the usual
+ * cause is a partial file index or a state file from another device — not
+ * somebody deleting things. But it is sometimes somebody deleting things, and
+ * the only party who can tell is the person who was there. So the number is put
+ * in front of them, and nothing happens unless they say it is right.
+ */
+export class BulkDeletionModal extends Modal {
+	constructor(
+		app: App,
+		private readonly deletions: number,
+		private readonly known: number,
+		private readonly onConfirm: () => void
+	) {
+		super(app);
+	}
+
+	override onOpen(): void {
+		this.contentEl.addClass('signet-modal');
+		this.setTitle(t('vaultSync.bulk.title'));
+
+		this.contentEl.createEl('p', {
+			text: t('vaultSync.bulk.body', {
+				count: String(this.deletions),
+				total: String(this.known),
+			}),
+		});
+		this.contentEl.createEl('p', {
+			cls: 'signet-sync__note',
+			text: t('vaultSync.bulk.hint'),
+		});
+
+		new Setting(this.contentEl)
+			.addButton((button) =>
+				button
+					.setButtonText(t('common.cancel'))
+					.setCta()
+					.onClick(() => this.close())
+			)
+			.addButton((button) =>
+				button.setButtonText(t('vaultSync.bulk.confirm')).onClick(() => {
+					this.close();
+					this.onConfirm();
+				})
+			);
+	}
+
+	override onClose(): void {
+		this.contentEl.empty();
+	}
+}
+
 /** One line summarising a finished run, for a notice. */
 export function describeReport(report: SyncReport): string {
 	if (report.failed.length > 0) {

@@ -2,7 +2,7 @@ import { Modal, Setting } from 'obsidian';
 import type { App } from 'obsidian';
 import { t } from '../../i18n';
 import type { ServerSetupOutcome } from '../../core/ring-link';
-import { SERVER_PLACEHOLDER } from './server-url';
+import { SERVER_PLACEHOLDER } from '../../core/server-url';
 
 /** What connecting was asked to do, and what it said. */
 export interface ConnectAttempt {

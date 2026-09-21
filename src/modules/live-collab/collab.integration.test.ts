@@ -365,3 +365,64 @@ describe('two devices in one note', () => {
 		expect(names).toContain('Phone');
 	});
 });
+
+describe('a server address that cannot be used', () => {
+	// Live editing built its socket address by rewriting the sync's setting as a
+	// string, so an address with no scheme travelled all the way to
+	// `new WebSocket` and threw from inside `start()` — which the module called
+	// after it had already put the session in its map and claimed the path.
+
+	function sessionFor(serverUrl: string): CollabSession {
+		return new CollabSession({
+			path: 'Kaputt.md',
+			serverUrl,
+			vaultId,
+			roomId: 'a'.repeat(32),
+			token,
+			contentKey,
+			secret,
+			deviceName: 'broken',
+			readCurrent: () => Promise.resolve(''),
+			onStatus: () => undefined,
+			onError: () => undefined,
+		});
+	}
+
+	it('says so when the session starts, rather than later', () => {
+		const session = sessionFor('192.168.1.5:8787');
+
+		// Synchronously, which is what lets the module undo everything it had just
+		// set up for this session instead of leaving it half-open.
+		expect(() => {
+			session.start();
+		}).toThrow();
+
+		session.destroy();
+	});
+
+	it('leaves nothing waiting on a document that can never arrive', async () => {
+		const session = sessionFor('not a url at all');
+		expect(() => {
+			session.start();
+		}).toThrow();
+
+		// The module ends a session it could not start. That has to settle
+		// `whenSeeded`, because every later attach for this note waits on it — and
+		// a note whose attach never returns stays claimed, which takes it out of
+		// the file sync for as long as the vault is open.
+		session.destroy();
+		await expect(session.whenSeeded).resolves.toBeUndefined();
+		expect(session.isSeeded).toBe(false);
+	});
+
+	it('reports no text at all until it has been seeded', () => {
+		// What the write-back guard rests on: an unseeded session is not an empty
+		// note, it is a session with nothing to say about the note.
+		const session = sessionFor('http://127.0.0.1:1');
+
+		expect(session.isSeeded).toBe(false);
+		expect(session.contents()).toBe('');
+
+		session.destroy();
+	});
+});

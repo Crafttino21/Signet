@@ -253,6 +253,13 @@ export const de: Translations = {
 		'Wo beide Seiten geändert wurden, wird nichts überschrieben: Die ankommende Fassung landet als Konfliktkopie neben deiner.',
 	'vaultSync.plan.confirm': 'Jetzt synchronisieren',
 
+	'vaultSync.bulk.title': 'Dieser Abgleich würde viele Dateien entfernen',
+	'vaultSync.bulk.body':
+		'Er würde {count} der {total} Dateien entfernen, die dieses Gerät abgeglichen hatte. Geändert wurde noch nichts.',
+	'vaultSync.bulk.hint':
+		'Wenn du sie gelöscht hast, ist das in Ordnung. Wenn nicht, liegt es meist daran, dass die Dateiliste des Vaults noch nicht fertig geladen war oder Einstellungen von einem anderen Gerät übernommen wurden — dann schließ dies und versuch es erneut, sobald der Vault vollständig offen ist.',
+	'vaultSync.bulk.confirm': 'Trotzdem entfernen',
+
 	'vaultSync.action.upload': 'geht an den Server',
 	'vaultSync.action.download': 'kommt hier an',
 	'vaultSync.action.deleteLocal': 'wandert hier in den Papierkorb',
@@ -294,6 +301,10 @@ export const de: Translations = {
 		'Dieser Vault war auf dem Server bereits vorhanden, dieses Gerät ist beigetreten.',
 	'vaultSync.notice.forgotten':
 		'Vergessen. Die nächste Synchronisierung behandelt jeden Unterschied als Konflikt und behält beide Seiten.',
+	'vaultSync.notice.refusedDeletions':
+		'Abgleich gestoppt: Er hätte {count} von {total} Dateien entfernt. Geändert wurde nichts.',
+	'vaultSync.notice.needsUpdate':
+		'Einige Dateien wurden von einer neueren Signet-Version geschrieben und können hier nicht gelesen werden. Aktualisiere Signet auf diesem Gerät; verloren ist nichts.',
 	'vaultSync.notice.failed': 'Synchronisierung fehlgeschlagen:',
 	'vaultSync.settings.live': 'Offene Geräte gleich halten',
 	'vaultSync.settings.liveDesc':
@@ -411,7 +422,8 @@ export const de: Translations = {
 		'Solange eine Notiz offen ist, wird sie Anschlag für Anschlag mit allen abgeglichen, die sie ebenfalls offen haben. Diese Notiz bleibt so lange aus dem normalen Dateisync heraus, damit beide sich nicht gegenseitig überschreiben.',
 	'collab.settings.excluded': 'Diese Ordner nie gemeinsam bearbeiten',
 	'collab.settings.excludedDesc': 'Ein Pfad pro Zeile.',
-	'collab.notice.failed': 'Signet: Gemeinsames Bearbeiten konnte für diese Notiz nicht starten.',
+	'collab.notice.failed':
+		'Signet: Gemeinsames Bearbeiten konnte für {path} nicht starten. {reason}',
 	'update.panel.available': 'Signet {version} ist da. Dieses Gerät läuft auf {installed}.',
 	'update.panel.fromRing': 'Ein anderes Gerät in deinem Ring hat es schon.',
 	'update.panel.openReleases': 'Zur Release-Seite',
@@ -428,6 +440,21 @@ export const de: Translations = {
 	'whatsNew.version': 'Version {version}',
 	'whatsNew.nothing': 'Seit deinem letzten Blick nichts Erwähnenswertes.',
 	'whatsNew.done': 'Alles klar',
+
+	'changelog.0-5-0.excluded':
+		'Eine Notiz, an der gemeinsam gearbeitet wird, oder ein von dir ausgeschlossener Ordner wird nicht mehr mit einer gel\u00f6schten Notiz verwechselt. Beide fehlten in der Dateiliste aus Gr\u00fcnden, die mit L\u00f6schen nichts zu tun haben, und der Abgleich las dieses Fehlen als L\u00f6schung und entfernte sie auf allen anderen Ger\u00e4ten. Ausgeschlossene Pfade bleiben jetzt in beide Richtungen unangetastet.',
+	'changelog.0-5-0.deletions':
+		'Eine L\u00f6schung wird erst geglaubt, wenn die Platte best\u00e4tigt, dass die Datei weg ist \u2014 nicht Obsidians Dateiliste allein, die auf einem gerade aufgeweckten Handy hinterherhinkt. Ein Lauf, der folgert, der halbe Vault sei verschwunden, h\u00e4lt jetzt an und sagt es dir, statt es auszuf\u00fchren.',
+	'changelog.0-5-0.overwrites':
+		'Was du tippst, w\u00e4hrend ein Abgleich l\u00e4dt, \u00fcberlebt ihn. Dateien werden unmittelbar vor dem \u00dcberschreiben oder Verschieben in den Papierkorb erneut gelesen, und eine, die sich zwischenzeitlich ge\u00e4ndert hat, wird als Konfliktkopie behalten statt ersetzt.',
+	'changelog.0-5-0.collabEmpty':
+		'Eine Sitzung f\u00fcrs gemeinsame Bearbeiten kann eine Notiz nicht mehr leeren. Sie schrieb ihren Text auch dann auf die Platte, wenn sie noch gar keinen hatte \u2014 eine geschlossene Notiz, ein abgeschaltetes Modul oder ein Layout-Wechsel in den ersten Sekunden konnte die Notiz durch nichts ersetzen.',
+	'changelog.0-5-0.collabStart':
+		'Gemeinsames Bearbeiten sagt einmal, warum es nicht starten konnte, statt dieselbe Meldung f\u00fcr jede ge\u00f6ffnete Notiz zu wiederholen. Die Serveradresse wird richtig gepr\u00fcft: eine ohne http:// oder hinter einem Pfadpr\u00e4fix wird gemeldet, statt still endlos wiederholt zu werden.',
+	'changelog.0-5-0.quieter':
+		'Abgleiche laufen nicht mehr \u00fcbereinander und h\u00e4mmern keinen ausgefallenen Server mehr im Sekundentakt, und die eigenen Schreibvorg\u00e4nge des Abgleichs l\u00f6sen keinen weiteren mehr aus. Ein Lauf, der w\u00e4hrend eines anderen angefordert wird, wird jetzt danach nachgeholt statt verworfen.',
+	'changelog.0-5-0.server':
+		'Wenn du den Sync-Server selbst betreibst: ein Raum, dessen Verlauf nicht gelesen werden kann, sagt das jetzt, statt einen leeren Raum zu melden \u2014 worauf Ger\u00e4te bisher antworteten, indem sie ihn mit ihrer eigenen Kopie \u00fcberschrieben. Die Verdichtung beh\u00e4lt Bearbeitungen, die w\u00e4hrenddessen eintreffen, tote Verbindungen werden bemerkt, und ein Container, der nur auf localhost lauscht, warnt beim Start davor.',
 
 	'changelog.0-4-0.smoothOpen':
 		'Beim Öffnen einer Notiz erscheint der Text nicht mehr doppelt, während dem Raum beigetreten wird. Der Editor wird erst auf das gemeinsame Dokument gerichtet, wenn dieses Dokument die Notiz ist.',

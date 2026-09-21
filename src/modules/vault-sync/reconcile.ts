@@ -1,4 +1,5 @@
 import type { FileEntry, VaultManifest } from '@signet/protocol';
+import { isExcluded } from './local-index';
 
 /**
  * Deciding what a sync run should do.
@@ -15,6 +16,13 @@ import type { FileEntry, VaultManifest } from '@signet/protocol';
  *
  * Nothing here reads or writes a file. It only produces a list of intentions,
  * which makes every awkward case something a test can pin down.
+ *
+ * Excluded paths are the fourth input, and they are not a refinement: without
+ * them the local index is simply missing a file that the base and the remote both
+ * have, which reads as `!here && there && wasSynced` — a deletion this device
+ * never made. A live-edited note belongs to its session and a folder somebody
+ * excluded belongs to them; both are absent from the index for reasons that have
+ * nothing to do with anybody deleting anything.
  */
 
 /** One local file as the index sees it. */
@@ -48,6 +56,13 @@ export interface ReconcileInput {
 	local: readonly IndexEntry[];
 	/** The server's current manifest. Absent when the vault is empty. */
 	remote?: VaultManifest;
+	/**
+	 * Folders and paths this device does not sync, exactly as `buildLocalIndex`
+	 * was given them. These are left alone in *both* directions: never deleted
+	 * because the index does not list them, and never downloaded because the
+	 * remote does.
+	 */
+	excluded?: readonly string[];
 }
 
 function byPath(files: readonly FileEntry[]): Map<string, FileEntry> {
@@ -64,10 +79,18 @@ export function reconcile(input: ReconcileInput): SyncAction[] {
 	const remote = byPath(input.remote?.files ?? []);
 	const remoteDeleted = deletedPaths(input.remote);
 
+	const excluded = input.excluded ?? [];
+
 	const paths = new Set([...base.keys(), ...local.keys(), ...remote.keys(), ...remoteDeleted]);
 	const actions: SyncAction[] = [];
 
 	for (const path of [...paths].sort()) {
+		// Not ours to have an opinion about, in either direction. The engine carries
+		// the remote's entry for it forward untouched.
+		if (isExcluded(path, excluded)) {
+			continue;
+		}
+
 		const wasSynced = base.get(path);
 		const here = local.get(path);
 		const there = remote.get(path);

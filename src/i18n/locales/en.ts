@@ -254,6 +254,13 @@ export const en = {
 		'Where both sides changed, nothing is overwritten: the incoming version is saved next to yours as a conflicted copy.',
 	'vaultSync.plan.confirm': 'Sync now',
 
+	'vaultSync.bulk.title': 'This sync would remove a lot of files',
+	'vaultSync.bulk.body':
+		'It would remove {count} of the {total} files this device had synced. Nothing has been changed yet.',
+	'vaultSync.bulk.hint':
+		'If you did delete them, go ahead. If you did not, this is usually a vault whose file list had not finished loading, or settings restored from another device — close this, and try again once the vault has fully opened.',
+	'vaultSync.bulk.confirm': 'Remove them anyway',
+
 	'vaultSync.action.upload': 'send to the server',
 	'vaultSync.action.download': 'arrives here',
 	'vaultSync.action.deleteLocal': 'moved to the trash here',
@@ -296,6 +303,10 @@ export const en = {
 	'vaultSync.notice.forgotten':
 		'Forgotten. The next sync treats every difference as a conflict and keeps both sides.',
 	'vaultSync.notice.failed': 'Sync failed:',
+	'vaultSync.notice.needsUpdate':
+		'Some files were written by a newer version of Signet and cannot be read here. Update Signet on this device; nothing has been lost.',
+	'vaultSync.notice.refusedDeletions':
+		'Sync stopped: it would have removed {count} of {total} files. Nothing was changed.',
 	'vaultSync.settings.live': 'Keep open devices in step',
 	'vaultSync.settings.liveDesc':
 		'Holds one request open on the server, so a change made on another open device arrives within a second. Runs only while Obsidian is on screen, and applies what arrives without asking — conflicts still keep both versions and deletions still go to the trash.',
@@ -408,7 +419,7 @@ export const en = {
 		'While a note is open it is kept in step keystroke by keystroke with anyone else who has it open. That note is left out of the ordinary file sync until it is closed, so the two cannot write over each other.',
 	'collab.settings.excluded': 'Never edit these folders together',
 	'collab.settings.excludedDesc': 'One path per line.',
-	'collab.notice.failed': 'Signet: could not start live editing for this note.',
+	'collab.notice.failed': 'Signet: live editing could not start for {path}. {reason}',
 	'update.panel.available': 'Signet {version} is out. This device is on {installed}.',
 	'update.panel.fromRing': 'Another device in your ring is already running it.',
 	'update.panel.openReleases': 'Open the releases page',
@@ -425,6 +436,21 @@ export const en = {
 	'whatsNew.version': 'Version {version}',
 	'whatsNew.nothing': 'Nothing worth writing down since you last looked.',
 	'whatsNew.done': 'Got it',
+
+	'changelog.0-5-0.excluded':
+		'A note being edited together, or a folder you excluded, is no longer mistaken for a note you deleted. Both were absent from the file list for reasons that have nothing to do with deleting, and the sync read that absence as a deletion and removed them from every other device. Excluded paths are now left alone in both directions.',
+	'changelog.0-5-0.deletions':
+		'A deletion is only believed once the disk agrees the file is gone, rather than Obsidian\u2019s file list alone \u2014 which lags behind on a phone that has just been woken. A run that concludes most of your vault has gone now stops and tells you, instead of carrying it out.',
+	'changelog.0-5-0.overwrites':
+		'Anything you type while a sync is fetching survives it. Files are re-read immediately before being overwritten or trashed, and one that changed in the meantime is kept as a conflicted copy rather than replaced.',
+	'changelog.0-5-0.collabEmpty':
+		'A live editing session can no longer empty a note. It used to write its text to disk even before it had any \u2014 so closing a note, switching the feature off, or a layout change in the first seconds after opening could replace the note with nothing.',
+	'changelog.0-5-0.collabStart':
+		'Live editing says why it could not start, once, instead of repeating the same message for every note you open. The server address is checked properly, so an address without http:// or behind a path prefix is reported rather than retried silently forever.',
+	'changelog.0-5-0.quieter':
+		'Syncs no longer run on top of each other or retry a failing server every second, and the sync\u2019s own writes no longer set off another sync. A run asked for while one is going is now carried out afterwards instead of being dropped.',
+	'changelog.0-5-0.server':
+		'If you run the sync server: a room whose history cannot be read now says so instead of reporting an empty room, which devices used to answer by overwriting it with their own copy. Compaction keeps edits that arrive while it is happening, dead connections are noticed, and a container listening only on localhost warns about it at startup.',
 
 	'changelog.0-4-0.smoothOpen':
 		'Opening a note no longer shows its text twice while the room is being joined. The editor is pointed at the shared document only once that document is the note.',

@@ -173,6 +173,26 @@ The rules the reconciler and engine must keep, in `src/modules/vault-sync`:
   all if this device edited the file since it last synced.
 - Never infer a deletion without a base. A device with no sync state is missing
   files, not reporting that the user deleted them.
+- **Absence from the local index is never on its own a deletion.** The index is
+  `vault.getFiles()`, which is Obsidian's index rather than the disk, and it is
+  also filtered by `excluded`. Both produce exactly the shape of a deletion for
+  a file nobody touched. So a path is only deleted when the disk agrees it is
+  gone (`pathExists`), and a run that concludes most of the vault has gone
+  refuses to act at all rather than acting on a conclusion that large.
+- An excluded path is left alone in **both** directions: never deleted because
+  the index does not list it, never downloaded because the remote does, and
+  never dropped from the manifest — the remote's entry for it is carried
+  forward untouched. A live-edited note is excluded, so getting this wrong
+  deletes the note being collaborated on from every other device.
+- Nothing destructive acts on the index snapshot alone. A run takes seconds and
+  several network round-trips, and the file is re-hashed immediately before it
+  is overwritten or trashed; if it moved, `download` becomes `conflict` and
+  `deleteLocal` becomes `resurrect`.
+- Runs are serialised, and a request that arrives during one is **remembered**,
+  not dropped. Two interleaved runs each load their own base and both save it,
+  and a base that disagrees with the disk is what makes every rule above fail.
+- The engine's own writes are announced through `onWrote`, because they raise
+  the same vault events the module watches for the user typing.
 - The base state is per-device and carries the device id. A base written by
   another device is treated as no base at all.
 
@@ -242,6 +262,21 @@ updates through the server. The rules that keep it from destroying text:
   path checks.
 - Writing back to disk only happens when the text actually differs. An identical
   write still moves the modification time, which the file sync reads as a change.
+- A session that has not seeded holds no text, and **must never be written to
+  disk**. `contents()` answers `''` until the room's history or the file itself
+  has been applied, and a session can be ended inside that window by a layout
+  change, a switched-off module or a plugin unload. Writing then replaces the
+  note with nothing.
+- The seed timer is armed before the socket is opened, and a `start()` that
+  throws takes the session out of the map and gives the claim back. A session
+  that can never seed is worse than none: every later attach waits on it, and
+  the path stays excluded from the file sync for as long as the vault is open.
+- A claim carries its owner. Ending a session writes back before releasing, and
+  that gap is long enough for the note to be opened again — an unowned release
+  would take the new session's claim.
+- An empty room is seeded from the file, but a room the server _could not read_
+  is not. The server says which it is; treating the second as the first
+  publishes one device's copy of a note to everybody.
 
 Getting from a note to its CodeMirror view goes through `editor-binding.ts`, which
 uses `editorInfoField` and a `Compartment` — both exported by Obsidian. Do not

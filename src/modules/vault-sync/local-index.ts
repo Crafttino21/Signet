@@ -7,12 +7,24 @@ import type { IndexEntry } from './reconcile';
  *
  * Hashing every file on every run would make a large vault unusable, so a file
  * whose size and modification time are unchanged since last time keeps its known
- * hash. The cache is only ever an optimisation: a wrong entry can at worst make
- * the sync miss a change, never destroy one, and any real edit moves the mtime.
+ * hash.
+ *
+ * This used to say the cache was "only ever an optimisation" — that a wrong
+ * entry could at worst make the sync miss a change and never destroy one. That
+ * was wrong, and it is worth saying why. A stale entry makes the local hash
+ * equal the base hash, and that is precisely the branch the reconciler reads as
+ * "only the remote moved", which selects `download`: an overwrite, rather than
+ * the conflicted copy the file deserved. The engine now re-hashes from disk
+ * immediately before anything destructive, which is what actually makes the
+ * claim true.
  *
  * `vault.getFiles()` lists only files Obsidian shows, so the config folder is
  * excluded for free — which is exactly right. `.obsidian` holds per-device state
  * and is the single most conflict-prone thing in a vault.
+ *
+ * It also lists only what Obsidian has *indexed*, which is not the same as what
+ * is on the disk. A path missing from here is not evidence that it is gone; see
+ * `vetDeletions` in `engine.ts`, which asks the disk before believing it.
  */
 
 export interface CacheEntry {

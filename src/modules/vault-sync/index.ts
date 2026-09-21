@@ -1,4 +1,5 @@
 import { Notice, Platform, Setting } from 'obsidian';
+import type { TAbstractFile } from 'obsidian';
 import { deriveAuthToken, deriveVaultId, hashAuthToken, parseRingCode } from '@signet/protocol';
 import type { Bytes } from '@signet/protocol';
 import { SignetModule } from '../../core/module';
@@ -11,7 +12,7 @@ import { t } from '../../i18n';
 import { isSyncServerAt, SyncClient, SyncServerError } from './client';
 import { ConnectServerModal } from './connect-modal';
 import type { ConnectAttempt, ConnectResult } from './connect-modal';
-import { isQuiet, planSync, runSync } from './engine';
+import { isQuiet, planSync, runSync, SuspectDeletionError } from './engine';
 import type { SyncDeps } from './engine';
 import { LiveSession } from './live';
 import { matchConflictName } from './patterns';
@@ -26,10 +27,10 @@ import {
 	SERVER_PLACEHOLDER,
 	shouldAdopt,
 	withDefaultPort,
-} from './server-url';
-import type { ServerUrlSource } from './server-url';
+} from '../../core/server-url';
+import type { ServerUrlSource } from '../../core/server-url';
 import { SyncStateStore } from './state';
-import { describeReport, SyncPlanModal } from './sync-modal';
+import { BulkDeletionModal, describeReport, SyncPlanModal } from './sync-modal';
 
 /**
  * Vault sync against your own server.
@@ -83,6 +84,15 @@ const DEFAULT_SETTINGS: VaultSyncSettings = {
 
 const RING_MODULE_ID = 'plugin-ring';
 
+/**
+ * How long a path this device wrote itself stays recognisable as its own.
+ *
+ * Obsidian delivers vault events a moment after the write, and only the first
+ * one for a path is ours — so an entry is used up as soon as it matches. The
+ * window is the backstop for a write whose event never arrives at all.
+ */
+const ECHO_WINDOW_MS = 5_000;
+
 /** How long the address field must be quiet before the ring is told. */
 const ADDRESS_SETTLE_MS = 2000;
 
@@ -106,7 +116,21 @@ interface RingSettings {
 }
 
 class VaultSyncModule extends SignetModule<VaultSyncSettings> {
-	private running = false;
+	/**
+	 * The run in flight, if there is one.
+	 *
+	 * Runs are serialised because any two of them share a vault, a state file and
+	 * a server. Interleaved, each loads its own base, both apply to the same disk,
+	 * and both save — last writer wins. A base that disagrees with the disk is
+	 * precisely what makes the reconciler infer deletions nobody made, so this is
+	 * not tidiness: it is the thing that keeps the rest of the engine's guarantees
+	 * true.
+	 */
+	private active?: Promise<void>;
+	/** Something asked for a run while one was going. */
+	private queued = false;
+	/** Paths this device wrote itself, and when, so their events can be ignored. */
+	private readonly written = new Map<string, number>();
 	private live?: LiveSession;
 	/** The commit this device is known to hold, so the live loop knows what to wait past. */
 	private seq = 0;
@@ -115,12 +139,12 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	private addressSettling?: number;
 
 	override onload(): void {
-		this.addRibbonIcon('refresh-cw', t('vaultSync.ribbon'), () => void this.sync());
+		this.addRibbonIcon('refresh-cw', t('vaultSync.ribbon'), () => this.detach(this.sync()));
 
 		this.addCommand({
 			id: 'sync-now',
 			name: t('vaultSync.command.sync'),
-			callback: () => void this.sync(),
+			callback: () => this.detach(this.sync()),
 		});
 		this.addCommand({
 			id: 'preview',
@@ -138,7 +162,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 		if (this.settings.autoSyncMinutes > 0 && !this.settings.liveSync) {
 			this.registerInterval(
 				window.setInterval(
-					() => void this.sync(true),
+					() => this.detach(this.sync(true)),
 					this.settings.autoSyncMinutes * 60 * 1000
 				)
 			);
@@ -210,7 +234,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 			// device that is waiting asks again every time Obsidian starts.
 			void this.claim().then(() => {
 				if (this.settings.syncOnStart) {
-					void this.autoSync();
+					this.detach(this.autoSync());
 				}
 				this.live?.start();
 			});
@@ -257,14 +281,20 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 				return;
 			}
 			if (this.settings.syncOnStart) {
-				void this.autoSync();
+				this.detach(this.autoSync());
 			}
 			live.start();
 		});
 
 		// Registered one by one because each event carries a different payload, and
 		// a union of them does not satisfy the overloads.
-		const touched = (): void => {
+		const touched = (file: TAbstractFile): void => {
+			if (this.wroteItHere(file.path)) {
+				// The sync's own write coming back round. Treating it as a local edit
+				// is how one download turns into another full run two seconds later,
+				// and two devices pulling from each other keep re-arming each other.
+				return;
+			}
 			live.noteLocalChange();
 		};
 		this.registerEvent(this.app.vault.on('create', touched));
@@ -469,12 +499,78 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	}
 
 	/** A sync nobody asked for: never prompts, and stays quiet when nothing happened. */
-	private async autoSync(): Promise<void> {
-		const deps = await this.deps(true);
-		if (!deps) {
-			return;
+	/**
+	 * Whether this path's event is the echo of this device's own write.
+	 *
+	 * Used up on the first match: a second event for the same path really is
+	 * somebody typing, and must not be swallowed too.
+	 */
+	private wroteItHere(path: string): boolean {
+		const at = this.written.get(path);
+		if (at === undefined) {
+			return false;
 		}
-		await this.execute(deps, true);
+		this.written.delete(path);
+		return Date.now() - at < ECHO_WINDOW_MS;
+	}
+
+	private async autoSync(): Promise<void> {
+		await this.request(true);
+	}
+
+	/**
+	 * Starts a run nobody is waiting on.
+	 *
+	 * By the time a rejection reaches here `execute` has already said what went
+	 * wrong. It travels on only so the live loop's backoff can see it, and the
+	 * loop is the one caller that awaits; everywhere else it would be nothing but
+	 * an unhandled rejection.
+	 */
+	private detach(run: Promise<void>): void {
+		void run.catch(() => undefined);
+	}
+
+	/**
+	 * The one way a run ever starts.
+	 *
+	 * A request that arrives while a run is going is remembered rather than
+	 * dropped. That matters most for the live push: it fires once after the typing
+	 * stops, so a dropped one is not a delayed push, it is a push that never
+	 * happens until somebody types again.
+	 *
+	 * The deps — including the state this run reconciles against — are loaded
+	 * inside the run, never handed in from before it. A base read minutes ago,
+	 * while a confirmation dialog sat open, describes a vault that has since moved
+	 * on.
+	 */
+	private async request(quiet: boolean, allowBulkDeletion = false): Promise<void> {
+		if (this.active) {
+			this.queued = true;
+			return this.active;
+		}
+
+		this.active = (async () => {
+			let runQuiet = quiet;
+			let allowBulk = allowBulkDeletion;
+			do {
+				this.queued = false;
+				const deps = await this.deps(runQuiet);
+				if (deps) {
+					await this.execute({ ...deps, allowBulkDeletion: allowBulk }, runQuiet);
+				}
+				// Whatever asked while that ran gets its turn now, and gets it
+				// unattended: nobody pressed anything for it, and a one-off permission
+				// does not carry into a run somebody else asked for.
+				runQuiet = true;
+				allowBulk = false;
+			} while (this.queued);
+		})();
+
+		try {
+			await this.active;
+		} finally {
+			this.active = undefined;
+		}
 	}
 
 	override displaySettings(containerEl: HTMLElement): void {
@@ -616,7 +712,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 				button
 					.setButtonText(t('vaultSync.command.sync'))
 					.setCta()
-					.onClick(() => void this.sync())
+					.onClick(() => this.detach(this.sync()))
 			);
 
 		containerEl.createEl('p', {
@@ -959,7 +1055,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 		// once the index is there, so nothing is delayed that need not be.
 		this.app.workspace.onLayoutReady(() => {
 			if (this.settings.syncOnStart) {
-				void this.autoSync();
+				this.detach(this.autoSync());
 			}
 			this.live?.start();
 		});
@@ -978,7 +1074,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 				return;
 			}
 			new SyncPlanModal(this.app, plan.actions, { firstRun: plan.firstRun }, () => {
-				void this.sync();
+				this.detach(this.sync());
 			}).open();
 		} catch (error) {
 			new Notice(this.explain(error));
@@ -986,41 +1082,37 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	}
 
 	private async sync(quiet = false): Promise<void> {
-		if (this.running) {
+		if (!this.settings.confirmLocalChanges) {
+			await this.request(quiet);
 			return;
 		}
 
-		const deps = await this.deps();
+		const deps = await this.deps(quiet);
 		if (!deps) {
 			return;
 		}
 
-		this.running = true;
 		try {
-			if (this.settings.confirmLocalChanges) {
-				const plan = await planSync(deps);
-				const local = touchesLocalFiles(plan.actions);
+			const plan = await planSync(deps);
 
-				if (local.length > 0) {
-					// Uploading needs no permission; changing files on this device does.
-					this.running = false;
-					new SyncPlanModal(this.app, plan.actions, { firstRun: plan.firstRun }, () => {
-						void this.execute(deps);
-					}).open();
-					return;
-				}
+			if (touchesLocalFiles(plan.actions).length > 0) {
+				// Uploading needs no permission; changing files on this device does.
+				// The run itself starts fresh once the answer comes, so nothing here
+				// is carried into it but the answer.
+				new SyncPlanModal(this.app, plan.actions, { firstRun: plan.firstRun }, () => {
+					this.detach(this.request(quiet));
+				}).open();
+				return;
 			}
-
-			await this.execute(deps, quiet);
 		} catch (error) {
 			new Notice(this.explain(error));
-		} finally {
-			this.running = false;
+			return;
 		}
+
+		await this.request(quiet);
 	}
 
 	private async execute(deps: SyncDeps, quiet = false): Promise<void> {
-		this.running = true;
 		this.setState('syncing');
 		try {
 			const { report, state } = await runSync(deps);
@@ -1044,6 +1136,14 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 				console.error(`Signet: sync failed for ${failure.path}: ${failure.error}`);
 			}
 
+			if (report.failed.some((failure) => failure.code === 'needsUpdate')) {
+				// Said in place of the per-file list: from this device's side every
+				// note another device has touched has just become unreadable, which
+				// looks like the vault coming apart rather than like one device
+				// being a version behind.
+				new Notice(t('vaultSync.notice.needsUpdate'));
+			}
+
 			// A run that could not finish everything is not a clean run, and the
 			// indicator should not pretend otherwise.
 			this.setState(
@@ -1055,9 +1155,43 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 			);
 		} catch (error) {
 			this.setState('error');
+
+			if (error instanceof SuspectDeletionError) {
+				// Never silently, whoever asked for the run: this is the one failure
+				// whose whole purpose is to be seen.
+				new Notice(
+					t('vaultSync.notice.refusedDeletions', {
+						count: String(error.deletions),
+						total: String(error.known),
+					})
+				);
+
+				// And then stop trying. Nothing about this resolves itself: the next
+				// run would reach the same conclusion, announce it again, and go on
+				// doing so every few seconds. It needs an answer from a person.
+				this.live?.stop();
+				this.setState('error');
+
+				if (!quiet) {
+					new BulkDeletionModal(this.app, error.deletions, error.known, () => {
+						this.detach(
+							this.request(false, true).then(() => {
+								if (this.settings.liveSync) {
+									this.live?.start();
+								}
+							})
+						);
+					}).open();
+				}
+				throw error;
+			}
+
 			new Notice(this.explain(error));
-		} finally {
-			this.running = false;
+
+			// Let the live loop see it, so its backoff applies. Swallowing this is
+			// what turned a server that is down into a full run every second: the
+			// loop never learned anything had gone wrong.
+			throw error;
 		}
 	}
 
@@ -1138,6 +1272,15 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	}
 
 	private async deps(quiet = false): Promise<SyncDeps | undefined> {
+		// Anything left from a previous run whose event never came is past caring
+		// about, and the map is the one thing here that would otherwise only grow.
+		const stale = Date.now() - ECHO_WINDOW_MS;
+		for (const [path, at] of this.written) {
+			if (at < stale) {
+				this.written.delete(path);
+			}
+		}
+
 		const ring = this.ring();
 		const secret = this.secret(quiet);
 		const client = await this.client(quiet);
@@ -1162,6 +1305,9 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 			// over each other, which is the failure this whole project exists to stop.
 			excluded: [...this.settings.excludedFolders, ...this.plugin.liveEditing.list()],
 			state: await this.stateStore().load(ring.deviceId),
+			onWrote: (path) => {
+				this.written.set(path, Date.now());
+			},
 		};
 	}
 

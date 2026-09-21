@@ -15,14 +15,14 @@ let active = true;
 let syncs: number;
 let errors: unknown[];
 
-function session(waitForRemote: LiveHandlers['waitForRemote']): LiveSession {
+function session(waitForRemote: LiveHandlers['waitForRemote'], fail = false): LiveSession {
 	return new LiveSession(
 		{
 			currentSeq: () => seq,
 			waitForRemote,
 			sync: () => {
 				syncs += 1;
-				return Promise.resolve();
+				return fail ? Promise.reject(new Error('nope')) : Promise.resolve();
 			},
 			isActive: () => active,
 			onError: (error) => errors.push(error),
@@ -179,5 +179,37 @@ describe('announcing local changes', () => {
 		await vi.advanceTimersByTimeAsync(500);
 
 		expect(syncs).toBe(0);
+	});
+});
+
+describe('a sync that keeps failing', () => {
+	// The commit the run could not take is still the head, so the next parked
+	// request comes back immediately. Without a pause on this path that is a full
+	// sync run every `minIntervalMs` for as long as the server is unwell — which
+	// is what the backoff was always there to prevent, on the other half of the
+	// loop.
+
+	it('waits instead of coming straight back round', async () => {
+		const live = session(() => Promise.resolve(seq + 1), true);
+		live.start();
+
+		// Less than one backoff, and several times `minIntervalMs`.
+		await vi.advanceTimersByTimeAsync(90);
+		live.stop();
+
+		expect(syncs).toBe(1);
+		expect(errors).toHaveLength(1);
+	});
+
+	it('does come back once the wait is over', async () => {
+		const live = session(() => Promise.resolve(seq + 1), true);
+		live.start();
+
+		await vi.advanceTimersByTimeAsync(400);
+		live.stop();
+
+		expect(syncs).toBeGreaterThan(1);
+		// Still nowhere near one per `minIntervalMs`.
+		expect(syncs).toBeLessThan(8);
 	});
 });

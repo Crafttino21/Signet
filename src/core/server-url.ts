@@ -1,6 +1,13 @@
 /**
  * Where the sync server is, and who said so.
  *
+ * In core rather than inside the sync module, because two modules need the same
+ * answers and `AGENTS.md` does not let one import the other. Live editing used
+ * to derive its socket address by rewriting the same setting as a string and so
+ * had none of this: an address without a scheme reached `new WebSocket`
+ * unchanged and threw, and one behind a path prefix produced a URL the relay's
+ * route never matched.
+ *
  * Two devices can disagree about the server's address for a good reason: the
  * host publishes the one it uses, and another device may reach the same machine
  * over a VPN, under a different name, or not at all. So an address a person

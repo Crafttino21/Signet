@@ -130,6 +130,21 @@ export class FakeVault {
 		this.files.delete(path);
 	}
 
+	/**
+	 * Takes a file out of the index while leaving it on disk.
+	 *
+	 * What a phone looks like in the seconds after it is woken: the files are all
+	 * there, and `getFiles()` has not been told about them yet.
+	 */
+	unindex(path: string): void {
+		const text = this.text(path);
+		if (text === undefined) {
+			throw new Error(`Not indexed in the first place: ${path}`);
+		}
+		this.hidden.set(path, text);
+		this.files.delete(path);
+	}
+
 	private stat(path: string): FakeStat {
 		return { mtime: this.clock, size: this.files.get(path)?.byteLength ?? 0 };
 	}

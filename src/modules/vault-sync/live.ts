@@ -8,7 +8,10 @@
  *   idle vault costs one open connection instead of a request every few seconds,
  *   and a change arrives in about as long as it takes to travel the network.
  * - **Announcing.** Local edits are collected and pushed after a short pause, so
- *   a burst of typing becomes one commit rather than thirty.
+ *   a burst of typing becomes one commit rather than thirty. The push is handed
+ *   to the module, which serialises it against whatever else is running rather
+ *   than dropping it — this half fires once when the typing stops, so a dropped
+ *   push is not a late push, it is one that never happens.
  *
  * Both stop when the window loses focus, and neither is attempted in the
  * background. On mobile that is not a policy choice: iOS suspends a backgrounded
@@ -128,8 +131,14 @@ export class LiveSession {
 				if (this.stopped) {
 					return;
 				}
-				if (head > this.handlers.currentSeq()) {
-					await this.runSync();
+				if (head > this.handlers.currentSeq() && !(await this.runSync())) {
+					// A run that failed will fail again straight away: the commit it
+					// could not take is still the head, so the next parked request
+					// returns immediately and the loop spins as fast as the network for
+					// as long as the server is unwell. The backoff is for this, not only
+					// for a request that could not be made.
+					await this.pause(this.options.backoffMs);
+					continue;
 				}
 			} catch (error) {
 				this.handlers.onError(error);
@@ -148,11 +157,14 @@ export class LiveSession {
 		}
 	}
 
-	private async runSync(): Promise<void> {
+	/** Whether the run got through, so the caller can decide to wait longer. */
+	private async runSync(): Promise<boolean> {
 		try {
 			await this.handlers.sync();
+			return true;
 		} catch (error) {
 			this.handlers.onError(error);
+			return false;
 		}
 	}
 

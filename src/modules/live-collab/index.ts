@@ -17,6 +17,7 @@ import type { ModuleDescriptor } from '../../core/module';
 import { advancedSection } from '../../core/settings-ui';
 import type SignetPlugin from '../../main';
 import { t } from '../../i18n';
+import { isUsableServerUrl } from '../../core/server-url';
 import { CollabSession } from './session';
 
 /**
@@ -54,6 +55,14 @@ function isSyncRegistered(plugin: SignetPlugin): boolean {
 }
 
 /** How long after the last keystroke the document is written back to the file. */
+/**
+ * How long the same failure stays said.
+ *
+ * Long enough that switching between tabs does not repeat it, short enough
+ * that somebody fixing the address finds out whether it worked.
+ */
+const REPORT_EVERY_MS = 30_000;
+
 const FLUSH_MS = 2_000;
 
 interface RingSettings {
@@ -85,7 +94,7 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	private readonly binding = new CollabEditorBinding({
 		attach: (path, view) => {
 			this.editors.set(view, path);
-			void this.attachToPath(path);
+			this.detach(this.attachToPath(path));
 		},
 		detach: (view) => {
 			this.editors.delete(view);
@@ -93,19 +102,49 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	});
 	private flushTimer: number | undefined;
 
+	/**
+	 * Starts an attach nobody is waiting on.
+	 *
+	 * `attachToPath` reports its own failures, so the rejection carries nothing
+	 * new by the time it gets here — but left as a bare `void` it is an unhandled
+	 * rejection on a path that runs on every note anybody opens.
+	 */
+	private detach(run: Promise<void>): void {
+		void run.catch(() => undefined);
+	}
+
 	override onload(): void {
 		// The extension starts empty and is reconfigured per editor once a session
 		// exists for the note it is showing.
-		this.plugin.registerEditorExtension(this.binding.extension());
+		//
+		// Into a slot that outlives this module rather than registered here:
+		// `registerEditorExtension` cannot be undone, so registering on every
+		// `onload` leaves one behind per switch-off, each still holding the
+		// callbacks of an instance that has been torn down. Filling and emptying a
+		// stable array is what `obsidian.d.ts` names as the supported way to change
+		// an editor extension at runtime.
+		const slot = this.plugin.editorExtensionSlot('live-collab');
+		slot.length = 0;
+		slot.push(this.binding.extension());
+
+		// Applied to editors that are already open. Without this the extension
+		// reaches nothing until every note is reopened: switching the module on by
+		// hand looked like it had worked, opened sessions and claimed paths, while
+		// binding no editor at all and taking those notes out of the file sync.
+		this.app.workspace.updateOptions();
+		this.register(() => {
+			slot.length = 0;
+			this.app.workspace.updateOptions();
+		});
 
 		this.registerEvent(
 			this.app.workspace.on('active-leaf-change', () => {
-				void this.attachToActive();
+				this.detach(this.attachToActive());
 			})
 		);
 		this.registerEvent(
 			this.app.workspace.on('file-open', () => {
-				void this.attachToActive();
+				this.detach(this.attachToActive());
 			})
 		);
 
@@ -117,11 +156,33 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			})
 		);
 
+		// A rename moves the note out from under its session: the room id is
+		// derived from the path, the session is keyed by it, and the claim is held
+		// under it. Left alone, the editor stays bound to a document that is about
+		// to be destroyed and the claim is never given back.
+		this.registerEvent(
+			this.app.vault.on('rename', (file, oldPath) => {
+				if (!this.sessions.has(oldPath)) {
+					return;
+				}
+				this.end(oldPath);
+				for (const [view, shown] of this.editors) {
+					if (shown === oldPath) {
+						this.editors.set(view, file.path);
+					}
+				}
+				this.detach(this.attachToPath(file.path));
+			})
+		);
+
 		this.register(() => {
+			// The timer is a raw `setTimeout`, so without this it survives the module
+			// and fires against a map that has just been emptied.
+			this.cancelFlush();
 			this.endAll();
 		});
 
-		this.app.workspace.onLayoutReady(() => void this.attachToActive());
+		this.app.workspace.onLayoutReady(() => this.detach(this.attachToActive()));
 	}
 
 	override onDisable(): void {
@@ -140,7 +201,7 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 					if (!value) {
 						this.endAll();
 					} else {
-						void this.attachToActive();
+						this.detach(this.attachToActive());
 					}
 					this.refreshPanel();
 				})
@@ -236,6 +297,9 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	 * lands at the wrong place, until a write-back to disk hides the damage. So the
 	 * order is: wait, correct the buffer, then bind.
 	 */
+	/** When a failure that keeps happening is worth saying again. */
+	private readonly reported = new Map<string, number>();
+
 	private async attachToPath(path: string): Promise<void> {
 		if (!this.settings.enabled || !this.ready() || this.isExcluded(path)) {
 			return;
@@ -279,9 +343,34 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			}
 		} catch (error) {
 			this.connecting.delete(path);
+			this.refreshPanel();
 			console.error('Signet: could not start a collaborative session.', error);
-			new Notice(t('collab.notice.failed'));
+			this.report(path, error);
 		}
+	}
+
+	/**
+	 * Says a start failed, once.
+	 *
+	 * Opening a note raises `file-open`, `active-leaf-change` and the editor's own
+	 * announcement, and all three come through here. One broken address therefore
+	 * produced three identical notices per note and three more on every tab
+	 * switch — which is what "haufenweise Fehler" looks like from the outside.
+	 *
+	 * Keyed by what went wrong rather than by the note, because the cause is
+	 * almost always the configuration rather than the file, and hearing it once
+	 * per note is barely better than hearing it three times.
+	 */
+	private report(path: string, error: unknown): void {
+		const reason = error instanceof Error ? error.message : String(error);
+		const last = this.reported.get(reason);
+		const now = Date.now();
+
+		if (last !== undefined && now - last < REPORT_EVERY_MS) {
+			return;
+		}
+		this.reported.set(reason, now);
+		new Notice(t('collab.notice.failed', { path, reason }));
 	}
 
 	/**
@@ -324,17 +413,46 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			},
 			onError: (error) => {
 				console.error('Signet: collaboration error.', error);
+				// Deduplicated by cause, so a server that is refusing every note says
+				// it once rather than once per note per reconnect.
+				this.report(file.path, error);
+			},
+			onUnavailable: (reason) => {
+				// The note goes back to being an ordinary file, which the vault sync
+				// then looks after as usual. Staying open would mean a session that
+				// is bound to an editor and connected to nothing.
+				console.error(`Signet: the room for ${file.path} is unavailable.`, reason);
+				this.end(file.path);
+				this.report(file.path, new Error(reason));
 			},
 		});
 
 		this.sessions.set(file.path, session);
 		// From here the session owns the file, and the vault sync leaves it alone.
-		this.plugin.liveEditing.claim(file.path);
-		session.start();
+		this.plugin.liveEditing.claim(file.path, session);
 
+		// Registered before starting, not after. The room's history can arrive
+		// immediately, and a seed that lands before this listener exists leaves the
+		// new text sitting in the document with nothing scheduled to write it to
+		// disk — until somebody happens to type.
 		session.doc.on('update', () => {
 			this.scheduleFlush();
 		});
+
+		try {
+			session.start();
+		} catch (error) {
+			// `start` reaches `new WebSocket`, which throws on an address that is not
+			// a valid URL. Leaving the session in the map would be the worst of both
+			// outcomes: it can never seed, so every later attach waits on it forever,
+			// and the path stays claimed — which takes the note out of the file sync
+			// for as long as the vault is open.
+			this.sessions.delete(file.path);
+			this.plugin.liveEditing.release(file.path, session);
+			session.destroy();
+			this.refreshPanel();
+			throw error;
+		}
 
 		this.refreshPanel();
 		return session;
@@ -397,8 +515,10 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		void this.flushOne(path, session).finally(() => {
 			session.destroy();
 			// Released only once the file has been written: until then the sync must
-			// keep its hands off a note that is still being saved.
-			this.plugin.liveEditing.release(path);
+			// keep its hands off a note that is still being saved. Passing the session
+			// means a note reopened while this was running keeps the claim its own
+			// session made, rather than losing it to this one letting go.
+			this.plugin.liveEditing.release(path, session);
 			this.refreshPanel();
 		});
 	}
@@ -421,6 +541,14 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		}, FLUSH_MS);
 	}
 
+	/** Stops a pending write-back, for a module that is going away. */
+	private cancelFlush(): void {
+		if (this.flushTimer !== undefined) {
+			window.clearTimeout(this.flushTimer);
+			this.flushTimer = undefined;
+		}
+	}
+
 	private async flushAll(): Promise<void> {
 		for (const [path, session] of this.sessions) {
 			await this.flushOne(path, session);
@@ -433,6 +561,16 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	 * Only when it actually differs: an identical write would still bump the
 	 * modification time, which the sync reads as a change and would turn every
 	 * keystroke into a commit.
+	 *
+	 * Two things are refused outright, and both are the same mistake seen from
+	 * different sides: writing a document that is not yet the note.
+	 *
+	 * A session's text is empty until it is seeded — from the room's history, or
+	 * from the file itself, or by the timeout that gives up on the server. Every
+	 * one of those arrives some time after the session exists, and a session can
+	 * be ended inside that window by a layout change, a switched-off module, or a
+	 * plugin unload. `contents()` then answers `''`, and the note is replaced by
+	 * nothing.
 	 */
 	private async flushOne(path: string, session: CollabSession): Promise<void> {
 		const file = this.app.vault.getFileByPath(path);
@@ -440,8 +578,28 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			return;
 		}
 
+		if (!session.isSeeded) {
+			// It never held the note's text, so it has nothing to say about it.
+			return;
+		}
+
 		try {
 			const contents = session.contents();
+
+			if (contents === '') {
+				// Emptying a note is a thing somebody can genuinely do, and this is
+				// not how it would reach us: a seeded session that reports nothing is
+				// a document that failed to load, not a note somebody cleared. The
+				// cost of being wrong in this direction is a write that has to be
+				// repeated; in the other, it is the note.
+				const existing = await this.app.vault.read(file);
+				if (existing !== '') {
+					console.error(
+						`Signet: refused to empty ${path} from a session that holds no text.`
+					);
+					return;
+				}
+			}
 			// `process` rather than read-then-modify: it is the documented way to edit
 			// a file nobody is looking at, and it closes the gap in which a sync could
 			// land between the two halves of the old version.
@@ -480,6 +638,13 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		const sync = this.plugin.settings.moduleSettings[SYNC_MODULE_ID] as
 			SyncSettings | undefined;
 		if (typeof sync?.serverUrl !== 'string' || !sync.serverUrl || sync.registered !== true) {
+			return undefined;
+		}
+		// Asked here rather than discovered inside `new WebSocket`. An address
+		// that cannot be turned into a socket is a reason for this module not to
+		// be ready, which the panel can say plainly — not an exception thrown
+		// from the middle of starting a session on every note anybody opens.
+		if (!isUsableServerUrl(sync.serverUrl)) {
 			return undefined;
 		}
 		return { serverUrl: sync.serverUrl };

@@ -45,6 +45,14 @@ export interface SessionOptions {
 	readCurrent: () => Promise<string>;
 	onStatus: (connected: boolean, peers: number) => void;
 	onError: (error: unknown) => void;
+	/**
+	 * The server will not serve this room, and retrying will not change that.
+	 *
+	 * The session stops here rather than falling back to the file: the fallback
+	 * exists for a server that cannot be reached, and this is a server that was
+	 * reached and said no.
+	 */
+	onUnavailable?: (reason: string) => void;
 }
 
 /** Past this many updates in a room, the next joiner offers a merged replacement. */
@@ -69,6 +77,16 @@ export class CollabSession {
 
 	private readonly socket: RoomSocket;
 	private seeded = false;
+	/** The server said this room cannot be served. Never seed over that. */
+	private unavailable = false;
+	/**
+	 * How many log entries the document was built from.
+	 *
+	 * Sent with a compaction so the server can keep whatever arrived after that
+	 * point. Without it the merge silently drops every update appended while it
+	 * was being made.
+	 */
+	private covered = 0;
 	private generation = 0;
 	private seedTimer: number | undefined;
 	private announceSeeded!: () => void;
@@ -120,6 +138,23 @@ export class CollabSession {
 					options.onStatus(connected, this.awareness.getStates().size - 1);
 				},
 				onError: options.onError,
+				onGeneration: (generation) => {
+					// Just the number. Compacting against a stale one is refused, and
+					// this is the only way a peer that did not compact ever learns it
+					// moved.
+					this.generation = generation;
+				},
+				onUnavailable: (reason) => {
+					// Set before announcing, so anything the announcement wakes up
+					// already sees that this room is not to be seeded from the file.
+					this.unavailable = true;
+					if (this.seedTimer !== undefined) {
+						window.clearTimeout(this.seedTimer);
+						this.seedTimer = undefined;
+					}
+					this.announceSeeded();
+					options.onUnavailable?.(reason);
+				},
 			}
 		);
 
@@ -154,14 +189,26 @@ export class CollabSession {
 		);
 	}
 
+	/**
+	 * Opens the socket and starts the clock on seeding.
+	 *
+	 * The timer is armed *before* the socket, and that order is the whole point.
+	 * `connect()` builds a `WebSocket`, which throws synchronously on an address
+	 * that is not a valid URL — and with the timer armed afterwards, that throw
+	 * left `whenSeeded` as a promise nothing could ever resolve. The session was
+	 * already in the module's map and had already claimed the path, so every later
+	 * attach waited on it forever and the file stayed excluded from the sync for
+	 * as long as the vault was open.
+	 */
 	start(): void {
-		this.socket.connect();
 		this.seedTimer = window.setTimeout(() => {
 			this.seedTimer = undefined;
 			if (!this.seeded) {
 				void this.seed([], this.generation);
 			}
 		}, SEED_TIMEOUT_MS);
+
+		this.socket.connect();
 	}
 
 	/** Whether the document is the note yet. See {@link whenSeeded}. */
@@ -178,6 +225,14 @@ export class CollabSession {
 	 */
 	private async seed(updates: Uint8Array[], generation: number): Promise<void> {
 		this.generation = generation;
+
+		if (this.unavailable && !this.seeded) {
+			// The room exists and the server could not read it. Seeding from the file
+			// would put this device's copy of the note into a room whose real history
+			// is merely unreachable, and from there to everybody else.
+			this.announceSeeded();
+			return;
+		}
 
 		if (this.seeded) {
 			// A reconnection. The updates are merged rather than seeded, since the
@@ -213,10 +268,16 @@ export class CollabSession {
 				Y.applyUpdate(this.doc, update, this);
 			}
 
+			this.covered = updates.length;
+
 			if (updates.length > COMPACT_AFTER) {
 				// The whole document as one update, offered in place of the log that
 				// produced it. The server keeps the old generation regardless.
-				void this.socket.sendCompacted(Y.encodeStateAsUpdate(this.doc), this.generation);
+				void this.socket.sendCompacted(
+					Y.encodeStateAsUpdate(this.doc),
+					this.generation,
+					this.covered
+				);
 			}
 		} finally {
 			// Whatever happened above, the document is as close to the note as it is

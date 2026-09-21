@@ -23,7 +23,7 @@ import { createSyncServer } from '../../../packages/server/src/http';
 import { VaultStore } from '../../../packages/server/src/storage';
 import { FakeVault } from '../../test/fake-vault';
 import { SyncClient } from './client';
-import { runSync } from './engine';
+import { runSync, SuspectDeletionError } from './engine';
 import type { SyncReport } from './engine';
 import { SyncStateStore } from './state';
 
@@ -45,11 +45,31 @@ let secret: Bytes;
 
 class Device {
 	readonly vault = new FakeVault();
+	/**
+	 * Runs after each blob comes back and before the engine writes it.
+	 *
+	 * The gap between deciding to overwrite a file and actually overwriting it is
+	 * several network round-trips wide, and what a person types inside it used to
+	 * be lost without trace. This is the only way to stand in that gap.
+	 */
+	whileFetching: (() => void) | undefined;
 
 	constructor(readonly name: string) {}
 
 	private client(): SyncClient {
-		return new SyncClient(base, vaultId, token);
+		const client = new SyncClient(base, vaultId, token);
+		const hook = this.whileFetching;
+		if (!hook) {
+			return client;
+		}
+
+		const inner = client.getBlob.bind(client);
+		client.getBlob = async (blobId: string): Promise<Uint8Array | undefined> => {
+			const bytes = await inner(blobId);
+			hook();
+			return bytes;
+		};
+		return client;
 	}
 
 	private store(): SyncStateStore {
@@ -57,14 +77,14 @@ class Device {
 	}
 
 	/** One full run, remembering the resulting state the way the module does. */
-	async sync(): Promise<SyncReport> {
+	async sync(excluded: readonly string[] = []): Promise<SyncReport> {
 		const store = this.store();
 		const { report, state } = await runSync({
 			app: this.vault.app as App,
 			client: this.client(),
 			secret,
 			device: { id: this.name, name: this.name },
-			excluded: [],
+			excluded,
 			state: await store.load(this.name),
 		});
 		await store.save(state);
@@ -411,5 +431,180 @@ describe('a server that goes backwards', () => {
 				state: await store.load('time-traveller'),
 			})
 		).rejects.toThrow(/behind/);
+	});
+});
+
+describe('a note that is excluded while it is being worked on', () => {
+	const one = new Device('exclude-one');
+	const two = new Device('exclude-two');
+
+	// This is the shape of the live-editing hand-off: a note is claimed by a
+	// collaborative session, the file sync is told to leave it alone, and the very
+	// next run has to not read that silence as "the user deleted it".
+
+	it('stays on every other device', async () => {
+		one.vault.put('Gemeinsam.md', 'Erste Fassung.\n');
+		await one.sync();
+		await two.sync();
+		expect(two.vault.text('Gemeinsam.md')).toBe('Erste Fassung.\n');
+
+		// The note is now live on device one, so it drops out of its index.
+		const report = await one.sync(['Gemeinsam.md']);
+		expect(report.removedRemotely).toEqual([]);
+
+		const after = await two.sync();
+		expect(after.trashed).toEqual([]);
+		expect(two.vault.trashed).not.toContain('Gemeinsam.md');
+		expect(two.vault.text('Gemeinsam.md')).toBe('Erste Fassung.\n');
+	});
+
+	it('is still there once the session lets it go', async () => {
+		// The manifest kept carrying it, so nothing has to be re-uploaded and the
+		// other device never saw a gap.
+		const report = await one.sync();
+
+		expect(report.uploaded).toEqual([]);
+		expect(report.trashed).toEqual([]);
+		expect(one.vault.text('Gemeinsam.md')).toBe('Erste Fassung.\n');
+	});
+
+	it('does not pull an excluded folder onto a fresh device', async () => {
+		one.vault.put('Geheim/Tagebuch.md', 'Nur hier.\n');
+		await one.sync();
+
+		const fresh = new Device('exclude-three');
+		const report = await fresh.sync(['Geheim']);
+
+		expect(report.downloaded).not.toContain('Geheim/Tagebuch.md');
+		expect(fresh.vault.text('Geheim/Tagebuch.md')).toBeUndefined();
+		// And it did not take the chance to delete it for everybody either.
+		expect(one.vault.text('Geheim/Tagebuch.md')).toBe('Nur hier.\n');
+	});
+});
+
+describe('a vault index that has not caught up', () => {
+	const one = new Device('index-one');
+	const two = new Device('index-two');
+
+	it('does not read its own blind spot as a deletion', async () => {
+		one.vault.put('Zettel/Eins.md', 'Eins\n');
+		one.vault.put('Zettel/Zwei.md', 'Zwei\n');
+		await one.sync();
+		await two.sync();
+
+		// The files are still on disk; Obsidian simply has not listed them yet.
+		one.vault.unindex('Zettel/Eins.md');
+		one.vault.unindex('Zettel/Zwei.md');
+
+		const report = await one.sync();
+		expect(report.removedRemotely).toEqual([]);
+
+		const after = await two.sync();
+		expect(after.trashed).toEqual([]);
+		expect(two.vault.text('Zettel/Eins.md')).toBe('Eins\n');
+		expect(two.vault.text('Zettel/Zwei.md')).toBe('Zwei\n');
+	});
+});
+
+describe('a run that concludes most of the vault is gone', () => {
+	const device = new Device('brake');
+
+	it('refuses to act on a conclusion that large', async () => {
+		for (let i = 0; i < 12; i += 1) {
+			device.vault.put(`Sammlung/Notiz ${String(i)}.md`, `Inhalt ${String(i)}\n`);
+		}
+		await device.sync();
+
+		// Everything gone at once, and genuinely gone from the disk too — the shape
+		// of a restored backup or another device's state file, not of an afternoon.
+		for (let i = 0; i < 12; i += 1) {
+			device.vault.remove(`Sammlung/Notiz ${String(i)}.md`);
+		}
+
+		await expect(device.sync()).rejects.toBeInstanceOf(SuspectDeletionError);
+	});
+
+	it('says how much it was asked to remove', async () => {
+		const error = await device.sync().catch((reason: unknown) => reason);
+
+		expect(error).toBeInstanceOf(SuspectDeletionError);
+		expect((error as SuspectDeletionError).deletions).toBe(12);
+		// Everything this file's devices have ever pushed shares one vault, so the
+		// base is larger than this block's own twelve.
+		expect((error as SuspectDeletionError).known).toBeGreaterThanOrEqual(12);
+	});
+
+	it('still lets an ordinary deletion through', async () => {
+		const ordinary = new Device('ordinary');
+		for (let i = 0; i < 12; i += 1) {
+			ordinary.vault.put(`Andere/Notiz ${String(i)}.md`, `Inhalt ${String(i)}\n`);
+		}
+		await ordinary.sync();
+
+		ordinary.vault.remove('Andere/Notiz 0.md');
+		const report = await ordinary.sync();
+
+		expect(report.removedRemotely).toEqual(['Andere/Notiz 0.md']);
+	});
+});
+
+describe('a note somebody edits while the run is fetching it', () => {
+	const one = new Device('race-one');
+	const two = new Device('race-two');
+
+	it('keeps the new work instead of writing over it', async () => {
+		one.vault.put('Rennen.md', 'Erste Fassung.\n');
+		await one.sync();
+		await two.sync();
+		expect(two.vault.text('Rennen.md')).toBe('Erste Fassung.\n');
+
+		// One moves ahead, so two's next run will decide to download.
+		one.vault.put('Rennen.md', 'Fassung von eins.\n');
+		await one.sync();
+
+		// ...and while that download is in flight, somebody types on two.
+		two.whileFetching = () => {
+			two.vault.put('Rennen.md', 'Gerade hier getippt.\n');
+			two.whileFetching = undefined;
+		};
+
+		const report = await two.sync();
+
+		// The typing survived...
+		expect(two.vault.text('Rennen.md')).toBe('Gerade hier getippt.\n');
+		// ...and the incoming version landed beside it rather than over it.
+		expect(report.downloaded).toEqual([]);
+		expect(report.conflicts).toHaveLength(1);
+		expect(two.vault.text(report.conflicts[0] ?? '')).toBe('Fassung von eins.\n');
+	});
+
+	it('does not put a file in the trash that was just edited', async () => {
+		const three = new Device('race-three');
+
+		// Two files, because the window this is about is opened by the run's own
+		// network time: the first action fetches, and the second acts on an index
+		// photographed before that fetch began. Sorted by path, so the download is
+		// reached first.
+		one.vault.put('Rennen 1 Laden.md', 'Erste.\n');
+		one.vault.put('Rennen 2 Loeschen.md', 'Da.\n');
+		await one.sync();
+		await three.sync();
+
+		one.vault.put('Rennen 1 Laden.md', 'Zweite.\n');
+		one.vault.remove('Rennen 2 Loeschen.md');
+		await one.sync();
+
+		// While the download is in flight, somebody types into the other file.
+		three.whileFetching = () => {
+			three.vault.put('Rennen 2 Loeschen.md', 'Doch noch gebraucht.\n');
+			three.whileFetching = undefined;
+		};
+
+		const report = await three.sync();
+
+		expect(report.trashed).toEqual([]);
+		expect(three.vault.trashed).not.toContain('Rennen 2 Loeschen.md');
+		expect(three.vault.text('Rennen 2 Loeschen.md')).toBe('Doch noch gebraucht.\n');
+		expect(report.resurrected).toEqual(['Rennen 2 Loeschen.md']);
 	});
 });

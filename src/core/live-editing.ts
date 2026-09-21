@@ -16,17 +16,29 @@
  * a stale copy would mean writing over someone's typing.
  */
 export class LiveEditingRegistry {
-	private readonly paths = new Set<string>();
+	/** Path to whoever claimed it, so only that claimant can give it up again. */
+	private readonly paths = new Map<string, object>();
 	private readonly listeners = new Set<() => void>();
 
-	/** The session for this path is now the authority on its contents. */
-	claim(path: string): void {
-		this.paths.add(path);
+	/**
+	 * The session for this path is now the authority on its contents.
+	 *
+	 * `owner` is the session itself. Ending a session writes its text back to
+	 * disk first and only lets go afterwards, which takes long enough for the
+	 * note to have been opened again in the meantime — and the old session's
+	 * release would then take the claim the new one had just made, handing an
+	 * actively collaborated note back to the file sync.
+	 */
+	claim(path: string, owner: object): void {
+		this.paths.set(path, owner);
 		this.changed();
 	}
 
-	/** Back to being an ordinary file. */
-	release(path: string): void {
+	/** Back to being an ordinary file, if this is still the claimant's to say. */
+	release(path: string, owner: object): void {
+		if (this.paths.get(path) !== owner) {
+			return;
+		}
 		this.paths.delete(path);
 		this.changed();
 	}
@@ -54,7 +66,7 @@ export class LiveEditingRegistry {
 	}
 
 	list(): string[] {
-		return [...this.paths].sort();
+		return [...this.paths.keys()].sort();
 	}
 
 	get size(): number {

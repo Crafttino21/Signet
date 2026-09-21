@@ -207,3 +207,55 @@ describe('conflictPath', () => {
 		);
 	});
 });
+
+describe('a path this device does not sync', () => {
+	// The live-collab module hands every note it has claimed to the sync as an
+	// exclusion, and the settings screen does the same for whole folders. Both
+	// arrive here as "missing from the local index while the base still lists it",
+	// which is the exact shape of a deletion. It is not one.
+
+	it('is not deleted just because the index does not list it', () => {
+		const actions = reconcile({
+			base: manifest([entry('Live.md', 'v1')]),
+			local: [],
+			remote: manifest([entry('Live.md', 'v1')]),
+			excluded: ['Live.md'],
+		});
+
+		expect(actions).toEqual([]);
+	});
+
+	it('is not downloaded either', () => {
+		// Exclusion has to hold in both directions, or a fresh device would pull
+		// down the very folder somebody excluded.
+		const actions = reconcile({
+			local: [],
+			remote: manifest([entry('Geheim/Tagebuch.md', 'v1')]),
+			excluded: ['Geheim'],
+		});
+
+		expect(actions).toEqual([]);
+	});
+
+	it('covers everything under an excluded folder', () => {
+		const actions = reconcile({
+			base: manifest([entry('Geheim/Tief/Notiz.md', 'v1'), entry('Offen.md', 'v1')]),
+			local: [entry('Offen.md', 'v2')],
+			remote: manifest([entry('Geheim/Tief/Notiz.md', 'v1'), entry('Offen.md', 'v1')]),
+			excluded: ['Geheim'],
+		});
+
+		expect(actions).toEqual([{ kind: 'upload', path: 'Offen.md' }]);
+	});
+
+	it('leaves a name that merely starts the same way alone', () => {
+		const actions = reconcile({
+			base: manifest([entry('Geheimhaltung.md', 'v1')]),
+			local: [],
+			remote: manifest([entry('Geheimhaltung.md', 'v1')]),
+			excluded: ['Geheim'],
+		});
+
+		expect(actions).toEqual([{ kind: 'deleteRemote', path: 'Geheimhaltung.md' }]);
+	});
+});

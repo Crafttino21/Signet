@@ -29,6 +29,7 @@ import {
 import { fetchLatestVersion, isCheckDue, UpdateWatch } from './core/update-check';
 import { WhatsNewModal } from './core/whats-new';
 import { SIGNET_MODULES } from './modules';
+import type { Extension } from '@codemirror/state';
 
 /**
  * The plugin itself does almost nothing: it loads settings, hands the module list
@@ -47,6 +48,40 @@ export default class SignetPlugin extends Plugin {
 	 * writing over somebody's typing.
 	 */
 	readonly liveEditing = new LiveEditingRegistry();
+
+	/**
+	 * Editor extensions that have to outlive the module that fills them.
+	 *
+	 * `Plugin.registerEditorExtension` has no counterpart: an extension registered
+	 * once is registered for the life of the plugin. A module that registers on
+	 * every `onload` therefore leaves one behind on every switch-off, still
+	 * holding the callbacks of an instance that has been torn down — which is a
+	 * dead module that goes on opening sessions and raising notices.
+	 *
+	 * So the array is registered once and the module mutates it, which is what
+	 * `obsidian.d.ts` names as the supported way to change an extension at
+	 * runtime. Nothing here knows what any of them are for.
+	 */
+	private readonly editorSlots = new Map<string, Extension[]>();
+
+	/**
+	 * The array a module may fill, emptying it again when it unloads.
+	 *
+	 * Call `Workspace.updateOptions()` after changing it, or editors that are
+	 * already open will not see the change — which is every editor, whenever the
+	 * module is switched on by hand rather than at startup.
+	 */
+	editorExtensionSlot(key: string): Extension[] {
+		const existing = this.editorSlots.get(key);
+		if (existing) {
+			return existing;
+		}
+
+		const slot: Extension[] = [];
+		this.editorSlots.set(key, slot);
+		this.registerEditorExtension(slot);
+		return slot;
+	}
 	/**
 	 * What the ring says besides which plugins to have — the sync server's address.
 	 * Kept here so the two modules can agree without importing each other.

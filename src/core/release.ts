@@ -25,6 +25,18 @@ export interface ReleaseNote {
 /** Newest first. */
 export const CHANGELOG: readonly ReleaseNote[] = [
 	{
+		version: '0.5.0',
+		entries: [
+			'changelog.0-5-0.excluded',
+			'changelog.0-5-0.deletions',
+			'changelog.0-5-0.overwrites',
+			'changelog.0-5-0.collabEmpty',
+			'changelog.0-5-0.collabStart',
+			'changelog.0-5-0.quieter',
+			'changelog.0-5-0.server',
+		],
+	},
+	{
 		version: '0.4.0',
 		entries: [
 			'changelog.0-4-0.smoothOpen',

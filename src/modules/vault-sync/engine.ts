@@ -1,6 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App, TFile } from 'obsidian';
-import { assertVaultPath, ensureFolder, parentFolder } from '../../core/vault-fs';
+import { assertVaultPath, ensureFolder, parentFolder, pathExists } from '../../core/vault-fs';
 import {
 	deriveBlobId,
 	deriveContentKey,
@@ -12,9 +12,10 @@ import {
 	PROTOCOL_VERSION,
 	sealBlob,
 	sealSnapshot,
+	UnsupportedBlobVersionError,
 } from '@signet/protocol';
 import type { Bytes, FileEntry, Tombstone, VaultManifest } from '@signet/protocol';
-import { buildLocalIndex } from './local-index';
+import { buildLocalIndex, isExcluded } from './local-index';
 import { conflictPath, reconcile } from './reconcile';
 import type { IndexEntry, SyncAction } from './reconcile';
 import type { SyncClient } from './client';
@@ -35,7 +36,30 @@ import type { SyncState } from './state';
  * - Local deletions caused by the server go through the trash, never a hard
  *   delete, so anything wrong is recoverable.
  * - A file this device edited is never removed because another device deleted it.
+ * - An excluded path is never deleted, never downloaded and never dropped from
+ *   the manifest. It is absent from the local index by request, which is not a
+ *   fact about whether it exists.
  */
+
+/**
+ * How long a deletion keeps being announced.
+ *
+ * A tombstone exists so a device that was away learns the file went rather than
+ * re-uploading it. Past the point where every device has certainly been back, it
+ * is only weight: the list travels in full inside every single commit, and
+ * nothing ever dropped an entry from it.
+ */
+const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+
+/**
+ * When a run's own conclusion stops being believable.
+ *
+ * Both have to be passed. The share alone would trip on a small vault, where
+ * deleting two of eleven notes is an ordinary afternoon; the count alone would
+ * trip on a large one, where clearing out an old folder is equally ordinary.
+ */
+const MIN_SUSPECT_DELETIONS = 5;
+const SUSPECT_DELETION_SHARE = 0.1;
 
 export interface SyncDeps {
 	app: App;
@@ -44,6 +68,41 @@ export interface SyncDeps {
 	device: { id: string; name: string };
 	excluded: readonly string[];
 	state: SyncState;
+	/**
+	 * Carry out a run whose deletions would otherwise be refused.
+	 *
+	 * Somebody does occasionally delete a folder of two hundred notes, and
+	 * after being shown the number and agreeing to it they are entitled to be
+	 * believed. It is deliberately not a setting: the answer has to be given
+	 * for the run in front of them, not once for every run to come.
+	 */
+	allowBulkDeletion?: boolean;
+	/**
+	 * Told about every path this run writes, as it writes it.
+	 *
+	 * The engine writes through the ordinary Vault API, which means every download
+	 * and every trashed file raises exactly the `create`/`modify`/`delete` events
+	 * the module is listening to in order to notice the *user* editing. Without
+	 * this the module cannot tell its own writing apart from somebody typing, and
+	 * every download schedules another full run a couple of seconds later.
+	 */
+	onWrote?: (path: string) => void;
+}
+
+/**
+ * Raised instead of carrying out a run that would delete most of the vault.
+ *
+ * Carries numbers rather than a sentence: what to say about it is the settings
+ * screen's business, the same way `diff.ts` emits reason codes for its modal.
+ */
+export class SuspectDeletionError extends Error {
+	constructor(
+		readonly deletions: number,
+		readonly known: number
+	) {
+		super(`Refused to remove ${String(deletions)} of ${String(known)} known files.`);
+		this.name = 'SuspectDeletionError';
+	}
 }
 
 export interface SyncReport {
@@ -53,7 +112,11 @@ export interface SyncReport {
 	conflicts: string[];
 	resurrected: string[];
 	removedRemotely: string[];
-	failed: { path: string; error: string }[];
+	/**
+	 * `code` marks a failure that is about this device rather than this file,
+	 * so the caller can say the one useful thing instead of listing notes.
+	 */
+	failed: { path: string; error: string; code?: 'needsUpdate' }[];
 	/** The commit this device ended up agreeing with. */
 	seq: number;
 	pushed: boolean;
@@ -101,7 +164,12 @@ export async function planSync(deps: SyncDeps): Promise<SyncPlan> {
 	});
 
 	return {
-		actions: reconcile({ base: deps.state.base ?? undefined, local: entries, remote }),
+		actions: reconcile({
+			base: deps.state.base ?? undefined,
+			local: entries,
+			remote,
+			excluded: deps.excluded,
+		}),
 		remoteSeq: head.seq,
 		firstRun: deps.state.base === null,
 	};
@@ -119,13 +187,18 @@ async function ensureParent(app: App, path: string): Promise<void> {
 	await ensureFolder(app, parentFolder(path));
 }
 
-async function writeFile(app: App, path: string, bytes: Bytes): Promise<void> {
+async function writeFile(deps: SyncDeps, path: string, bytes: Bytes): Promise<void> {
 	// The one place a path from a remote manifest becomes a file on this disk, and
 	// so the one place it has to be checked. Throws rather than returning, and the
 	// caller lets it land in `report.failed` beside every other per-file failure.
+	const app = deps.app;
 	const normalised = assertVaultPath(app, path);
 	const existing = app.vault.getFileByPath(normalised);
 	const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+
+	// Announced before the write, not after: the event can reach the module while
+	// the write is still settling.
+	deps.onWrote?.(normalised);
 
 	if (existing) {
 		await app.vault.modifyBinary(existing, buffer);
@@ -133,6 +206,21 @@ async function writeFile(app: App, path: string, bytes: Bytes): Promise<void> {
 	}
 	await ensureParent(app, normalised);
 	await app.vault.createBinary(normalised, buffer);
+}
+
+/**
+ * What is on disk at that path right now, or undefined when nothing is.
+ *
+ * The index built at the top of a run is a photograph, and everything
+ * destructive happens some seconds and several network round-trips later. This
+ * is the same question asked again, immediately before the write.
+ */
+async function currentHash(app: App, path: string): Promise<string | undefined> {
+	const file = app.vault.getFileByPath(normalizePath(path));
+	if (!file) {
+		return undefined;
+	}
+	return hashContent(new Uint8Array(await app.vault.readBinary(file)));
 }
 
 /**
@@ -171,7 +259,8 @@ async function download(deps: SyncDeps, contentKey: CryptoKey, entry: FileEntry)
 async function applyLocally(
 	deps: SyncDeps,
 	actions: readonly SyncAction[],
-	report: SyncReport
+	report: SyncReport,
+	snapshot: ReadonlyMap<string, string>
 ): Promise<void> {
 	const contentKey = await deriveContentKey(deps.secret);
 	const now = new Date();
@@ -179,24 +268,45 @@ async function applyLocally(
 	for (const action of actions) {
 		try {
 			if (action.kind === 'download') {
-				await writeFile(
-					deps.app,
-					action.path,
-					await download(deps, contentKey, action.remote)
-				);
-				report.downloaded.push(action.path);
+				// Fetch first, then ask about the disk, so the gap between deciding
+				// and writing is as small as it can be made.
+				const bytes = await download(deps, contentKey, action.remote);
+				const here = await currentHash(deps.app, action.path);
+
+				if (here !== undefined && here !== snapshot.get(action.path)) {
+					// Somebody typed while this run was fetching. The decision to
+					// overwrite was made about a file that no longer exists in that
+					// form, so it becomes the answer for two changed sides instead.
+					const target = conflictPath(action.path, now);
+					await writeFile(deps, target, bytes);
+					report.conflicts.push(target);
+				} else {
+					await writeFile(deps, action.path, bytes);
+					report.downloaded.push(action.path);
+				}
 			} else if (action.kind === 'conflict') {
 				// The local file is left exactly as it is. The incoming version lands
 				// next to it, named the way `patterns.ts` already recognises.
 				const target = conflictPath(action.path, now);
-				await writeFile(deps.app, target, await download(deps, contentKey, action.remote));
+				await writeFile(deps, target, await download(deps, contentKey, action.remote));
 				report.conflicts.push(target);
 			} else if (action.kind === 'deleteLocal') {
 				const file = deps.app.vault.getFileByPath(normalizePath(action.path));
 				if (file) {
-					// Trash, never delete. A wrong deletion has to stay recoverable.
-					await deps.app.fileManager.trashFile(file);
-					report.trashed.push(action.path);
+					const before = snapshot.get(action.path);
+					const here = await currentHash(deps.app, action.path);
+
+					if (here !== undefined && before !== undefined && here !== before) {
+						// Edited since this run began. Work beats a deletion here for the
+						// same reason it does in the reconciler; the re-index puts it back
+						// into the manifest and the tombstone is dropped.
+						report.resurrected.push(action.path);
+					} else {
+						// Trash, never delete. A wrong deletion has to stay recoverable.
+						deps.onWrote?.(action.path);
+						await deps.app.fileManager.trashFile(file);
+						report.trashed.push(action.path);
+					}
 				}
 			} else if (action.kind === 'resurrect') {
 				report.resurrected.push(action.path);
@@ -207,6 +317,9 @@ async function applyLocally(
 			report.failed.push({
 				path: action.path,
 				error: error instanceof Error ? error.message : String(error),
+				...(error instanceof UnsupportedBlobVersionError
+					? { code: 'needsUpdate' as const }
+					: {}),
 			});
 		}
 	}
@@ -268,6 +381,31 @@ async function publishBlobs(
 }
 
 /**
+ * Puts back the manifest entries for paths this device does not sync.
+ *
+ * `publishBlobs` builds the file list from the local index, and the local index
+ * deliberately has no row for an excluded path. Publishing that list as-is would
+ * drop the file from the manifest — which every other device reads as "gone from
+ * the vault" even without a tombstone. The remote's own entry is the truth for a
+ * path nobody here is allowed to speak for, so it travels on unchanged.
+ */
+function carryExcluded(
+	files: readonly FileEntry[],
+	remote: VaultManifest | undefined,
+	excluded: readonly string[]
+): FileEntry[] {
+	const listed = new Set(files.map((file) => file.path));
+	const carried = (remote?.files ?? []).filter(
+		(file) => isExcluded(file.path, excluded) && !listed.has(file.path)
+	);
+
+	if (carried.length === 0) {
+		return [...files];
+	}
+	return [...files, ...carried].sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
  * Carries forward the tombstones that still apply, and adds this run's own.
  *
  * A tombstone is dropped as soon as the path exists again, so a file that was
@@ -276,24 +414,82 @@ async function publishBlobs(
 function nextTombstones(
 	remote: VaultManifest | undefined,
 	actions: readonly SyncAction[],
-	present: ReadonlySet<string>
+	present: ReadonlySet<string>,
+	excluded: readonly string[]
 ): Tombstone[] {
 	const tombstones = new Map<string, Tombstone>();
+	const now = Date.now();
 
 	for (const tombstone of remote?.deleted ?? []) {
-		if (!present.has(tombstone.path)) {
-			tombstones.set(tombstone.path, tombstone);
+		if (present.has(tombstone.path) || isExcluded(tombstone.path, excluded)) {
+			continue;
 		}
+		// Every device has long since applied a deletion this old, and the list is
+		// carried in full inside every commit. Without this it only ever grows.
+		if (now - tombstone.deletedAt > TOMBSTONE_TTL_MS) {
+			continue;
+		}
+		tombstones.set(tombstone.path, tombstone);
 	}
 
-	const now = Date.now();
 	for (const action of actions) {
-		if (action.kind === 'deleteRemote' && !present.has(action.path)) {
+		if (
+			action.kind === 'deleteRemote' &&
+			!present.has(action.path) &&
+			!isExcluded(action.path, excluded)
+		) {
 			tombstones.set(action.path, { path: action.path, deletedAt: now });
 		}
 	}
 
 	return [...tombstones.values()].sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/**
+ * Second-guesses every deletion this run inferred, before anything acts on one.
+ *
+ * `deleteRemote` is reached by a file being absent from the local index while the
+ * base still lists it — and absence is not evidence. `vault.getFiles()` is
+ * Obsidian's index, not the disk, and a phone that has just been woken has a
+ * partial one; `src/core/vault-fs.ts` exists because of exactly this. So the disk
+ * is asked about every candidate, and one that is still there was never deleted.
+ *
+ * What survives that is then weighed as a whole. A device does delete things and
+ * a handful is ordinary, but a run that has concluded most of the vault is gone
+ * has almost certainly been handed a partial index or another device's base. The
+ * useful thing to do with a conclusion that large is to refuse to act on it.
+ */
+async function vetDeletions(
+	deps: SyncDeps,
+	actions: readonly SyncAction[],
+	base: VaultManifest | undefined
+): Promise<SyncAction[]> {
+	const kept: SyncAction[] = [];
+	let deletions = 0;
+
+	for (const action of actions) {
+		if (action.kind !== 'deleteRemote') {
+			kept.push(action);
+			continue;
+		}
+		if (await pathExists(deps.app, action.path)) {
+			// The index had not caught up with the disk. Nobody deleted this.
+			continue;
+		}
+		deletions += 1;
+		kept.push(action);
+	}
+
+	const known = base?.files.length ?? 0;
+	if (
+		!deps.allowBulkDeletion &&
+		deletions > MIN_SUSPECT_DELETIONS &&
+		deletions > known * SUSPECT_DELETION_SHARE
+	) {
+		throw new SuspectDeletionError(deletions, known);
+	}
+
+	return kept;
 }
 
 function sameShape(files: readonly FileEntry[], remote: VaultManifest | undefined): boolean {
@@ -341,14 +537,20 @@ export async function runSync(deps: SyncDeps, attempt = 0): Promise<SyncResult> 
 		excluded: deps.excluded,
 		cache: deps.state.cache,
 	});
-	const actions = reconcile({
-		base: deps.state.base ?? undefined,
-		local: before.entries,
-		remote,
-	});
+	const actions = await vetDeletions(
+		deps,
+		reconcile({
+			base: deps.state.base ?? undefined,
+			local: before.entries,
+			remote,
+			excluded: deps.excluded,
+		}),
+		deps.state.base ?? undefined
+	);
 
+	const snapshot = new Map(before.entries.map((entry) => [entry.path, entry.hash]));
 	const report = emptyReport(head.seq);
-	await applyLocally(deps, actions, report);
+	await applyLocally(deps, actions, report, snapshot);
 
 	// Re-read: downloads and conflicted copies have changed what is on disk, and
 	// the manifest must describe the vault as it actually is now.
@@ -357,9 +559,10 @@ export async function runSync(deps: SyncDeps, attempt = 0): Promise<SyncResult> 
 		cache: before.cache,
 	});
 
-	const files = await publishBlobs(deps, after.entries, remote, report);
-	const present = new Set(after.entries.map((entry) => entry.path));
-	const deleted = nextTombstones(remote, actions, present);
+	const published = await publishBlobs(deps, after.entries, remote, report);
+	const files = carryExcluded(published, remote, deps.excluded);
+	const present = new Set(files.map((entry) => entry.path));
+	const deleted = nextTombstones(remote, actions, present, deps.excluded);
 
 	const unchanged = sameShape(files, remote) && deleted.length === (remote?.deleted.length ?? 0);
 

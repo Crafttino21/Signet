@@ -105,6 +105,28 @@ export class SuspectDeletionError extends Error {
 	}
 }
 
+/**
+ * Raised when the server is at an earlier commit than this device has applied.
+ *
+ * Commits are append-only and a sequence only ever grows, so this cannot happen
+ * to a server that has simply been running. It means the server's data was
+ * replaced: a restored backup, a wiped volume, a container rebuilt without its
+ * storage. Those need opposite answers — a restored backup should be left alone
+ * and investigated, a deliberately wiped server wants this device to forget what
+ * it last synced — and only a person knows which happened.
+ */
+export class ServerBehindError extends Error {
+	constructor(
+		readonly head: number,
+		readonly synced: number
+	) {
+		super(
+			`The server is at commit ${String(head)}, behind the ${String(synced)} this device has already synced.`
+		);
+		this.name = 'ServerBehindError';
+	}
+}
+
 export interface SyncReport {
 	uploaded: string[];
 	downloaded: string[];
@@ -524,11 +546,7 @@ export async function runSync(deps: SyncDeps, attempt = 0): Promise<SyncResult> 
 	// server from an old backup looks exactly like this, and the right answer
 	// there is also to stop and say so rather than to churn.
 	if (head.seq < deps.state.baseSeq) {
-		throw new Error(
-			`The server is at commit ${String(head.seq)}, behind the ${String(
-				deps.state.baseSeq
-			)} this device has already synced.`
-		);
+		throw new ServerBehindError(head.seq, deps.state.baseSeq);
 	}
 
 	const remote = await fetchRemote(deps, head.seq);

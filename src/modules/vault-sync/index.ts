@@ -12,7 +12,7 @@ import { t } from '../../i18n';
 import { isSyncServerAt, SyncClient, SyncServerError } from './client';
 import { ConnectServerModal } from './connect-modal';
 import type { ConnectAttempt, ConnectResult } from './connect-modal';
-import { isQuiet, planSync, runSync, SuspectDeletionError } from './engine';
+import { isQuiet, planSync, runSync, ServerBehindError, SuspectDeletionError } from './engine';
 import type { SyncDeps } from './engine';
 import { LiveSession } from './live';
 import { matchConflictName } from './patterns';
@@ -908,6 +908,17 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 			return;
 		}
 		await this.patchSettings({ registered: false });
+
+		// And the base goes with it. Everything in that file is about commits on a
+		// vault whose key has just gone; left behind, it tells the next ring's
+		// first run that this device has already synced further than the server
+		// has ever been, and the run refuses to go backwards for good reason. The
+		// store's own vault check catches this too — this is the half that does
+		// not wait for the next attempt to notice.
+		const ring = this.ring();
+		if (ring) {
+			await (await this.stateStore()).reset(ring.deviceId);
+		}
 		this.seq = 0;
 		this.setState('off');
 		this.refreshUi();
@@ -1138,7 +1149,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 		this.setState('syncing');
 		try {
 			const { report, state } = await runSync(deps);
-			await this.stateStore().save(state);
+			await (await this.stateStore()).save(state);
 			this.seq = state.baseSeq;
 
 			const summary = describeReport(report);
@@ -1222,7 +1233,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 		if (!ring) {
 			return;
 		}
-		await this.stateStore().reset(ring.deviceId);
+		await (await this.stateStore()).reset(ring.deviceId);
 		// Without a base every difference becomes a conflict, which is noisy but
 		// never destructive — the right way round for a recovery button.
 		new Notice(t('vaultSync.notice.forgotten'));
@@ -1270,8 +1281,18 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 		}
 	}
 
-	private stateStore(): SyncStateStore {
-		return new SyncStateStore(this.app, this.plugin.folder());
+	/**
+	 * The store, told which vault it is keeping state for.
+	 *
+	 * Asynchronous because the vault id is derived from the ring code, and that
+	 * is the whole point: a state file that names a different vault is a base
+	 * from a previous ring, and acting on it means reconciling against a server
+	 * that has legitimately never heard of those commits.
+	 */
+	private async stateStore(): Promise<SyncStateStore> {
+		const secret = this.secret(true);
+		const vaultId = secret ? await deriveVaultId(secret) : undefined;
+		return new SyncStateStore(this.app, this.plugin.folder(), vaultId);
 	}
 
 	private async client(quiet = false): Promise<SyncClient | undefined> {
@@ -1326,7 +1347,7 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 			// Syncing it as a whole file at the same time would have the two writing
 			// over each other, which is the failure this whole project exists to stop.
 			excluded: [...this.settings.excludedFolders, ...this.plugin.liveEditing.list()],
-			state: await this.stateStore().load(ring.deviceId),
+			state: await (await this.stateStore()).load(ring.deviceId),
 			onWrote: (path) => {
 				this.written.set(path, Date.now());
 			},
@@ -1345,19 +1366,31 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 		if (error instanceof SyncServerError) {
 			return `${t('vaultSync.notice.failed')} ${error.message}`;
 		}
-		// The advice has to match the deployment. Telling somebody whose server sits
-		// behind a name and a proxy to check the port is worse than saying nothing:
-		// the port is what they should be taking *off*.
-		if (looksProxied(url)) {
-			return t('vaultSync.notice.unreachableProxied', {
-				url: url || '—',
-				message: error instanceof Error ? error.message : String(error),
+
+		// A server that answered and went backwards is not an unreachable server,
+		// and calling it one sent people to check an address that was working. It
+		// has its own answer, and the answer names the way out.
+		if (error instanceof ServerBehindError) {
+			return t('vaultSync.notice.serverBehind', {
+				head: String(error.head),
+				synced: String(error.synced),
 			});
 		}
-		return t('vaultSync.notice.unreachable', {
-			url: url || '—',
-			message: error instanceof Error ? error.message : String(error),
-		});
+
+		const message = error instanceof Error ? error.message : String(error);
+
+		// The advice has to match the deployment, and only when there is something
+		// to advise. Behind a proxy the port is the thing to remove — but only if
+		// one is actually there to remove: `https://host:443` names the port the
+		// proxy is already on, and telling somebody to take that off is as wrong
+		// as telling them to add 8787.
+		if (looksProxied(url) && withoutExplicitPort(url) !== undefined) {
+			return t('vaultSync.notice.unreachableProxied', { url: url || '—', message });
+		}
+		if (looksProxied(url)) {
+			return t('vaultSync.notice.unreachablePlain', { url: url || '—', message });
+		}
+		return t('vaultSync.notice.unreachable', { url: url || '—', message });
 	}
 }
 

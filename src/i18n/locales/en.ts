@@ -285,6 +285,9 @@ export const en = {
 		'No port given, so the usual one was added: {url}. Change it under Advanced if your server listens elsewhere.',
 	'vaultSync.notice.unreachable':
 		'Signet: {url} could not be reached. {message} Check the address including the port — the server listens on 8787 unless you changed it.',
+	'vaultSync.notice.serverBehind':
+		'The server is at commit {head}, behind the {synced} this device has already synced, so nothing was changed. If you rebuilt or reset the server, run "Forget what this device last synced" here. If you did not, the server may have been restored from an older backup \u2014 look at that before syncing anything.',
+	'vaultSync.notice.unreachablePlain': 'Signet: {url} could not be reached. {message}',
 	'vaultSync.notice.unreachableProxied':
 		'Signet: {url} could not be reached. {message} Behind a reverse proxy the address carries no port — the proxy answers on 443 and forwards to the server internally.',
 	'vaultSync.notice.foundAt':
@@ -442,6 +445,13 @@ export const en = {
 	'whatsNew.version': 'Version {version}',
 	'whatsNew.nothing': 'Nothing worth writing down since you last looked.',
 	'whatsNew.done': 'Got it',
+
+	'changelog.0-5-2.newRing':
+		'Creating a new ring no longer leaves the previous sync state behind. Every key and the vault id come out of the ring code, so a new ring is a new vault that starts at commit zero — while this device still claimed to have synced far past that. The run then refused to go backwards, which is right, and there was no way to clear it from inside the app. A remembered base now says which vault it is about, and one from a different vault is ignored.',
+	'changelog.0-5-2.serverBehind':
+		'A server that has gone backwards now says so, and says what to do about it, instead of being reported as unreachable. It is not unreachable — it answered — and sending people off to check an address that was working made the real cause impossible to see.',
+	'changelog.0-5-2.portAdvice':
+		'The advice about ports is only given when there is a port to do something about. An https address naming 443 is already correct, and being told to remove it was as unhelpful as being told to add 8787.',
 
 	'changelog.0-5-1.proxyPort':
 		'A server behind a reverse proxy is reached by its name alone, with no port — and everything this plugin said about addresses used to assume the opposite. The placeholder, the advice after a failed connection, and the suggestion to add 8787 were all written for a server dialled directly on a home network, and following them behind a proxy produces a timeout on a server that is running perfectly. Signet now recognises the difference and, when an address with a port will not answer, tells you the one without it does.',

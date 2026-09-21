@@ -284,6 +284,9 @@ export const de: Translations = {
 		'Keine Portangabe, deshalb wurde der übliche ergänzt: {url}. Unter „Erweitert“ änderbar, falls dein Server woanders lauscht.',
 	'vaultSync.notice.unreachable':
 		'Signet: {url} war nicht erreichbar. {message} Prüfe die Adresse samt Port — der Server lauscht auf 8787, sofern du das nicht geändert hast.',
+	'vaultSync.notice.serverBehind':
+		'Der Server steht bei Commit {head}, hinter den {synced}, die dieses Ger\u00e4t schon abgeglichen hat \u2014 ge\u00e4ndert wurde nichts. Wenn du den Server neu gebaut oder zur\u00fcckgesetzt hast, f\u00fchre hier \u201eVergessen, was dieses Ger\u00e4t zuletzt abgeglichen hat\u201c aus. Wenn nicht, wurde der Server m\u00f6glicherweise aus einem \u00e4lteren Backup wiederhergestellt \u2014 sieh dir das an, bevor du irgendetwas abgleichst.',
+	'vaultSync.notice.unreachablePlain': 'Signet: {url} war nicht erreichbar. {message}',
 	'vaultSync.notice.unreachableProxied':
 		'Signet: {url} war nicht erreichbar. {message} Hinter einem Reverse-Proxy gehört kein Port in die Adresse — der Proxy antwortet auf 443 und leitet intern an den Server weiter.',
 	'vaultSync.notice.foundAt':
@@ -446,6 +449,13 @@ export const de: Translations = {
 	'whatsNew.version': 'Version {version}',
 	'whatsNew.nothing': 'Seit deinem letzten Blick nichts Erwähnenswertes.',
 	'whatsNew.done': 'Alles klar',
+
+	'changelog.0-5-2.newRing':
+		'Einen neuen Ring anzulegen l\u00e4sst nicht mehr den Sync-Zustand des alten liegen. Alle Schl\u00fcssel und die Vault-Kennung stammen aus dem Ring-Code, ein neuer Ring ist also ein neuer Vault, der bei Commit null beginnt — w\u00e4hrend dieses Ger\u00e4t noch behauptete, weit dar\u00fcber hinaus abgeglichen zu haben. Der Lauf weigerte sich daraufhin zu Recht, r\u00fcckw\u00e4rts zu gehen, und aus der App heraus war das nicht mehr zu beheben. Ein gemerkter Stand nennt jetzt den Vault, zu dem er geh\u00f6rt, und einer aus einem anderen Vault wird ignoriert.',
+	'changelog.0-5-2.serverBehind':
+		'Ein Server, der zur\u00fcckgefallen ist, sagt das jetzt und sagt auch, was zu tun ist, statt als nicht erreichbar gemeldet zu werden. Er ist nicht unerreichbar — er hat geantwortet — und Leute zur Pr\u00fcfung einer Adresse zu schicken, die funktionierte, machte die eigentliche Ursache unsichtbar.',
+	'changelog.0-5-2.portAdvice':
+		'Der Hinweis zum Port kommt nur noch, wenn es einen Port gibt, mit dem sich etwas anfangen l\u00e4sst. Eine https-Adresse mit 443 ist bereits richtig, und die Aufforderung, ihn zu entfernen, half so wenig wie die Aufforderung, 8787 zu erg\u00e4nzen.',
 
 	'changelog.0-5-1.proxyPort':
 		'Ein Server hinter einem Reverse-Proxy wird nur über seinen Namen erreicht, ohne Port — und alles, was dieses Plugin über Adressen sagte, ging vom Gegenteil aus. Der Platzhalter, der Rat nach einem Fehlschlag und der Vorschlag, 8787 zu ergänzen, waren für einen Server im Heimnetz geschrieben; hinter einem Proxy führt das zu einem Timeout auf einem Server, der einwandfrei läuft. Signet erkennt den Unterschied jetzt und sagt dir, wenn eine Adresse mit Port nicht antwortet, dieselbe ohne aber schon.',

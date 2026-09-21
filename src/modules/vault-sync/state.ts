@@ -10,11 +10,20 @@ import type { IndexCache } from './local-index';
  * a guess into a decision: without it, a file that differs could have been changed
  * on either side, and the reconciler would have to pick a winner.
  *
- * The state carries the id of the device that wrote it, and a mismatch is treated
- * as no state at all. That matters because this file lives under the config
- * folder, which some people do sync — and adopting another device's base would
- * make this one believe it had already seen files it never had, which is how a
- * sync deletes things nobody deleted.
+ * The state carries the id of the device that wrote it **and the vault it is
+ * about**, and a mismatch in either is treated as no state at all.
+ *
+ * The device id matters because this file lives under the config folder, which
+ * some people do sync — adopting another device's base would make this one
+ * believe it had already seen files it never had, which is how a sync deletes
+ * things nobody deleted.
+ *
+ * The vault id matters because the same device can be in a different ring
+ * tomorrow. Every key, the token and the vault id all come out of the ring code,
+ * so a new ring is a different vault that starts at commit zero — while this
+ * file still claims to have synced commit 294. The run then refuses to go
+ * backwards, correctly, and the device can never sync again. A base is only ever
+ * about the vault it was taken from.
  */
 
 export interface SyncState {
@@ -39,9 +48,14 @@ export class SyncStateStore {
 	 * file written to a folder Obsidian is not loading from is a state file
 	 * nobody reads — every sync would start again from no base.
 	 */
+	/**
+	 * @param vaultId The vault this state is allowed to describe, when it is
+	 * known. Absent only before there is a ring, where there is nothing to guard.
+	 */
 	constructor(
 		private readonly app: App,
-		private readonly pluginDir: string
+		private readonly pluginDir: string,
+		private readonly vaultId?: string
 	) {}
 
 	private path(): string {
@@ -59,6 +73,16 @@ export class SyncStateStore {
 				return emptyState(deviceId);
 			}
 
+			// Another vault's memory is worse still, because it is about a server
+			// that may legitimately be at commit zero. A state written before this
+			// field existed has no vault to name, and is treated the same way: it
+			// cannot say which sync it belongs to, so it does not get to speak for
+			// this one. Starting without a base is noisy and never destructive.
+			const stored = (raw as { vaultId?: unknown }).vaultId;
+			if (this.vaultId !== undefined && stored !== this.vaultId) {
+				return emptyState(deviceId);
+			}
+
 			return {
 				deviceId,
 				baseSeq: state.baseSeq,
@@ -71,7 +95,13 @@ export class SyncStateStore {
 	}
 
 	async save(state: SyncState): Promise<void> {
-		await this.app.vault.adapter.write(this.path(), JSON.stringify(state));
+		// Stamped on the way out rather than carried through the engine: which vault
+		// a run was against is the store's business, and nothing in the reconciler
+		// has any use for it.
+		await this.app.vault.adapter.write(
+			this.path(),
+			JSON.stringify({ ...state, vaultId: this.vaultId })
+		);
 	}
 
 	/** Forgetting the base forces the next run to treat every difference as a conflict. */

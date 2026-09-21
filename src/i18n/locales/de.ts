@@ -195,8 +195,10 @@ export const de: Translations = {
 	'vaultSync.connect.title': 'Sync-Server verbinden',
 	'vaultSync.connect.hint':
 		'Der Ring-Code wird gleich erstellt und trägt diese Adresse zu jedem anderen Gerät. Den Server zuerst einzurichten ist das, was den Beitritt überall sonst zu einem einzigen Schritt macht.',
+	'vaultSync.connect.failedUnknown':
+		'Verbinden ist fehlgeschlagen, ohne dass ein Grund genannt wurde. Die Entwicklerkonsole (Strg+Umschalt+I) zeigt die Einzelheiten.',
 	'vaultSync.connect.serverDesc':
-		'Im Heimnetz etwa http://192.168.1.10:8787. Der Port zählt: ohne ihn bedeutet die Adresse Port 80, wo nichts lauscht.',
+		'Im Heimnetz etwa http://192.168.1.10:8787, dort zählt der Port — ohne ihn bedeutet die Adresse Port 80, und da lauscht nichts. Hinter einem Reverse-Proxy ist es nur der Name, ohne Port: https://signet.example.com',
 	'vaultSync.connect.secretDesc':
 		'Vom Server, einmalig nötig, um den Vault anzulegen. Er verlässt dieses Gerät nicht und wird nicht gespeichert.',
 	'vaultSync.connect.connect': 'Verbinden',
@@ -282,6 +284,10 @@ export const de: Translations = {
 		'Keine Portangabe, deshalb wurde der übliche ergänzt: {url}. Unter „Erweitert“ änderbar, falls dein Server woanders lauscht.',
 	'vaultSync.notice.unreachable':
 		'Signet: {url} war nicht erreichbar. {message} Prüfe die Adresse samt Port — der Server lauscht auf 8787, sofern du das nicht geändert hast.',
+	'vaultSync.notice.unreachableProxied':
+		'Signet: {url} war nicht erreichbar. {message} Hinter einem Reverse-Proxy gehört kein Port in die Adresse — der Proxy antwortet auf 443 und leitet intern an den Server weiter.',
+	'vaultSync.notice.foundAt':
+		'Unter {url} antwortet ein Sync-Server — das ist mit ziemlicher Sicherheit die Adresse, die du willst.',
 	'vaultSync.notice.foundOnDefaultPort':
 		'Unter {url} antwortet aber ein Sync-Server — das ist ziemlich sicher die Adresse, die du willst.',
 	'vaultSync.notice.badServerUrl':
@@ -440,6 +446,15 @@ export const de: Translations = {
 	'whatsNew.version': 'Version {version}',
 	'whatsNew.nothing': 'Seit deinem letzten Blick nichts Erwähnenswertes.',
 	'whatsNew.done': 'Alles klar',
+
+	'changelog.0-5-1.proxyPort':
+		'Ein Server hinter einem Reverse-Proxy wird nur über seinen Namen erreicht, ohne Port — und alles, was dieses Plugin über Adressen sagte, ging vom Gegenteil aus. Der Platzhalter, der Rat nach einem Fehlschlag und der Vorschlag, 8787 zu ergänzen, waren für einen Server im Heimnetz geschrieben; hinter einem Proxy führt das zu einem Timeout auf einem Server, der einwandfrei läuft. Signet erkennt den Unterschied jetzt und sagt dir, wenn eine Adresse mit Port nicht antwortet, dieselbe ohne aber schon.',
+	'changelog.0-5-1.statusPage':
+		'Wenn du den Sync-Server selbst betreibst: seine Adresse im Browser zu öffnen zeigt jetzt eine kurze Seite, die bestätigt, dass er erreichbar ist, und die genaue Adresse nennt, die in Signet gehört. Sie zeigt die Adresse so, wie der Browser sie erreicht hat — steht dort die richtige, funktionieren Name, TLS und Weiterleitung. Obsidian ruft diese Seite nie ab.',
+	'changelog.0-5-1.quiet':
+		'Die Live-Synchronisierung schreibt nicht mehr alle paar Sekunden einen Fehler in die Konsole, solange der Vault noch keinen Ring hat. Das ist ein Zustand und kein Fehlschlag, und der Lärm hat die Meldungen verdeckt, auf die es ankam.',
+	'changelog.0-5-1.blankError':
+		'Der Verbinden-Dialog kann keinen leeren roten Balken mehr zeigen. Ein Fehlschlag ohne Meldung sagt das jetzt und verweist auf die Entwicklerkonsole, und der zugrunde liegende Fehler wird dort immer protokolliert.',
 
 	'changelog.0-5-0.excluded':
 		'Eine Notiz, an der gemeinsam gearbeitet wird, oder ein von dir ausgeschlossener Ordner wird nicht mehr mit einer gel\u00f6schten Notiz verwechselt. Beide fehlten in der Dateiliste aus Gr\u00fcnden, die mit L\u00f6schen nichts zu tun haben, und der Abgleich las dieses Fehlen als L\u00f6schung und entfernte sie auf allen anderen Ger\u00e4ten. Ausgeschlossene Pfade bleiben jetzt in beide Richtungen unangetastet.',

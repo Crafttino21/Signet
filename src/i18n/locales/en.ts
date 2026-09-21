@@ -196,8 +196,10 @@ export const en = {
 	'vaultSync.connect.title': 'Connect your sync server',
 	'vaultSync.connect.hint':
 		'The ring code is about to be created, and it carries this address to every other device. Setting the server up first is what makes joining a one-step affair everywhere else.',
+	'vaultSync.connect.failedUnknown':
+		'Connecting failed, and the server gave no reason. The developer console (Ctrl+Shift+I) has the details.',
 	'vaultSync.connect.serverDesc':
-		'On a home network something like http://192.168.1.10:8787. The port matters: without one it means port 80, where nothing is listening.',
+		'On a home network something like http://192.168.1.10:8787, where the port matters — without one it means port 80, and nothing is listening there. Behind a reverse proxy it is the name on its own, with no port: https://signet.example.com',
 	'vaultSync.connect.secretDesc':
 		'From the server, needed once to create the vault. It never leaves this device and is not stored.',
 	'vaultSync.connect.connect': 'Connect',
@@ -283,6 +285,10 @@ export const en = {
 		'No port given, so the usual one was added: {url}. Change it under Advanced if your server listens elsewhere.',
 	'vaultSync.notice.unreachable':
 		'Signet: {url} could not be reached. {message} Check the address including the port — the server listens on 8787 unless you changed it.',
+	'vaultSync.notice.unreachableProxied':
+		'Signet: {url} could not be reached. {message} Behind a reverse proxy the address carries no port — the proxy answers on 443 and forwards to the server internally.',
+	'vaultSync.notice.foundAt':
+		'A sync server does answer at {url} — that is almost certainly the address you want.',
 	'vaultSync.notice.foundOnDefaultPort':
 		'A sync server does answer at {url} — that is almost certainly the address you want.',
 	'vaultSync.notice.badServerUrl':
@@ -436,6 +442,15 @@ export const en = {
 	'whatsNew.version': 'Version {version}',
 	'whatsNew.nothing': 'Nothing worth writing down since you last looked.',
 	'whatsNew.done': 'Got it',
+
+	'changelog.0-5-1.proxyPort':
+		'A server behind a reverse proxy is reached by its name alone, with no port — and everything this plugin said about addresses used to assume the opposite. The placeholder, the advice after a failed connection, and the suggestion to add 8787 were all written for a server dialled directly on a home network, and following them behind a proxy produces a timeout on a server that is running perfectly. Signet now recognises the difference and, when an address with a port will not answer, tells you the one without it does.',
+	'changelog.0-5-1.statusPage':
+		'If you run the sync server: opening its address in a browser now shows a short page confirming it is reachable and naming the exact address to enter in Signet. It reports the address as the browser reached it, so seeing the right one means the name, the TLS and the forwarding all work. Obsidian never requests that page.',
+	'changelog.0-5-1.quiet':
+		'Live sync no longer writes an error to the console every few seconds while the vault has no ring yet. That is a state rather than a failure, and the noise buried the messages that mattered.',
+	'changelog.0-5-1.blankError':
+		'The connect dialog can no longer show an empty red banner. A failure that arrives without a message now says so and points at the developer console, and the underlying error is always written there.',
 
 	'changelog.0-5-0.excluded':
 		'A note being edited together, or a folder you excluded, is no longer mistaken for a note you deleted. Both were absent from the file list for reasons that have nothing to do with deleting, and the sync read that absence as a deletion and removed them from every other device. Excluded paths are now left alone in both directions.',

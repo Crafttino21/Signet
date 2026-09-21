@@ -66,7 +66,12 @@ export class ConnectServerModal extends Modal {
 
 		contentEl.createEl('p', { cls: 'signet-ring__hint', text: t('vaultSync.connect.hint') });
 
-		if (this.error !== undefined) {
+		// Only when there is something to say. An empty string still produced a
+		// banner — the style carries its own background and padding — so a failure
+		// that arrived without a message showed as a red bar with nothing in it,
+		// which says "something went wrong" and takes away every means of finding
+		// out what.
+		if (this.error) {
 			contentEl.createEl('p', { cls: 'signet-ring__warning', text: this.error });
 		}
 
@@ -134,7 +139,13 @@ export class ConnectServerModal extends Modal {
 			return;
 		}
 
-		this.error = result.message;
+		// A failure always says something. Whatever produced an empty message is a
+		// bug in the caller, and the person in front of the dialog is not the one
+		// who should pay for it with a blank red bar.
+		this.error = result.message.trim() || t('vaultSync.connect.failedUnknown');
+		if (!result.message.trim()) {
+			console.error('Signet: connecting failed without a message.', result);
+		}
 		this.render();
 	}
 }

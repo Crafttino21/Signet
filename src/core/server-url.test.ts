@@ -5,7 +5,9 @@ import {
 	isUsableServerUrl,
 	normaliseServerUrl,
 	shouldAdopt,
+	looksProxied,
 	withDefaultPort,
+	withoutExplicitPort,
 } from './server-url';
 import type { ServerUrlSource } from './server-url';
 
@@ -167,5 +169,65 @@ describe('isInsecureRemote', () => {
 		expect(isInsecureRemote('')).toBe(false);
 		expect(isInsecureRemote('sync.example.com')).toBe(false);
 		expect(isInsecureRemote('http://')).toBe(false);
+	});
+});
+
+describe('an address behind a reverse proxy', () => {
+	// Everything this plugin says about addresses was written for a server dialled
+	// directly on a home network, where 8787 is right and leaving it off is the
+	// classic mistake. Put the same server behind a name and a proxy holding TLS
+	// and every one of those hints is backwards: the proxy answers on 443, the
+	// port is closed from outside, and following the advice produces a timeout on
+	// a server that is running perfectly.
+
+	it('is recognised by its scheme', () => {
+		expect(looksProxied('https://signet.example.com')).toBe(true);
+		expect(looksProxied('https://signet.example.com:8787')).toBe(true);
+		expect(looksProxied('http://192.168.1.10:8787')).toBe(false);
+		expect(looksProxied('not an address')).toBe(false);
+	});
+
+	it('keeps its port when one was typed', () => {
+		// Nothing guesses on this path. The address is used exactly as given; what
+		// follows is only about explaining a failure afterwards.
+		expect(completeServerUrl('https://signet.example.com:8787')).toBe(
+			'https://signet.example.com:8787'
+		);
+		expect(completeServerUrl('https://signet.example.com')).toBe('https://signet.example.com');
+	});
+});
+
+describe('withoutExplicitPort', () => {
+	it('takes off a port somebody added on advice that did not apply', () => {
+		expect(withoutExplicitPort('https://signet.example.com:8787')).toBe(
+			'https://signet.example.com'
+		);
+	});
+
+	it('says nothing when there was no port to take off', () => {
+		// Undefined rather than the same address, so the caller does not probe an
+		// address it has already tried and report it as a discovery.
+		expect(withoutExplicitPort('https://signet.example.com')).toBeUndefined();
+		expect(withoutExplicitPort('http://192.168.1.10')).toBeUndefined();
+	});
+
+	it('works the same way for plain http', () => {
+		expect(withoutExplicitPort('http://signet.example.com:8787')).toBe(
+			'http://signet.example.com'
+		);
+	});
+
+	it('refuses anything that is not an address this speaks', () => {
+		expect(withoutExplicitPort('ftp://example.com:21')).toBeUndefined();
+		expect(withoutExplicitPort('signet.example.com:8787')).toBeUndefined();
+		expect(withoutExplicitPort('')).toBeUndefined();
+	});
+
+	it('is the mirror of withDefaultPort', () => {
+		const typed = 'https://signet.example.com';
+		const withPort = withDefaultPort(typed);
+
+		expect(withPort).toBe('https://signet.example.com:8787');
+		expect(withoutExplicitPort(withPort ?? '')).toBe(typed);
 	});
 });

@@ -169,6 +169,51 @@ export function withDefaultPort(value: string): string | undefined {
 }
 
 /**
+ * Whether an address names a port that a reverse proxy would not be listening on.
+ *
+ * Not a judgement about the port itself — it is about the shape of the mistake.
+ * Everything this plugin says about addresses assumes the server is dialled
+ * directly on a home network, where 8787 is right and leaving it out is the
+ * classic error. Behind a proxy holding TLS every one of those hints is exactly
+ * backwards: the proxy answers on 443, forwards to 8787 internally, and an
+ * address carrying the port openly reaches a closed port and times out.
+ */
+export function looksProxied(value: string): boolean {
+	try {
+		const url = new URL(normaliseServerUrl(value));
+		return url.protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * The same address with an explicitly given port taken off, or undefined when
+ * there was none to take.
+ *
+ * The mirror of {@link withDefaultPort}, and needed for the same reason: to work
+ * out what went wrong after something already failed. Somebody who put the
+ * server behind a name and a proxy reads "the server listens on 8787", adds it,
+ * and reaches a port nothing is exposed on — so the useful question to ask is
+ * whether the same address answers without it.
+ */
+export function withoutExplicitPort(value: string): string | undefined {
+	try {
+		const url = new URL(normaliseServerUrl(value));
+		if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+			return undefined;
+		}
+		if (url.port === '') {
+			return undefined;
+		}
+		url.port = '';
+		return normaliseServerUrl(url.toString());
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * The address to store after the ring announced one, or undefined to keep what
  * is already there.
  *

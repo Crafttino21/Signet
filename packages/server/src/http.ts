@@ -56,6 +56,141 @@ function fail(res: ServerResponse, status: number, message: string): void {
 	send(res, status, { error: message } satisfies ErrorResponse);
 }
 
+/**
+ * Anything from a request header that ends up inside the status page.
+ *
+ * `Host` is chosen by whoever is calling, which makes it attacker-controlled
+ * input being written into a document the browser will parse. It is echoed back
+ * because it is the single most useful thing on that page — and that is exactly
+ * why it is escaped rather than trusted.
+ */
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
+}
+
+function sendHtml(res: ServerResponse, status: number, body: string): void {
+	res.writeHead(status, {
+		'content-type': 'text/html; charset=utf-8',
+		'content-length': Buffer.byteLength(body),
+		'x-content-type-options': 'nosniff',
+		// The page loads nothing and runs nothing. Saying so means a bug that got a
+		// script in there still could not do anything with it.
+		'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'",
+		'referrer-policy': 'no-referrer',
+	});
+	res.end(body);
+}
+
+/** One header value, when a header may legitimately arrive more than once. */
+function header(req: IncomingMessage, name: string): string | undefined {
+	const value = req.headers[name];
+	const first = Array.isArray(value) ? value[0] : value;
+	return typeof first === 'string' && first.length > 0 && first.length <= 400
+		? first.split(',')[0]?.trim()
+		: undefined;
+}
+
+/**
+ * The address a person should type into Signet, worked out from the request.
+ *
+ * The server cannot know its own public address — it sits behind a proxy, on a
+ * port that is not the one anybody dials, under a name it was never told. What
+ * it does know is what the browser asked for, which is the same thing the plugin
+ * will have to ask for. So the answer is reconstructed from the request rather
+ * than from the configuration, and that is the whole point of the page: seeing
+ * it means the name, the TLS and the forwarding to this port all work.
+ */
+function reachedAt(req: IncomingMessage): { url: string; proxied: boolean } {
+	const forwardedProto = header(req, 'x-forwarded-proto');
+	const forwardedHost = header(req, 'x-forwarded-host');
+	const host = forwardedHost ?? header(req, 'host') ?? 'localhost';
+	const scheme = forwardedProto ?? 'http';
+
+	return {
+		url: `${scheme}://${host}`,
+		proxied: forwardedProto !== undefined || forwardedHost !== undefined,
+	};
+}
+
+/**
+ * A page for a person with a browser, and for nobody else.
+ *
+ * Signet itself never asks for `/` — the plugin speaks only to `/v1/`, and this
+ * route cannot affect it. It exists for the question that is otherwise
+ * surprisingly hard to answer: *is the name I just set up actually reaching this
+ * server?* Until now the answer at `/` was `{"error":"No such endpoint."}`,
+ * which is correct and tells a person nothing.
+ *
+ * It deliberately holds nothing that needs a credential to see: no vault list,
+ * no counts, no configuration. It says the server is here, which protocol it
+ * speaks, and what to type into the plugin.
+ */
+function statusPage(req: IncomingMessage): string {
+	const { url, proxied } = reachedAt(req);
+	const insecure = url.startsWith('http://');
+	const safeUrl = escapeHtml(url);
+
+	const warning = insecure
+		? `<p class="warn">This page was reached over plain HTTP. Signet seals your notes before they leave the device, so nobody can read them \u2014 but the access token travels in the clear on this connection. Put a reverse proxy holding TLS in front of this server.</p>`
+		: '';
+
+	return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Signet sync server</title>
+<style>
+:root { color-scheme: light dark; --fg: #1a1a1a; --dim: #5c5c5c; --bg: #fbfbfa; --card: #fff; --line: #e3e3e0; --ok: #1a7f4b; --warnbg: #fdf3e7; --warnfg: #8a5a00; }
+@media (prefers-color-scheme: dark) { :root { --fg: #e8e8e6; --dim: #a0a09c; --bg: #191919; --card: #222; --line: #343432; --ok: #4ec27f; --warnbg: #2e2517; --warnfg: #e0b062; } }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 2.5rem 1.25rem; background: var(--bg); color: var(--fg);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 34rem; margin: 0 auto; }
+h1 { font-size: 1.35rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+.sub { color: var(--dim); margin: 0 0 1.75rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.25rem; margin-bottom: 1rem; }
+.ok { color: var(--ok); font-weight: 600; }
+.label { color: var(--dim); font-size: .8rem; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 .35rem; }
+code { font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: .5rem .65rem; display: block; overflow-x: auto; user-select: all; }
+dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: .4rem 1.25rem; }
+dt { color: var(--dim); } dd { margin: 0; }
+.warn { background: var(--warnbg); color: var(--warnfg); border-radius: 8px; padding: .85rem 1rem; margin: 0 0 1rem; }
+.foot { color: var(--dim); font-size: .85rem; margin-top: 1.5rem; }
+</style>
+</head>
+<body>
+<main>
+<h1>Signet sync server</h1>
+<p class="sub"><span class="ok">&#10003; Reachable.</span> The name, the TLS and the forwarding to this server all work.</p>
+${warning}
+<div class="card">
+<p class="label">Address to enter in Signet</p>
+<code>${safeUrl}</code>
+</div>
+<div class="card">
+<dl>
+<dt>Protocol</dt><dd>${String(PROTOCOL_VERSION)}</dd>
+<dt>Reached as</dt><dd>${safeUrl}</dd>
+<dt>Behind a proxy</dt><dd>${proxied ? 'yes' : 'no forwarding headers seen'}</dd>
+<dt>Health endpoint</dt><dd><code style="display:inline;padding:.1rem .3rem">/v1/health</code></dd>
+</dl>
+</div>
+<p class="foot">This page is for checking an address in a browser. Obsidian never requests it \u2014 the plugin speaks only to <code style="display:inline;padding:.1rem .3rem">/v1/</code>. Nothing here needs a credential to see, and nothing here reveals which vaults this server holds.</p>
+</main>
+</body>
+</html>
+`;
+}
+
 function sendBytes(res: ServerResponse, contentType: string, body: Buffer): void {
 	res.writeHead(200, {
 		'content-type': contentType,
@@ -151,6 +286,17 @@ async function authorise(ctx: Context, vaultId: string): Promise<boolean> {
 }
 
 const routes: Route[] = [
+	{
+		// For a person who has just pointed a name at this server and wants to know
+		// whether it arrived. Not part of the protocol, and never requested by the
+		// plugin.
+		method: 'GET',
+		pattern: /^\/$/,
+		handler: async (ctx) => {
+			sendHtml(ctx.res, 200, statusPage(ctx.req));
+		},
+	},
+
 	{
 		method: 'GET',
 		pattern: /^\/v1\/health$/,

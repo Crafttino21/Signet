@@ -21,12 +21,14 @@ import { SyncIndicator } from './indicator';
 import type { SyncState } from './indicator';
 import {
 	completeServerUrl,
+	looksProxied,
 	isInsecureRemote,
 	isUsableServerUrl,
 	normaliseServerUrl,
 	SERVER_PLACEHOLDER,
 	shouldAdopt,
 	withDefaultPort,
+	withoutExplicitPort,
 } from '../../core/server-url';
 import type { ServerUrlSource } from '../../core/server-url';
 import { SyncStateStore } from './state';
@@ -263,7 +265,15 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 			sync: () => this.autoSync(),
 			// `document.hidden` covers a minimised window and, more importantly, a
 			// backgrounded app on a phone.
-			isActive: () => !document.hidden,
+			//
+			// Being set up counts too. Without it the loop kept running against a
+			// vault that has no ring yet: `waitForRemote` threw 'Not configured.',
+			// which was reported as an error and written to the console once every
+			// backoff, for as long as somebody was still filling in the dialog that
+			// would configure it. That is a state, not a failure, and the noise
+			// buried the one message that mattered.
+			isActive: () =>
+				!document.hidden && this.settings.registered && this.settings.serverUrl !== '',
 			onError: (error) => {
 				console.error('Signet: live sync paused after an error.', error);
 			},
@@ -864,6 +874,10 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 				await hashAuthToken(await deriveAuthToken(secret))
 			);
 		} catch (error) {
+			// Logged as well as reported. The dialog shows one sentence, and the
+			// thing that actually went wrong — a TLS refusal, a proxy's HTML error
+			// page, an Electron network code — is usually in the detail.
+			console.error(`Signet: could not register this vault at ${url}.`, error);
 			// The registration secret never reaches the settings on this path: it is
 			// used here and forgotten with the modal.
 			return { ok: false, message: await this.diagnose(error, url) };
@@ -956,9 +970,17 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 			return explained;
 		}
 
-		const candidate = withDefaultPort(url);
-		if (candidate && (await isSyncServerAt(candidate))) {
-			return `${explained} ${t('vaultSync.notice.foundOnDefaultPort', { url: candidate })}`;
+		// Asked in the order the mistakes actually happen. An address behind a
+		// proxy is the one this plugin's own advice leads people to get wrong, so
+		// dropping the port is tried first for those.
+		const candidates = looksProxied(url)
+			? [withoutExplicitPort(url), withDefaultPort(url)]
+			: [withDefaultPort(url), withoutExplicitPort(url)];
+
+		for (const candidate of candidates) {
+			if (candidate && (await isSyncServerAt(candidate))) {
+				return `${explained} ${t('vaultSync.notice.foundAt', { url: candidate })}`;
+			}
 		}
 		return explained;
 	}
@@ -1322,6 +1344,15 @@ class VaultSyncModule extends SignetModule<VaultSyncSettings> {
 	private explain(error: unknown, url = this.settings.serverUrl): string {
 		if (error instanceof SyncServerError) {
 			return `${t('vaultSync.notice.failed')} ${error.message}`;
+		}
+		// The advice has to match the deployment. Telling somebody whose server sits
+		// behind a name and a proxy to check the port is worse than saying nothing:
+		// the port is what they should be taking *off*.
+		if (looksProxied(url)) {
+			return t('vaultSync.notice.unreachableProxied', {
+				url: url || '—',
+				message: error instanceof Error ? error.message : String(error),
+			});
 		}
 		return t('vaultSync.notice.unreachable', {
 			url: url || '—',

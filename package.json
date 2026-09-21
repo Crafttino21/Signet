@@ -1,6 +1,6 @@
 {
 	"name": "signet",
-	"version": "0.4.0",
+	"version": "0.5.0",
 	"description": "An Obsidian plugin that keeps several devices in step, against a sync server you run yourself.",
 	"type": "module",
 	"private": true,

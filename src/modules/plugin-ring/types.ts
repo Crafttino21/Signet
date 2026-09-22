@@ -38,6 +38,14 @@ export interface RingSnapshot {
 	 * id here leaves. Actually revoking access means a new ring and a new code.
 	 */
 	removed?: string[];
+	/**
+	 * When each of {@link removed} was removed, by the host's clock.
+	 *
+	 * What lets a device that was removed come back: joining with the code is a
+	 * deliberate act, and a removal older than that says nothing about it. An id
+	 * without an entry here was removed by a build that did not record when.
+	 */
+	removedAt?: Record<string, string>;
 }
 
 export interface LocalPlugin {

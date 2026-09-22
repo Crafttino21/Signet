@@ -450,6 +450,10 @@ export const de: Translations = {
 	'whatsNew.nothing': 'Seit deinem letzten Blick nichts Erwähnenswertes.',
 	'whatsNew.done': 'Alles klar',
 
+	'changelog.0-5-3.removedAcrossRings':
+		'Ein Ger\u00e4t wird nicht mehr aus einem neuen Ring geworfen, weil es einmal aus einem alten entfernt wurde. Entfernungen hingen am Ger\u00e4t statt am Ring, sodass ein neuer Ring schon Ger\u00e4te als entfernt f\u00fchrte, die nie darin waren. Sie geh\u00f6ren jetzt zu dem Ring, in dem sie passiert sind, und ein Ger\u00e4t, das mit dem Code beitritt \u2014 notfalls erneut \u2014, bleibt.',
+	'changelog.0-5-3.oldDevices':
+		'Die Ger\u00e4teliste zeigt die Ger\u00e4te dieses Rings und keine anderen. Die Lebenszeichen liegen im Vault und \u00fcberdauerten jeden Ring, der darin angelegt wurde, sodass Ger\u00e4te aus fr\u00fcheren Ringen neben den aktuellen standen und sich nicht dauerhaft entfernen lie\u00dfen.',
 	'changelog.0-5-2.newRing':
 		'Einen neuen Ring anzulegen l\u00e4sst nicht mehr den Sync-Zustand des alten liegen. Alle Schl\u00fcssel und die Vault-Kennung stammen aus dem Ring-Code, ein neuer Ring ist also ein neuer Vault, der bei Commit null beginnt — w\u00e4hrend dieses Ger\u00e4t noch behauptete, weit dar\u00fcber hinaus abgeglichen zu haben. Der Lauf weigerte sich daraufhin zu Recht, r\u00fcckw\u00e4rts zu gehen, und aus der App heraus war das nicht mehr zu beheben. Ein gemerkter Stand nennt jetzt den Vault, zu dem er geh\u00f6rt, und einer aus einem anderen Vault wird ignoriert.',
 	'changelog.0-5-2.serverBehind':

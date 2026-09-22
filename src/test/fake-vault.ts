@@ -82,6 +82,14 @@ export class FakeVault {
 					)
 			),
 		mkdir: (): Promise<void> => Promise.resolve(),
+		/** No system trash here, the way a phone has none: the vault's own is used. */
+		trashSystem: (): Promise<boolean> => Promise.resolve(false),
+		trashLocal: (path: string): Promise<void> => {
+			this.hidden.delete(path);
+			this.files.delete(path);
+			this.trashed.push(path);
+			return Promise.resolve();
+		},
 		/** Everything directly inside a folder, indexed or not — the disk's view. */
 		list: (path: string): Promise<{ files: string[]; folders: string[] }> => {
 			const prefix = path === '' ? '' : `${path}/`;

@@ -25,6 +25,10 @@ export interface ReleaseNote {
 /** Newest first. */
 export const CHANGELOG: readonly ReleaseNote[] = [
 	{
+		version: '0.5.3',
+		entries: ['changelog.0-5-3.removedAcrossRings', 'changelog.0-5-3.oldDevices'],
+	},
+	{
 		version: '0.5.2',
 		entries: [
 			'changelog.0-5-2.newRing',

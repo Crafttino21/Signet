@@ -129,4 +129,22 @@ describe('building a snapshot', () => {
 		expect(alpha).toBeDefined();
 		expect(alpha?.settings).toBeUndefined();
 	});
+
+	it('carries when each removal happened, for the removals it still carries', async () => {
+		// The time is what lets a device that was removed join again: a removal
+		// from before it joined is not about it.
+		const { app, api } = setup();
+
+		const snapshot = await buildSnapshot(app, api, {
+			selfId: SELF,
+			excludedIds: [],
+			host,
+			seq: 1,
+			removed: ['phone', 'tablet'],
+			removedAt: { phone: '2026-09-10T11:00:00.000Z', gone: '2026-09-01T11:00:00.000Z' },
+		});
+
+		expect(snapshot.removed).toEqual(['phone', 'tablet']);
+		expect(snapshot.removedAt).toEqual({ phone: '2026-09-10T11:00:00.000Z' });
+	});
 });

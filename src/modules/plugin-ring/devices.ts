@@ -1,5 +1,6 @@
 import { normalizePath } from 'obsidian';
 import type { App } from 'obsidian';
+import { trashPath } from '../../core/legacy-port';
 import { ensureFolder, pathExists } from '../../core/vault-fs';
 
 /**
@@ -26,6 +27,13 @@ export interface Heartbeat {
 	role?: 'host' | 'client';
 	/** Which version of the plugin wrote this, so a stale build is visible. */
 	version?: string;
+	/**
+	 * The ring this heartbeat belongs to — the public ring id, the same one every
+	 * ring file carries in the clear. Absent from anything an older build wrote.
+	 */
+	ring?: string;
+	/** When that device joined the ring it names, by its own clock. */
+	joinedAt?: string;
 }
 
 export type DeviceStatus =
@@ -101,6 +109,48 @@ export function isHeartbeat(value: unknown): value is Heartbeat {
 		typeof candidate.deviceName === 'string' &&
 		typeof candidate.updatedAt === 'string'
 	);
+}
+
+export interface RingScope {
+	/** The ring this device is in. */
+	ringId: string;
+	/** When this device joined it, or null when it does not know. */
+	ringSince: string | null;
+	/** Devices the ring has removed. */
+	removed: readonly string[];
+}
+
+/**
+ * The heartbeats that belong to this ring, and only those.
+ *
+ * The roster folder belongs to the vault, not to the ring, so it outlives every
+ * ring made in it: after a new ring the folder still held a heartbeat from every
+ * device of the old one, and they were listed as members of a ring they had
+ * never been in. A heartbeat that names a ring is kept only for that ring. One
+ * from an older build names none, so it is kept only when it was written after
+ * this device joined — anything older is from before this ring existed here.
+ *
+ * A removed device is left out whatever its file says. The file comes back the
+ * moment a sync that still has it runs, and the device it describes is not in
+ * the ring either way.
+ */
+export function beatsForRing(beats: readonly Heartbeat[], scope: RingScope): Heartbeat[] {
+	const removed = new Set(scope.removed);
+	const since = scope.ringSince === null ? NaN : Date.parse(scope.ringSince);
+
+	return beats.filter((beat) => {
+		if (removed.has(beat.deviceId)) {
+			return false;
+		}
+		if (beat.ring !== undefined) {
+			return beat.ring === scope.ringId;
+		}
+		if (Number.isNaN(since)) {
+			return true;
+		}
+		const seen = Date.parse(beat.updatedAt);
+		return !Number.isNaN(seen) && seen >= since;
+	});
 }
 
 /**
@@ -292,12 +342,16 @@ export class DeviceRoster {
 	 * From every folder, or the copy under the other name would put it straight
 	 * back. To the trash rather than deleted: it is another device's file, and
 	 * every other removal in this plugin goes the same way.
+	 *
+	 * From the disk as well as the index, the way `readAll` reads: a heartbeat
+	 * the index has not caught up with is listed all the same, and asking the
+	 * index alone left exactly those rows impossible to remove.
 	 */
 	async forget(deviceId: string): Promise<void> {
 		for (const folder of this.folders) {
-			const file = this.app.vault.getFileByPath(this.pathIn(folder, deviceId));
-			if (file) {
-				await this.app.fileManager.trashFile(file);
+			const path = this.pathIn(folder, deviceId);
+			if (await pathExists(this.app, path)) {
+				await trashPath(this.app, path);
 			}
 		}
 	}

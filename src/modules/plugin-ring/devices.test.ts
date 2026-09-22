@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { App } from 'obsidian';
 import {
 	BEAT_EVERY_MINUTES,
+	beatsForRing,
 	buildRoster,
 	DeviceRoster,
 	HERE_WITHIN_MINUTES,
@@ -297,5 +298,84 @@ describe('the heartbeat files', () => {
 
 		expect(vault.trashed.sort()).toEqual([`${NEW}/phone.json`, `${OLD}/phone.json`].sort());
 		await expect(roster.readAll()).resolves.toEqual([]);
+	});
+
+	it('forgets a heartbeat the index has not caught up with', async () => {
+		// Listed, because reading goes to the disk as well — and so it has to be
+		// removable the same way, or the row stays however often it is removed.
+		const vault = new FakeVault();
+		vault.hidden.set(
+			`${NEW}/phone.json`,
+			JSON.stringify(heartbeat('phone', 'Phone', '2026-09-10T11:00:00.000Z'))
+		);
+
+		const roster = new DeviceRoster(vault.app as App, [NEW]);
+		await roster.forget('phone');
+
+		expect(vault.trashed).toEqual([`${NEW}/phone.json`]);
+		await expect(roster.readAll()).resolves.toEqual([]);
+	});
+});
+
+describe('beatsForRing', () => {
+	/**
+	 * The roster folder belongs to the vault and outlives every ring made in it,
+	 * so what is in it has to be sorted by ring before anyone is listed.
+	 */
+	const JOINED = '2026-09-10T10:00:00.000Z';
+
+	function inRing(id: string, ring: string | undefined, updatedAt: string): Heartbeat {
+		return {
+			deviceId: id,
+			deviceName: id,
+			updatedAt,
+			...(ring !== undefined ? { ring } : {}),
+		};
+	}
+
+	it('keeps the devices of this ring and drops those of another', () => {
+		const kept = beatsForRing(
+			[
+				inRing('laptop', 'ring-new', '2026-09-10T11:00:00.000Z'),
+				inRing('old-tablet', 'ring-old', '2026-09-10T11:30:00.000Z'),
+			],
+			{ ringId: 'ring-new', ringSince: JOINED, removed: [] }
+		);
+
+		expect(kept.map((beat) => beat.deviceId)).toEqual(['laptop']);
+	});
+
+	it('keeps an older build only when it has been heard from since this device joined', () => {
+		// An older build writes no ring, so the time is all there is to go on: a
+		// heartbeat from before the join is from before this ring was here.
+		const kept = beatsForRing(
+			[
+				inRing('still-here', undefined, '2026-09-10T11:00:00.000Z'),
+				inRing('from-before', undefined, '2026-09-01T09:00:00.000Z'),
+			],
+			{ ringId: 'ring-new', ringSince: JOINED, removed: [] }
+		);
+
+		expect(kept.map((beat) => beat.deviceId)).toEqual(['still-here']);
+	});
+
+	it('keeps an older build as before when this device does not know when it joined', () => {
+		const kept = beatsForRing([inRing('laptop', undefined, '2026-09-01T09:00:00.000Z')], {
+			ringId: 'ring-new',
+			ringSince: null,
+			removed: [],
+		});
+
+		expect(kept).toHaveLength(1);
+	});
+
+	it('leaves out a removed device even while its file is still around', () => {
+		const kept = beatsForRing([inRing('phone', 'ring-new', '2026-09-10T11:00:00.000Z')], {
+			ringId: 'ring-new',
+			ringSince: JOINED,
+			removed: ['phone'],
+		});
+
+		expect(kept).toEqual([]);
 	});
 });

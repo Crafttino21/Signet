@@ -14,6 +14,8 @@ export interface SnapshotOptions {
 	seq: number;
 	/** Device ids the host has removed. Carried forward on every publish. */
 	removed?: readonly string[];
+	/** When each removal happened, where it is known. */
+	removedAt?: Readonly<Record<string, string>>;
 	/** What else the ring should carry, such as where the sync server is. */
 	sync?: { serverUrl?: string };
 }
@@ -70,6 +72,7 @@ export async function buildSnapshot(
 		// carries no field at all.
 		...(options.sync?.serverUrl ? { sync: { serverUrl: options.sync.serverUrl } } : {}),
 		...(options.removed && options.removed.length > 0 ? { removed: [...options.removed] } : {}),
+		...removalTimes(options),
 		plugins: local.map((plugin) => ({
 			id: plugin.id,
 			name: plugin.name,
@@ -79,4 +82,16 @@ export async function buildSnapshot(
 			settings: excluded.has(plugin.id) ? undefined : plugin.settings,
 		})),
 	};
+}
+
+/** The times of the removals still published, or nothing when none is known. */
+function removalTimes(options: SnapshotOptions): { removedAt?: Record<string, string> } {
+	const removedAt: Record<string, string> = {};
+	for (const id of options.removed ?? []) {
+		const at = options.removedAt?.[id];
+		if (at !== undefined) {
+			removedAt[id] = at;
+		}
+	}
+	return Object.keys(removedAt).length > 0 ? { removedAt } : {};
 }

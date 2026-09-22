@@ -32,8 +32,8 @@ import {
 } from './modals';
 import type { MissingAddress } from './modals';
 import { randomDeviceName } from '../../core/device-name';
-import { BEAT_EVERY_MINUTES, buildRoster, DeviceRoster, isHereNow } from './devices';
-import type { DeviceHealth } from './devices';
+import { BEAT_EVERY_MINUTES, beatsForRing, buildRoster, DeviceRoster, isHereNow } from './devices';
+import type { DeviceHealth, Heartbeat } from './devices';
 import { pathExists } from '../../core/vault-fs';
 import { classifyRingFile, RingFile } from './ring-file';
 import type { RingFileVerdict } from './ring-file';
@@ -48,6 +48,7 @@ import {
 import { ringLeftovers } from './legacy';
 import type { Leftover } from '../../core/legacy-port';
 import { ownIds } from './self';
+import { isRemovedFrom, rejoinedSinceRemoval } from './membership';
 import { collectLocalPlugins, buildSnapshot } from './snapshot';
 import { isRingSnapshot } from './types';
 import type { DiffItem, RingSnapshot } from './types';
@@ -77,6 +78,13 @@ type PluginRingSettings = {
 	hostId: string | null;
 	/** Devices this host has removed. Republished with every snapshot. */
 	removedIds: string[];
+	/** When each of those was removed. Missing for removals older than the field. */
+	removedAt: Record<string, string>;
+	/**
+	 * When this device joined the ring it is in, or null when that predates the
+	 * field. What a removal is measured against: see `membership.ts`.
+	 */
+	ringSince: string | null;
 	ringFilePath: string;
 	/** Last sequence this host published — its half of the concurrency check. */
 	lastPublishedSeq: number;
@@ -112,12 +120,32 @@ const DEFAULT_SETTINGS: PluginRingSettings = {
 	deviceName: '',
 	hostId: null,
 	removedIds: [],
+	removedAt: {},
+	ringSince: null,
 	ringFilePath: RING_FILE,
 	lastPublishedSeq: 0,
 	lastAppliedSeq: 0,
 	excludedIds: [],
 	ignoredIds: [],
 	installMissing: true,
+};
+
+/**
+ * What a device starts a ring with, whether it made the ring or joined it.
+ *
+ * Removals belong to the ring they were made in. They sat in this device's
+ * settings across rings, and a new ring went out already naming devices as
+ * removed that had never been in it.
+ */
+function freshMembership(): Pick<PluginRingSettings, 'removedIds' | 'removedAt' | 'ringSince'> {
+	return { removedIds: [], removedAt: {}, ringSince: new Date().toISOString() };
+}
+
+/** What a device keeps of a ring it is no longer in: nothing. */
+const NO_MEMBERSHIP: Pick<PluginRingSettings, 'removedIds' | 'removedAt' | 'ringSince'> = {
+	removedIds: [],
+	removedAt: {},
+	ringSince: null,
 };
 
 function parseIdList(value: string): string[] {
@@ -583,6 +611,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 
 		await this.patchSettings({
 			removedIds: [...new Set([...this.settings.removedIds, device.deviceId])],
+			removedAt: { ...this.settings.removedAt, [device.deviceId]: new Date().toISOString() },
 		});
 		await this.roster().forget(device.deviceId);
 		await this.publish();
@@ -618,6 +647,9 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			hostId: this.settings.deviceId,
 			lastPublishedSeq: snapshot.seq,
 			lastAppliedSeq: snapshot.seq,
+			// The ring's removals, not whatever this device last had: it is about to
+			// publish them, and a list from another ring would remove strangers.
+			...removalsOf(snapshot),
 		});
 		if (!(await this.publish())) {
 			return;
@@ -829,6 +861,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			hostId: this.settings.deviceId,
 			lastPublishedSeq: 0,
 			lastAppliedSeq: 0,
+			...freshMembership(),
 		});
 
 		await this.publish();
@@ -919,6 +952,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 				role: 'client',
 				hostId: null,
 				lastAppliedSeq: 0,
+				...freshMembership(),
 			});
 			// This is the whole point of the address travelling in the code: there is
 			// no snapshot here yet, and with the address there does not need to be.
@@ -967,6 +1001,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 				role: 'client',
 				hostId: null,
 				lastAppliedSeq: 0,
+				...freshMembership(),
 			});
 			announceAddress();
 			void this.beat();
@@ -990,6 +1025,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			role: 'client',
 			hostId: snapshot.host.id,
 			lastAppliedSeq: 0,
+			...freshMembership(),
 		});
 		// The snapshot wins when it has an address of its own; the code only fills
 		// the gap left by a host that had no server when it last published. One
@@ -1034,8 +1070,10 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			hostId: null,
 			lastAppliedSeq: 0,
 			lastPublishedSeq: 0,
+			...NO_MEMBERSHIP,
 		});
 		this.fileVerdict = undefined;
+		this.ringRemoved = [];
 		this.lastSeen = undefined;
 		// The vault id and every key came out of the code that just went away. A
 		// sync still calling itself registered would be talking to a vault it can
@@ -1183,6 +1221,7 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 				// about servers, it only carries what it is given.
 				sync: this.plugin.ringLink.contribution(),
 				removed: this.settings.removedIds,
+				removedAt: this.settings.removedAt,
 			});
 			// Written to every path the ring answers at, not just the one it was read
 			// from: that is what moves a ring off the old name without cutting off a
@@ -1477,6 +1516,10 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 	private rosterReadAt = 0;
 	private lastBeatAt = 0;
 	private rosterDirty = false;
+	/** Who the last snapshot read here says was removed, for a client's roster. */
+	private ringRemoved: readonly string[] = [];
+	/** The public id of the ring this device is in, worked out once per code. */
+	private ringIdCache: { code: string; id: string } | undefined;
 	/** The ciphertext last read, so an unchanged file is not read again. */
 	private lastSeen: string | undefined;
 	/** A mismatched code is a fact, not an event: worth saying once per session. */
@@ -1625,16 +1668,60 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		}
 		this.lastBeatAt = Date.now();
 		try {
+			const ring = await this.ringId();
 			await this.roster().write({
 				deviceId: this.settings.deviceId,
 				deviceName: this.deviceName(),
 				updatedAt: new Date().toISOString(),
 				role: this.settings.role,
 				version: this.plugin.manifest.version,
+				...(ring !== undefined ? { ring } : {}),
+				...(this.settings.ringSince !== null ? { joinedAt: this.settings.ringSince } : {}),
 			});
 		} catch (error) {
 			console.error('Signet: could not write this device into the ring roster.', error);
 		}
+	}
+
+	/** The public id of this device's ring, or undefined when it is in none. */
+	private async ringId(): Promise<string | undefined> {
+		const code = this.settings.code;
+		const secret = this.secret();
+		if (code === null || !secret) {
+			return undefined;
+		}
+		if (this.ringIdCache?.code !== code) {
+			this.ringIdCache = { code, id: await deriveRingId(secret) };
+		}
+		return this.ringIdCache.id;
+	}
+
+	/**
+	 * Takes back the removal of a device that has since joined again.
+	 *
+	 * Somebody typed the code into it, which is a clearer statement than the
+	 * removal was. Left in the list, the removal would go out with the next
+	 * publish and throw out an older build that cannot weigh the two.
+	 */
+	private async forgiveRejoined(beats: readonly Heartbeat[], ringId: string): Promise<void> {
+		const back = rejoinedSinceRemoval(beats, {
+			ringId,
+			removed: this.settings.removedIds,
+			removedAt: this.settings.removedAt,
+		});
+		if (back.length === 0) {
+			return;
+		}
+
+		const removedAt = { ...this.settings.removedAt };
+		for (const id of back) {
+			delete removedAt[id];
+		}
+		await this.patchSettings({
+			removedIds: this.settings.removedIds.filter((id) => !back.includes(id)),
+			removedAt,
+		});
+		await this.publish();
 	}
 
 	/** Re-reads the roster for the panel. Cheap: a handful of small JSON files. */
@@ -1647,7 +1734,22 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 			return;
 		}
 
-		const beats = await this.roster().readAll();
+		const all = await this.roster().readAll();
+		const ringId = await this.ringId();
+		if (ringId !== undefined && this.settings.role === 'host') {
+			await this.forgiveRejoined(all, ringId);
+		}
+		const beats =
+			ringId === undefined
+				? all
+				: beatsForRing(all, {
+						ringId,
+						ringSince: this.settings.ringSince,
+						removed:
+							this.settings.role === 'host'
+								? this.settings.removedIds
+								: this.ringRemoved,
+					});
 
 		// Marked read only once it has been read. Doing this first meant a read
 		// that came back empty pinned that empty list for the next half minute,
@@ -1684,15 +1786,19 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 	 * which is the ordinary case — an old laptop, a phone that was replaced.
 	 */
 	private async applyMembership(snapshot: RingSnapshot): Promise<void> {
-		if (snapshot.removed?.includes(this.settings.deviceId) === true) {
+		this.ringRemoved = snapshot.removed ?? [];
+
+		if (isRemovedFrom(snapshot, this.settings.deviceId, this.settings.ringSince)) {
 			await this.patchSettings({
 				code: null,
 				role: null,
 				hostId: null,
 				lastAppliedSeq: 0,
 				lastPublishedSeq: 0,
+				...NO_MEMBERSHIP,
 			});
 			this.lastSeen = undefined;
+			this.ringRemoved = [];
 			this.plugin.ringLink.ringChanged();
 			this.refreshUi();
 			new Notice(t('ring.notice.removedFromRing', { host: snapshot.host.name }));
@@ -1703,7 +1809,11 @@ class PluginRingModule extends SignetModule<PluginRingSettings> {
 		// takes it by publishing next — the seq in the file is already ours to
 		// continue from, which the publish path works out on its own.
 		if (snapshot.host.id === this.settings.deviceId && this.settings.role !== 'host') {
-			await this.patchSettings({ role: 'host', hostId: this.settings.deviceId });
+			await this.patchSettings({
+				role: 'host',
+				hostId: this.settings.deviceId,
+				...removalsOf(snapshot),
+			});
 			await this.beat();
 			this.refreshUi();
 			new Notice(t('ring.notice.becameHost'));
@@ -1750,6 +1860,14 @@ export const pluginRingModule: ModuleDescriptor<PluginRingSettings> = {
 	defaultSettings: DEFAULT_SETTINGS,
 	create: (plugin: SignetPlugin) => new PluginRingModule(plugin, pluginRingModule),
 };
+
+/** A snapshot's removals, as a host keeps them. */
+function removalsOf(snapshot: RingSnapshot): Pick<PluginRingSettings, 'removedIds' | 'removedAt'> {
+	return {
+		removedIds: [...(snapshot.removed ?? [])],
+		removedAt: { ...(snapshot.removedAt ?? {}) },
+	};
+}
 
 /** How long ago a device was last here, in words. */
 function describeSeen(device: DeviceHealth): string {

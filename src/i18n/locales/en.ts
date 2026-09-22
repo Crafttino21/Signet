@@ -446,6 +446,10 @@ export const en = {
 	'whatsNew.nothing': 'Nothing worth writing down since you last looked.',
 	'whatsNew.done': 'Got it',
 
+	'changelog.0-5-3.removedAcrossRings':
+		'A device is no longer thrown out of a new ring for having been removed from an old one. Removals were kept by device, not by ring, so a new ring went out already naming devices as removed that had never been in it. Removals now belong to the ring they were made in, and a device that joins with the code — again, if need be — stays.',
+	'changelog.0-5-3.oldDevices':
+		'The device list shows the devices of this ring and no others. Heartbeats live in the vault and outlived every ring made in it, so devices from earlier rings were listed alongside the current ones, and removing them did not stick.',
 	'changelog.0-5-2.newRing':
 		'Creating a new ring no longer leaves the previous sync state behind. Every key and the vault id come out of the ring code, so a new ring is a new vault that starts at commit zero — while this device still claimed to have synced far past that. The run then refused to go backwards, which is right, and there was no way to clear it from inside the app. A remembered base now says which vault it is about, and one from a different vault is ignored.',
 	'changelog.0-5-2.serverBehind':

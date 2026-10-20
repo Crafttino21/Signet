@@ -1,8 +1,13 @@
 import type { EditorView } from '@codemirror/view';
 import { yCollab } from 'y-codemirror.next';
-import { MarkdownView, Notice, Platform, Setting } from 'obsidian';
+import { MarkdownView, Notice, normalizePath, Platform, Setting } from 'obsidian';
 import type { TFile } from 'obsidian';
+import type { Extension } from '@codemirror/state';
 import { CollabEditorBinding } from './editor-binding';
+import { authorship } from './authorship';
+import { otherAuthors } from './authors';
+import { RoomBaseStore } from './base-store';
+import type { RoomBase } from './base-store';
 import {
 	deriveAuthToken,
 	deriveContentKey,
@@ -18,6 +23,7 @@ import { advancedSection } from '../../core/settings-ui';
 import type SignetPlugin from '../../main';
 import { t } from '../../i18n';
 import { isUsableServerUrl } from '../../core/server-url';
+import { conflictPath } from '../../core/conflict-path';
 import { CollabSession } from './session';
 
 /**
@@ -38,11 +44,14 @@ type LiveCollabSettings = {
 	enabled: boolean;
 	/** Notes matching these folders are never collaborated on. */
 	excludedFolders: string[];
+	/** Tint the text other devices wrote in their colour. */
+	showAuthors: boolean;
 };
 
 const DEFAULT_SETTINGS: LiveCollabSettings = {
 	enabled: true,
 	excludedFolders: [],
+	showAuthors: true,
 };
 
 const RING_MODULE_ID = 'plugin-ring';
@@ -67,6 +76,7 @@ const FLUSH_MS = 2_000;
 
 interface RingSettings {
 	code?: unknown;
+	deviceId?: unknown;
 	deviceName?: unknown;
 }
 
@@ -89,6 +99,16 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	private readonly opening = new Map<string, Promise<CollabSession>>();
 	/** Paths whose room has not answered yet, for what the panel says. */
 	private readonly connecting = new Set<string>();
+	/**
+	 * Paths whose room has not answered for long enough to say so. The note is an
+	 * ordinary note meanwhile and is merged once the room is there.
+	 */
+	private readonly waiting = new Set<string>();
+	/** Where each session's base is remembered, when this device can have one. */
+	private readonly baseStores = new WeakMap<
+		CollabSession,
+		{ store: RoomBaseStore; roomId: string }
+	>();
 	/** Editors currently on screen, so a session can find the one to bind. */
 	private readonly editors = new Map<EditorView, string>();
 	private readonly binding = new CollabEditorBinding({
@@ -182,6 +202,14 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			this.endAll();
 		});
 
+		this.addCommand({
+			id: 'toggle-authors',
+			name: t('collab.command.toggleAuthors'),
+			callback: () => {
+				void this.setShowAuthors(!this.settings.showAuthors);
+			},
+		});
+
 		this.app.workspace.onLayoutReady(() => this.detach(this.attachToActive()));
 	}
 
@@ -204,6 +232,15 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 						this.detach(this.attachToActive());
 					}
 					this.refreshPanel();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName(t('collab.settings.showAuthors'))
+			.setDesc(t('collab.settings.showAuthorsDesc'))
+			.addToggle((toggle) =>
+				toggle.setValue(this.settings.showAuthors).onChange(async (value) => {
+					await this.setShowAuthors(value);
 				})
 			);
 
@@ -252,10 +289,18 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 				text: t('collab.panel.connecting', { count: this.connecting.size }),
 			});
 		}
+		if (this.waiting.size > 0) {
+			containerEl.createEl('p', {
+				cls: 'signet-panel__state',
+				text: t('collab.panel.waiting', { count: this.waiting.size }),
+			});
+		}
 
-		const joined = [...this.sessions].filter(([path]) => !this.connecting.has(path));
+		const joined = [...this.sessions].filter(
+			([path]) => !this.connecting.has(path) && !this.waiting.has(path)
+		);
 		if (joined.length === 0) {
-			if (this.connecting.size === 0) {
+			if (this.connecting.size === 0 && this.waiting.size === 0) {
 				containerEl.createEl('p', {
 					cls: 'signet-panel__state',
 					text: t('collab.panel.idle'),
@@ -276,6 +321,23 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 						? t('collab.panel.alone')
 						: t('collab.panel.peers', { count: session.peers }),
 			});
+
+			// Who the colours in the note are. Only what the panel can answer: the
+			// note shows the colours, and nothing there says whose they are.
+			const others = this.settings.showAuthors
+				? otherAuthors(session.authors, session.authorKey)
+				: [];
+			if (others.length > 0) {
+				const legend = list.createDiv({ cls: 'signet-panel__authors' });
+				legend.createSpan({ cls: 'signet-panel__meta', text: t('collab.panel.authors') });
+				for (const author of others) {
+					const entry = legend.createSpan({ cls: 'signet-panel__author' });
+					entry.createSpan({
+						cls: `signet-author-dot signet-author-dot--${author.slot}`,
+					});
+					entry.createSpan({ text: author.name });
+				}
+			}
 		}
 	}
 
@@ -317,7 +379,13 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 				this.refreshPanel();
 				await session.whenSeeded;
 				this.connecting.delete(path);
+				this.waiting.delete(path);
 				this.refreshPanel();
+			}
+
+			if (!session.isSeeded) {
+				// Ended or refused while waiting. There is no document to show.
+				return;
 			}
 
 			// The session may have been ended while we were waiting — the note
@@ -338,11 +406,13 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 				this.binding.bind(
 					view,
 					yCollab(session.text, session.awareness, { undoManager: false }),
-					session
+					session,
+					this.authorsFor(session)
 				);
 			}
 		} catch (error) {
 			this.connecting.delete(path);
+			this.waiting.delete(path);
 			this.refreshPanel();
 			console.error('Signet: could not start a collaborative session.', error);
 			this.report(path, error);
@@ -398,16 +468,38 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			throw new Error('Not configured.');
 		}
 
+		const roomId = await deriveRoomId(context.nameKey, file.path);
+		const store =
+			context.deviceId === undefined
+				? undefined
+				: new RoomBaseStore(
+						this.app,
+						this.plugin.folder(),
+						context.deviceId,
+						context.vaultId
+					);
+
 		const session = new CollabSession({
 			path: file.path,
 			serverUrl: context.serverUrl,
 			vaultId: context.vaultId,
-			roomId: await deriveRoomId(context.nameKey, file.path),
+			roomId,
 			token: context.token,
 			contentKey: context.contentKey,
 			secret: context.secret,
 			deviceName: context.deviceName,
+			deviceId: context.deviceId,
 			readCurrent: () => this.currentText(file),
+			loadBase: store ? () => store.load(roomId) : undefined,
+			keepAside: (text) => this.keepAside(file, text),
+			onWaiting: () => {
+				// Only if somebody is actually waiting on it; a session can time out
+				// after its attach has already given up.
+				if (this.connecting.delete(file.path)) {
+					this.waiting.add(file.path);
+					this.refreshPanel();
+				}
+			},
 			onStatus: () => {
 				this.refreshPanel();
 			},
@@ -428,8 +520,16 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		});
 
 		this.sessions.set(file.path, session);
+		if (store) {
+			this.baseStores.set(session, { store, roomId });
+		}
 		// From here the session owns the file, and the vault sync leaves it alone.
 		this.plugin.liveEditing.claim(file.path, session);
+
+		// The legend in the panel names whoever has written here.
+		session.authors.observe(() => {
+			this.refreshPanel();
+		});
 
 		// Registered before starting, not after. The room's history can arrive
 		// immediately, and a seed that lands before this listener exists leaves the
@@ -492,6 +592,7 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 
 	private end(path: string): void {
 		this.connecting.delete(path);
+		this.waiting.delete(path);
 		const session = this.sessions.get(path);
 		if (!session) {
 			return;
@@ -556,20 +657,30 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 	}
 
 	/**
-	 * Writes a session's text to its file.
+	 * Gets a session's text onto disk, and remembers it as the base once it is.
 	 *
-	 * Only when it actually differs: an identical write would still bump the
-	 * modification time, which the sync reads as a change and would turn every
-	 * keystroke into a commit.
+	 * There must only ever be one writer per note, and which one depends on
+	 * whether an editor is showing the session.
 	 *
-	 * Two things are refused outright, and both are the same mistake seen from
-	 * different sides: writing a document that is not yet the note.
+	 * **Bound to an editor:** Obsidian is the writer. The editor already holds the
+	 * document's text — remote changes included — and Obsidian saves it like any
+	 * other note. Writing the same note from here as well meant two writers racing:
+	 * a write prepared a moment earlier landed after Obsidian's newer one, Obsidian
+	 * saw a file changed underneath it and reloaded the editor from it, and the
+	 * last few characters vanished with the cursor jumping somewhere else. So here
+	 * this only asks the view to save now and then reads what landed.
 	 *
-	 * A session's text is empty until it is seeded — from the room's history, or
-	 * from the file itself, or by the timeout that gives up on the server. Every
-	 * one of those arrives some time after the session exists, and a session can
-	 * be ended inside that window by a layout change, a switched-off module, or a
-	 * plugin unload. `contents()` then answers `''`, and the note is replaced by
+	 * **Not bound** — the note is closing, or nobody is showing it: this writes,
+	 * and reads the text inside `process`, at the moment of writing rather than
+	 * before it.
+	 *
+	 * Only when the text actually differs: an identical write would still bump the
+	 * modification time, which the sync reads as a change.
+	 *
+	 * And never from a session that has not been seeded, or one that reports no
+	 * text at all for a note that has some. A session's text is empty until it
+	 * holds the note, and it can be ended inside that window by a layout change, a
+	 * switched-off module, or a plugin unload; writing then replaces the note with
 	 * nothing.
 	 */
 	private async flushOne(path: string, session: CollabSession): Promise<void> {
@@ -584,29 +695,100 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		}
 
 		try {
-			const contents = session.contents();
+			// Filled in from inside callbacks, which is why it is an object: a plain
+			// `let` would be narrowed to its first value and never read again.
+			const result: { base?: RoomBase; refused: boolean } = { refused: false };
 
-			if (contents === '') {
-				// Emptying a note is a thing somebody can genuinely do, and this is
-				// not how it would reach us: a seeded session that reports nothing is
-				// a document that failed to load, not a note somebody cleared. The
-				// cost of being wrong in this direction is a write that has to be
-				// repeated; in the other, it is the note.
-				const existing = await this.app.vault.read(file);
-				if (existing !== '') {
+			if (this.isBound(path, session)) {
+				for (const view of this.viewsOf(path)) {
+					await view.save();
+				}
+				const onDisk = await this.app.vault.read(file);
+				if (onDisk === session.contents()) {
+					result.base = session.snapshotBase();
+				}
+			} else {
+				// `process` rather than read-then-modify: it is the documented way to
+				// edit a file nobody is looking at, and it closes the gap in which a
+				// sync could land between the two halves.
+				await this.app.vault.process(file, (data) => {
+					const contents = session.contents();
+					if (contents === '' && data !== '') {
+						// Emptying a note is a thing somebody can genuinely do, and this is
+						// not how it would reach us: a seeded session that reports nothing
+						// is a document that failed to load, not a note somebody cleared.
+						result.refused = true;
+						return data;
+					}
+					result.base = session.snapshotBase();
+					return data === contents ? data : contents;
+				});
+				if (result.refused) {
 					console.error(
 						`Signet: refused to empty ${path} from a session that holds no text.`
 					);
-					return;
 				}
 			}
-			// `process` rather than read-then-modify: it is the documented way to edit
-			// a file nobody is looking at, and it closes the gap in which a sync could
-			// land between the two halves of the old version.
-			await this.app.vault.process(file, (data) => (data === contents ? data : contents));
+
+			const where = this.baseStores.get(session);
+			if (result.base && where) {
+				await where.store.save(where.roomId, result.base);
+			}
 		} catch (error) {
 			console.error(`Signet: could not write ${path} back to disk.`, error);
 		}
+	}
+
+	/** Whether an editor on screen is following this session. */
+	private isBound(path: string, session: CollabSession): boolean {
+		for (const [view, shown] of this.editors) {
+			if (shown === path && this.binding.isBoundTo(view, session)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private viewsOf(path: string): MarkdownView[] {
+		const views: MarkdownView[] = [];
+		this.app.workspace.iterateAllLeaves((leaf) => {
+			if (leaf.view instanceof MarkdownView && leaf.view.file?.path === path) {
+				views.push(leaf.view);
+			}
+		});
+		return views;
+	}
+
+	/**
+	 * Keeps this device's version of a note that could not be merged.
+	 *
+	 * Beside the note, named the way `patterns.ts` recognises, so the panel counts
+	 * it with every other conflicted copy. Said once, because it just happened and
+	 * somebody has a decision to make about it.
+	 */
+	private async keepAside(file: TFile, text: string): Promise<void> {
+		const target = normalizePath(conflictPath(file.path, new Date()));
+		await this.app.vault.create(target, text);
+		new Notice(t('collab.notice.keptAside', { path: file.path, copy: target }));
+	}
+
+	// --- who wrote what -----------------------------------------------------
+
+	private authorsFor(session: CollabSession): Extension {
+		return this.settings.showAuthors
+			? authorship(session.text, session.authors, session.authorKey)
+			: [];
+	}
+
+	private async setShowAuthors(value: boolean): Promise<void> {
+		await this.patchSettings({ showAuthors: value });
+		for (const [view, path] of this.editors) {
+			const session = this.sessions.get(path);
+			if (session && this.binding.isBoundTo(view, session)) {
+				this.binding.setAuthors(view, this.authorsFor(session));
+			}
+		}
+		this.refreshPanel();
 	}
 
 	// --- wiring -------------------------------------------------------------
@@ -617,7 +799,7 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		);
 	}
 
-	private ring(): { code: string; deviceName: string } | undefined {
+	private ring(): { code: string; deviceId?: string; deviceName: string } | undefined {
 		const ring = this.plugin.settings.moduleSettings[RING_MODULE_ID] as
 			RingSettings | undefined;
 		if (typeof ring?.code !== 'string' || !ring.code) {
@@ -625,6 +807,8 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 		}
 		return {
 			code: ring.code,
+			deviceId:
+				typeof ring.deviceId === 'string' && ring.deviceId ? ring.deviceId : undefined,
 			deviceName:
 				typeof ring.deviceName === 'string' && ring.deviceName.trim()
 					? ring.deviceName.trim()
@@ -663,6 +847,7 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 				contentKey: CryptoKey;
 				nameKey: Bytes;
 				secret: Bytes;
+				deviceId?: string;
 				deviceName: string;
 		  }
 		| undefined
@@ -681,6 +866,7 @@ class LiveCollabModule extends SignetModule<LiveCollabSettings> {
 			contentKey: await deriveContentKey(secret),
 			nameKey: await deriveNameKey(secret),
 			secret,
+			deviceId: ring.deviceId,
 			deviceName: ring.deviceName,
 		};
 	}

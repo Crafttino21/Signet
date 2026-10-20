@@ -254,9 +254,28 @@ updates through the server. The rules that keep it from destroying text:
 - One writer per note. A note claimed in `src/core/live-editing.ts` belongs to its
   session; the file sync must exclude every path in `liveEditing.list()`. Two
   writers on one note is the failure this whole project exists to prevent.
-- A room with history wins over the file on disk. Only an empty room is seeded, and
-  the seed is built under a fixed client id so two devices racing to seed the same
-  file produce identical bytes rather than the text twice.
+- Only an empty room is seeded, and the seed's client id is a hash of the text.
+  Identical files then produce identical bytes, applied once; different files
+  get different ids and both survive. Never a fixed id: Yjs knows a character by
+  client and clock, so a second seed with the same id and other text is dropped
+  as a duplicate, and every later edit points at characters the device does not
+  have — typing lands mid-text and deletions take the wrong words.
+- Nothing is seeded until the room has answered. A slow or unreachable room leaves
+  the note an ordinary, unbound note (`onWaiting`), and it is merged when the room
+  arrives. Seeding from the file on a timeout is the collision above.
+- A room with history does **not** simply win over the note. The note is merged
+  into it against the base — what this device last shared with the room, saved
+  per note by `base-store.ts` only at a moment the disk and the document were
+  seen to match. Changes on both sides apply, the same change applies once, and
+  only a stretch both changed differently is a conflict: the room's text goes in
+  the note and this device's beside it as a conflicted copy. With no base, or a
+  base the room does not descend from (a reset server), there is nothing to
+  merge by, and a note that differs is kept beside the room the same way.
+- A note bound to an editor has exactly one writer, and it is Obsidian. The
+  module asks the view to `save()` and only writes itself once nothing is bound.
+  Writing from both raced: an older write landed after a newer save, Obsidian
+  reloaded the editor from it, and characters vanished with the cursor jumping.
+  When the module does write, it reads the text inside `process`, not before.
 - Never echo a remote update back into the room. Updates that arrived from the
   socket are applied with the session as origin, and that origin is what the send
   path checks.
@@ -267,7 +286,7 @@ updates through the server. The rules that keep it from destroying text:
   has been applied, and a session can be ended inside that window by a layout
   change, a switched-off module or a plugin unload. Writing then replaces the
   note with nothing.
-- The seed timer is armed before the socket is opened, and a `start()` that
+- The wait timer is armed before the socket is opened, and a `start()` that
   throws takes the session out of the map and gives the claim back. A session
   that can never seed is worse than none: every later attach waits on it, and
   the path stays excluded from the file sync for as long as the vault is open.
@@ -277,6 +296,11 @@ updates through the server. The rules that keep it from destroying text:
 - An empty room is seeded from the file, but a room the server _could not read_
   is not. The server says which it is; treating the second as the first
   publishes one device's copy of a note to everybody.
+
+Who wrote what is a `Y.Map('authors')` beside the text, client id to device,
+signed on a session's first local change — not on joining, or every open would
+leave an entry in the room forever. Colours are Obsidian's palette slots
+(`authors.ts`), used for both the cursor and the tint, never computed colours.
 
 Getting from a note to its CodeMirror view goes through `editor-binding.ts`, which
 uses `editorInfoField` and a `Compartment` — both exported by Obsidian. Do not

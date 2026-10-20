@@ -257,6 +257,10 @@ export class MarkdownView {
 	addAction(_icon: string, _title: string, _callback: () => void): HTMLElement {
 		return document.createElement('div');
 	}
+
+	save(): Promise<void> {
+		return Promise.resolve();
+	}
 }
 
 /** Draws an icon into an element. Tests only care that it does not throw. */

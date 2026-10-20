@@ -636,3 +636,99 @@ body.is-mobile .signet-ring__code {
 .signet-ring__code-server {
 	color: var(--text-muted);
 }
+
+/* Who wrote what, in a note being edited together.
+ *
+ * A tint behind the text rather than the text's own colour: links, tags and
+ * headings already use colour to mean something. Obsidian's palette, so the
+ * theme decides what each slot looks like in light and dark mode, and the slots
+ * match the cursor colours `session.ts` hands to the editor.
+ */
+.signet-author {
+	border-radius: var(--radius-s);
+}
+
+.signet-author--red {
+	background-color: rgba(var(--color-red-rgb), 0.18);
+}
+
+.signet-author--orange {
+	background-color: rgba(var(--color-orange-rgb), 0.18);
+}
+
+.signet-author--yellow {
+	background-color: rgba(var(--color-yellow-rgb), 0.18);
+}
+
+.signet-author--green {
+	background-color: rgba(var(--color-green-rgb), 0.18);
+}
+
+.signet-author--cyan {
+	background-color: rgba(var(--color-cyan-rgb), 0.18);
+}
+
+.signet-author--blue {
+	background-color: rgba(var(--color-blue-rgb), 0.18);
+}
+
+.signet-author--purple {
+	background-color: rgba(var(--color-purple-rgb), 0.18);
+}
+
+.signet-author--pink {
+	background-color: rgba(var(--color-pink-rgb), 0.18);
+}
+
+.signet-panel__authors {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--size-4-1) var(--size-4-2);
+	font-size: var(--font-ui-smaller);
+}
+
+.signet-panel__author {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--size-4-1);
+}
+
+.signet-author-dot {
+	display: inline-block;
+	width: var(--size-4-2);
+	height: var(--size-4-2);
+	border-radius: 50%;
+}
+
+.signet-author-dot--red {
+	background-color: var(--color-red);
+}
+
+.signet-author-dot--orange {
+	background-color: var(--color-orange);
+}
+
+.signet-author-dot--yellow {
+	background-color: var(--color-yellow);
+}
+
+.signet-author-dot--green {
+	background-color: var(--color-green);
+}
+
+.signet-author-dot--cyan {
+	background-color: var(--color-cyan);
+}
+
+.signet-author-dot--blue {
+	background-color: var(--color-blue);
+}
+
+.signet-author-dot--purple {
+	background-color: var(--color-purple);
+}
+
+.signet-author-dot--pink {
+	background-color: var(--color-pink);
+}

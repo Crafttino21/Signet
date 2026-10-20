@@ -431,6 +431,15 @@ export const de: Translations = {
 		'Solange eine Notiz offen ist, wird sie Anschlag für Anschlag mit allen abgeglichen, die sie ebenfalls offen haben. Diese Notiz bleibt so lange aus dem normalen Dateisync heraus, damit beide sich nicht gegenseitig überschreiben.',
 	'collab.settings.excluded': 'Diese Ordner nie gemeinsam bearbeiten',
 	'collab.settings.excludedDesc': 'Ein Pfad pro Zeile.',
+	'collab.settings.showAuthors': 'Zeigen, wer was geschrieben hat',
+	'collab.settings.showAuthorsDesc':
+		'Hinterlegt in gemeinsam bearbeiteten Notizen den Text anderer Ger\u00e4te in der Farbe ihres Cursors. Dein eigener Text bleibt, wie er ist. Welche Farbe wem geh\u00f6rt, steht in der Seitenleiste.',
+	'collab.command.toggleAuthors': 'Anzeigen oder ausblenden, wer was geschrieben hat',
+	'collab.panel.waiting':
+		'Der Server hat f\u00fcr {count} Notiz(en) noch nicht geantwortet. Sie lassen sich ganz normal bearbeiten und werden mit den anderen zusammengef\u00fchrt, sobald er antwortet.',
+	'collab.panel.authors': 'Geschrieben von',
+	'collab.notice.keptAside':
+		'Signet: {path} wurde hier und in der gemeinsamen Notiz an denselben Stellen ge\u00e4ndert. Die gemeinsame Fassung steht in der Notiz, die dieses Ger\u00e4ts in {copy}.',
 	'collab.notice.failed':
 		'Signet: Gemeinsames Bearbeiten konnte für {path} nicht starten. {reason}',
 	'update.panel.available': 'Signet {version} ist da. Dieses Gerät läuft auf {installed}.',
@@ -450,6 +459,14 @@ export const de: Translations = {
 	'whatsNew.nothing': 'Seit deinem letzten Blick nichts Erwähnenswertes.',
 	'whatsNew.done': 'Alles klar',
 
+	'changelog.0-5-4.merge':
+		'Ein Ger\u00e4t, das vom gemeinsamen Bearbeiten abgeschnitten war, verliert nicht mehr, was es geschrieben hat. Kommt es zu einer Notiz zur\u00fcck, werden seine \u00c4nderungen mit dem zusammengef\u00fchrt, was die anderen inzwischen geschrieben haben, statt von der gemeinsamen Fassung ersetzt zu werden. Nur wo beide dieselben Worte unterschiedlich ge\u00e4ndert haben, bleibt seine Fassung als Konfliktkopie neben der Notiz liegen.',
+	'changelog.0-5-4.slowServer':
+		'Ein langsamer Server bringt keine Notiz mehr durcheinander. Getipptes konnte mitten im Text landen oder die falschen Worte l\u00f6schen, wenn der Server l\u00e4nger als ein paar Sekunden f\u00fcr die Antwort brauchte. Die Notiz bleibt jetzt eine ganz normale Notiz, bis er antwortet, und wird dann zusammengef\u00fchrt.',
+	'changelog.0-5-4.oneWriter':
+		'Beim Tippen in einer gemeinsamen Notiz verschwinden nicht mehr die letzten Zeichen, und der Cursor springt nicht mehr. Die Notiz wurde von zwei Stellen gleichzeitig gespeichert, und die \u00e4ltere Speicherung konnte als letzte ankommen.',
+	'changelog.0-5-4.authors':
+		'Text anderer Ger\u00e4te ist in der Farbe ihres Cursors hinterlegt, und die Seitenleiste sagt, welche Farbe wem geh\u00f6rt. Das l\u00e4sst sich in den Einstellungen oder per Befehl abschalten.',
 	'changelog.0-5-3.removedAcrossRings':
 		'Ein Ger\u00e4t wird nicht mehr aus einem neuen Ring geworfen, weil es einmal aus einem alten entfernt wurde. Entfernungen hingen am Ger\u00e4t statt am Ring, sodass ein neuer Ring schon Ger\u00e4te als entfernt f\u00fchrte, die nie darin waren. Sie geh\u00f6ren jetzt zu dem Ring, in dem sie passiert sind, und ein Ger\u00e4t, das mit dem Code beitritt \u2014 notfalls erneut \u2014, bleibt.',
 	'changelog.0-5-3.oldDevices':

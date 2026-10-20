@@ -67,6 +67,11 @@ export function minimalChange(
 export class CollabEditorBinding {
 	private readonly compartment = new Compartment();
 	/**
+	 * Who wrote what, in a slot of its own so it can be switched on and off
+	 * without rebinding the document — rebinding tears the sync plugin down.
+	 */
+	private readonly authorsCompartment = new Compartment();
+	/**
 	 * What each editor is currently bound to.
 	 *
 	 * Every `file-open` and `active-leaf-change` asks to bind again, and handing
@@ -105,7 +110,7 @@ export class CollabEditorBinding {
 			}
 		);
 
-		return [this.compartment.of([]), announce];
+		return [this.compartment.of([]), this.authorsCompartment.of([]), announce];
 	}
 
 	/** Whether this editor is already following that document. */
@@ -145,14 +150,26 @@ export class CollabEditorBinding {
 	 * Dispatched rather than configured up front because a session may only exist
 	 * after the editor does — the room has to be reachable first.
 	 */
-	bind(view: EditorView, collab: Extension, identity: object): void {
-		view.dispatch({ effects: this.compartment.reconfigure(collab) });
+	bind(view: EditorView, collab: Extension, identity: object, authors: Extension = []): void {
+		view.dispatch({
+			effects: [
+				this.compartment.reconfigure(collab),
+				this.authorsCompartment.reconfigure(authors),
+			],
+		});
 		this.bound.set(view, identity);
+	}
+
+	/** Shows or hides who wrote what in an editor that is already bound. */
+	setAuthors(view: EditorView, authors: Extension): void {
+		view.dispatch({ effects: this.authorsCompartment.reconfigure(authors) });
 	}
 
 	/** Puts an editor back to ordinary, unshared editing. */
 	unbind(view: EditorView): void {
 		this.bound.delete(view);
-		view.dispatch({ effects: this.compartment.reconfigure([]) });
+		view.dispatch({
+			effects: [this.compartment.reconfigure([]), this.authorsCompartment.reconfigure([])],
+		});
 	}
 }

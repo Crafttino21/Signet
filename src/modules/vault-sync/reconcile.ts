@@ -150,21 +150,5 @@ export function touchesLocalFiles(actions: readonly SyncAction[]): SyncAction[] 
 	);
 }
 
-/**
- * The name a pulled version gets when both sides changed.
- *
- * Deliberately shaped like the conflict copies other sync tools leave behind, so
- * `patterns.ts` in this same module already knows how to find them and the panel
- * can count them. A copy nobody looks at is the same as a lost edit.
- */
-export function conflictPath(path: string, when: Date): string {
-	const stamp = when.toISOString().slice(0, 19).replace('T', ' ').replace(/:/g, '');
-	const dot = path.lastIndexOf('.');
-	const slash = path.lastIndexOf('/');
-
-	const hasExtension = dot > slash + 1;
-	const stem = hasExtension ? path.slice(0, dot) : path;
-	const extension = hasExtension ? path.slice(dot) : '';
-
-	return `${stem} (conflicted copy ${stamp})${extension}`;
-}
+/** Kept here for the callers that always found it here; it lives in core now. */
+export { conflictPath } from '../../core/conflict-path';

@@ -423,12 +423,21 @@ export const en = {
 	'collab.panel.offline': 'not connected',
 	'collab.panel.connecting':
 		'Joining the room for {count} note(s). They edit as usual meanwhile.',
+	'collab.panel.waiting':
+		'The server has not answered for {count} note(s). They edit as usual and are merged with the others once it does.',
+	'collab.panel.authors': 'Written by',
 	'collab.settings.enabled': 'Edit notes together',
 	'collab.settings.enabledDesc':
 		'While a note is open it is kept in step keystroke by keystroke with anyone else who has it open. That note is left out of the ordinary file sync until it is closed, so the two cannot write over each other.',
 	'collab.settings.excluded': 'Never edit these folders together',
 	'collab.settings.excludedDesc': 'One path per line.',
+	'collab.settings.showAuthors': 'Show who wrote what',
+	'collab.settings.showAuthorsDesc':
+		'Tints text other devices wrote in a note being edited together, in the colour of their cursor. Your own text stays as it is. The side panel names the colours.',
+	'collab.command.toggleAuthors': 'Show or hide who wrote what',
 	'collab.notice.failed': 'Signet: live editing could not start for {path}. {reason}',
+	'collab.notice.keptAside':
+		'Signet: {path} changed here and in the shared note in the same places. The shared version is in the note, this device\'s is in {copy}.',
 	'update.panel.available': 'Signet {version} is out. This device is on {installed}.',
 	'update.panel.fromRing': 'Another device in your ring is already running it.',
 	'update.panel.openReleases': 'Open the releases page',
@@ -446,6 +455,14 @@ export const en = {
 	'whatsNew.nothing': 'Nothing worth writing down since you last looked.',
 	'whatsNew.done': 'Got it',
 
+	'changelog.0-5-4.merge':
+		'A device that was cut off from live editing no longer loses what it wrote. When it rejoins a note, its changes are merged with what the others wrote meanwhile, instead of the shared version replacing them. Only where both changed the same words differently is its version kept beside the note as a conflicted copy.',
+	'changelog.0-5-4.slowServer':
+		'A slow server no longer scrambles a note. Typing could land in the middle of the text, or delete the wrong words, when the server took longer than a few seconds to answer. The note now stays an ordinary note until it does, and is merged then.',
+	'changelog.0-5-4.oneWriter':
+		'Typing in a shared note no longer loses its last characters or makes the cursor jump. The note was being saved from two places at once, and the older save could land last.',
+	'changelog.0-5-4.authors':
+		'Text other devices wrote is tinted in the colour of their cursor, and the side panel says whose colour is whose. It can be switched off in the settings or with a command.',
 	'changelog.0-5-3.removedAcrossRings':
 		'A device is no longer thrown out of a new ring for having been removed from an old one. Removals were kept by device, not by ring, so a new ring went out already naming devices as removed that had never been in it. Removals now belong to the ring they were made in, and a device that joins with the code — again, if need be — stays.',
 	'changelog.0-5-3.oldDevices':

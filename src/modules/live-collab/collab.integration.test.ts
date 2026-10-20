@@ -36,7 +36,9 @@ import { createSyncServer } from '../../../packages/server/src/http';
 import { CollabRelay } from '../../../packages/server/src/relay';
 import { RoomStore } from '../../../packages/server/src/rooms';
 import { VaultStore } from '../../../packages/server/src/storage';
-import { CollabSession } from './session';
+import * as Y from 'yjs';
+import { CollabSession, seedUpdate } from './session';
+import type { SessionOptions } from './session';
 
 /**
  * Two devices typing into one note at the same time, over a real socket.
@@ -67,7 +69,13 @@ let rooms: RoomStore;
 class Device {
 	readonly session: CollabSession;
 
-	constructor(name: string, path: string, roomId: string, onDisk: string) {
+	constructor(
+		name: string,
+		path: string,
+		roomId: string,
+		onDisk: string,
+		extra: Partial<SessionOptions> = {}
+	) {
 		this.session = new CollabSession({
 			path,
 			serverUrl: base,
@@ -82,6 +90,7 @@ class Device {
 			onError: (error) => {
 				throw error instanceof Error ? error : new Error(String(error));
 			},
+			...extra,
 		});
 		this.session.start();
 	}
@@ -112,8 +121,8 @@ class Note {
 		return new Note(path, await deriveRoomId(nameKey, path));
 	}
 
-	open(name: string, onDisk = ''): Device {
-		const device = new Device(name, this.path, this.roomId, onDisk);
+	open(name: string, onDisk = '', extra: Partial<SessionOptions> = {}): Device {
+		const device = new Device(name, this.path, this.roomId, onDisk, extra);
 		this.devices.push(device);
 		return device;
 	}
@@ -140,10 +149,10 @@ class Note {
 	 * is still in flight. Tests about what a later joiner sees have to wait for the
 	 * server, or they are really testing the timing of the first send.
 	 */
-	stored(): Promise<void> {
+	stored(atLeast = 1): Promise<void> {
 		return until(
 			'the server has stored the room',
-			() => this.storedUpdates > 0,
+			() => this.storedUpdates >= atLeast,
 			4_000,
 			async () => {
 				this.storedUpdates = (await rooms.read(vaultId, this.roomId)).updates.length;
@@ -152,6 +161,11 @@ class Note {
 	}
 
 	private storedUpdates = 0;
+
+	/** How many updates the server holds for this room right now. */
+	async held(): Promise<number> {
+		return (await rooms.read(vaultId, this.roomId)).updates.length;
+	}
 }
 
 const notes: Note[] = [];
@@ -364,6 +378,174 @@ describe('two devices in one note', () => {
 		expect(names).toContain('Laptop');
 		expect(names).toContain('Phone');
 	});
+});
+
+describe('seeding', () => {
+	// What two devices produce when both find a room empty and seed it at once.
+	// No server needed: this is about the bytes.
+
+	function merged(left: string, right: string): [string, string] {
+		const one = new Y.Doc();
+		const two = new Y.Doc();
+		Y.applyUpdate(one, seedUpdate(left));
+		Y.applyUpdate(two, seedUpdate(right));
+		Y.applyUpdate(one, Y.encodeStateAsUpdate(two));
+		Y.applyUpdate(two, Y.encodeStateAsUpdate(one));
+		return [one.getText('content').toString(), two.getText('content').toString()];
+	}
+
+	it('applies the same file once', () => {
+		expect(merged('same\n', 'same\n')).toEqual(['same\n', 'same\n']);
+	});
+
+	it('keeps both of two different files, and agrees on the result', () => {
+		// Seeded under one shared identity, the second file was dropped as a
+		// duplicate of the first — and every later edit pointed at characters the
+		// other device did not have.
+		const [one, two] = merged('left\n', 'right\n');
+		expect(one).toBe(two);
+		expect(one).toContain('left\n');
+		expect(one).toContain('right\n');
+	});
+});
+
+describe('coming back after being cut off', () => {
+	it('merges what a device wrote while away with what the room did meanwhile', async () => {
+		const shared = await note('Notes/Away-merge.md');
+		const original = 'top\n\nmiddle\n\nbottom\n';
+
+		const one = shared.open('Laptop', original);
+		await until('the room is seeded', () => one.text === original);
+		await shared.stored();
+
+		const two = shared.open('Phone', original);
+		await two.session.whenSeeded;
+		// What the module remembers once the note on disk matches the document.
+		const base = two.session.snapshotBase();
+		shared.closeOn(two);
+
+		const before = await shared.held();
+		one.type(one.text.indexOf('bottom'), 'new ');
+		await shared.stored(before + 1);
+
+		// Edited on the phone while it was away.
+		const back = shared.open('Phone', 'TOP\n\nmiddle\n\nbottom\n', {
+			loadBase: () => Promise.resolve(base),
+		});
+		await until(
+			'both have both edits',
+			() => back.text === one.text && one.text.includes('TOP') && one.text.includes('new ')
+		);
+		expect(back.text).toBe('TOP\n\nmiddle\n\nnew bottom\n');
+	});
+
+	it('keeps a stretch both sides changed differently beside the note', async () => {
+		const shared = await note('Notes/Away-conflict.md');
+		const kept: string[] = [];
+
+		const one = shared.open('Laptop', 'alpha beta\n');
+		await until('the room is seeded', () => one.text === 'alpha beta\n');
+		await shared.stored();
+
+		const two = shared.open('Phone', 'alpha beta\n');
+		await two.session.whenSeeded;
+		const base = two.session.snapshotBase();
+		shared.closeOn(two);
+
+		const before = await shared.held();
+		one.session.text.delete(6, 4);
+		one.type(6, 'gamma');
+		await shared.stored(before + 2);
+
+		const back = shared.open('Phone', 'alpha delta\n', {
+			loadBase: () => Promise.resolve(base),
+			keepAside: (text) => {
+				kept.push(text);
+				return Promise.resolve();
+			},
+		});
+		await back.session.whenSeeded;
+
+		expect(back.text).toBe('alpha gamma\n');
+		expect(kept).toEqual(['alpha delta\n']);
+	});
+
+	it('keeps the note beside the room when there is nothing to merge by', async () => {
+		const shared = await note('Notes/No-base.md');
+		const kept: string[] = [];
+
+		const one = shared.open('Laptop', 'room text\n');
+		await until('the room is seeded', () => one.text === 'room text\n');
+		await shared.stored();
+
+		const two = shared.open('Phone', 'my own text\n', {
+			keepAside: (text) => {
+				kept.push(text);
+				return Promise.resolve();
+			},
+		});
+		await two.session.whenSeeded;
+
+		expect(two.text).toBe('room text\n');
+		expect(kept).toEqual(['my own text\n']);
+	});
+
+	it('does not apply a base to a room it did not come from', async () => {
+		// A wiped server: the room is new, and the base describes history it does
+		// not have. Applying it would put the note in twice.
+		const elsewhere = await note('Notes/Reset-old.md');
+		const old = elsewhere.open('Phone', 'old room\n');
+		await old.session.whenSeeded;
+		const base = old.session.snapshotBase();
+		elsewhere.closeAll();
+
+		const shared = await note('Notes/Reset-new.md');
+		const kept: string[] = [];
+		const one = shared.open('Laptop', 'new room\n');
+		await until('the room is seeded', () => one.text === 'new room\n');
+		await shared.stored();
+
+		const back = shared.open('Phone', 'old room, edited\n', {
+			loadBase: () => Promise.resolve(base),
+			keepAside: (text) => {
+				kept.push(text);
+				return Promise.resolve();
+			},
+		});
+		await back.session.whenSeeded;
+
+		expect(back.text).toBe('new room\n');
+		expect(kept).toEqual(['old room, edited\n']);
+	});
+
+	it('leaves the note alone while the room does not answer', async () => {
+		let waited = false;
+		const session = new CollabSession({
+			path: 'Slow.md',
+			serverUrl: 'http://127.0.0.1:1',
+			vaultId,
+			roomId: 'b'.repeat(32),
+			token,
+			contentKey,
+			secret,
+			deviceName: 'slow',
+			readCurrent: () => Promise.resolve('typed while waiting\n'),
+			onStatus: () => undefined,
+			onError: () => undefined,
+			onWaiting: () => {
+				waited = true;
+			},
+		});
+		session.start();
+
+		await until('the wait is reported', () => waited, 8_000);
+		// Not seeded from the note: that seed is what collided with the room's
+		// history when it arrived late.
+		expect(session.isSeeded).toBe(false);
+		expect(session.contents()).toBe('');
+
+		session.destroy();
+	}, 10_000);
 });
 
 describe('a server address that cannot be used', () => {

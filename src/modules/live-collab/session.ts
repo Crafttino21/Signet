@@ -1,6 +1,10 @@
 import { Awareness, applyAwarenessUpdate, encodeAwarenessUpdate } from 'y-protocols/awareness';
 import * as Y from 'yjs';
 import { RoomSocket } from './room-socket';
+import { colourSlot } from './authors';
+import type { AuthorEntry } from './authors';
+import type { RoomBase } from './base-store';
+import { mergeText } from './text-merge';
 import type { Bytes } from '@signet/protocol';
 
 /**
@@ -12,10 +16,12 @@ import type { Bytes } from '@signet/protocol';
  * produce one text rather than a conflict. That is the whole reason this exists
  * alongside the file sync, which can only ever keep both versions.
  *
- * Seeding is the delicate part. A room that already has history is the truth; the
- * file on disk may be an older copy. A room with no history at all is new, and
- * then the file is all there is. Getting that backwards would either discard
- * everyone else's work or duplicate the file's contents into the document.
+ * Joining is the delicate part. A room with no history at all is new, and then
+ * the file is all there is. A room with history has the others' work in it — and
+ * the file may have work of this device's that the room never saw, written while
+ * it was cut off. Neither may simply win: the two are merged against the text
+ * this device last shared with the room (`text-merge.ts`), and what cannot be
+ * merged is kept beside the note rather than dropped.
  *
  * Until the seeding has happened the document is not the note. It is empty, or
  * half of one, and an editor bound to it in that state is shown the difference as
@@ -35,6 +41,12 @@ export interface SessionOptions {
 	/** Shown to the others as the name beside their cursor. */
 	deviceName: string;
 	/**
+	 * What tells this device's text apart from a namesake's. Names are chosen by
+	 * people and two desktops are both called "Desktop"; the id is not. Falls
+	 * back to the name where there is no id.
+	 */
+	deviceId?: string;
+	/**
 	 * The note as it stands right now, read when the room turns out to be empty.
 	 *
 	 * Deliberately not "read the file": somebody can type into an open note in the
@@ -43,6 +55,26 @@ export interface SessionOptions {
 	 * puts them into the room instead of losing them at the first sync.
 	 */
 	readCurrent: () => Promise<string>;
+	/**
+	 * What this device last shared with this room, if it remembers. See
+	 * `base-store.ts`; without one, a note that differs from its room is kept
+	 * beside it rather than merged.
+	 */
+	loadBase?: () => Promise<RoomBase | undefined>;
+	/**
+	 * This device's text could not be merged into the room without a person.
+	 *
+	 * The room's text goes into the note — it is what everybody else is looking
+	 * at — and this is how the other version survives: the caller writes it next
+	 * to the note as a conflicted copy.
+	 */
+	keepAside?: (text: string) => Promise<void>;
+	/**
+	 * The room has not answered in time. The note stays an ordinary note until it
+	 * does, and is merged then; this is only so somebody can be told why nothing
+	 * is shared yet.
+	 */
+	onWaiting?: () => void;
 	onStatus: (connected: boolean, peers: number) => void;
 	onError: (error: unknown) => void;
 	/**
@@ -59,26 +91,47 @@ export interface SessionOptions {
 const COMPACT_AFTER = 200;
 
 /**
- * How long to wait for the room before seeding from the note anyway.
+ * How long the room has to answer before the wait is worth mentioning.
  *
- * A server that is down must not leave a note unbound forever: the editor would
- * never join its own document, and nothing typed would ever be collaborative. So
- * after this the note seeds itself, exactly as an empty room would, and the
- * socket merges whatever it finds when it eventually connects. That merge is safe
- * because a seed is built under {@link SEED_CLIENT_ID} — two devices seeding the
- * same text produce the same bytes, and a CRDT applies them once.
+ * Only mentioning. This used to seed the document from the note when it ran
+ * out, so that a server that was down did not leave the note unbound — and that
+ * seed is what broke text. It went into the document under the shared seed
+ * identity, the room's own history arrived a moment later under the same one
+ * with different text, and Yjs, which knows a character by who wrote it and
+ * when, kept whichever it saw first. Everything the others did afterwards then
+ * pointed at characters this device did not have: their typing landed in the
+ * wrong place and their deletions took the wrong words. "Mitten im Text" was
+ * that.
+ *
+ * So a note whose room is slow stays an ordinary note, saved by Obsidian as any
+ * other, and is merged into the room when the room answers. Nothing typed in the
+ * meantime is lost, because the merge is exactly the one a device that was
+ * offline for a week goes through.
  */
 const SEED_TIMEOUT_MS = 5_000;
 
 export class CollabSession {
 	readonly doc = new Y.Doc();
 	readonly text: Y.Text;
+	/** Which device each Yjs client id belongs to. See `authorship.ts`. */
+	readonly authors: Y.Map<AuthorEntry>;
 	readonly awareness: Awareness;
+	/** What identifies this device among the authors. */
+	readonly authorKey: string;
 
 	private readonly socket: RoomSocket;
 	private seeded = false;
+	/** A join is under way; history that arrives meanwhile waits for it. */
+	private joining = false;
+	private pendingHistory: Uint8Array[] | undefined;
+	/** Whether this session has put itself in {@link authors} yet. */
+	private registered = false;
+	/** Every client id this device has written under in this room. */
+	private ownClients: number[];
 	/** The server said this room cannot be served. Never seed over that. */
 	private unavailable = false;
+	/** Ended while a join was waiting on the note. Nothing may land after this. */
+	private destroyed = false;
 	/**
 	 * How many log entries the document was built from.
 	 *
@@ -94,10 +147,11 @@ export class CollabSession {
 	/**
 	 * Resolves once this document holds the note.
 	 *
-	 * Nothing binds an editor before this. Resolved rather than rejected when the
-	 * room cannot be reached, because the document is then seeded from the note and
-	 * is just as bindable — a caller waiting on this is asking "is the document the
-	 * text yet", not "is the server up".
+	 * Nothing binds an editor before this, and a room that does not answer keeps
+	 * it waiting: the note stays an ordinary note until there is a room to merge
+	 * it into. Also resolved — never rejected — when the session is destroyed or
+	 * the room turns out to be unavailable, so nothing waits on it forever; a
+	 * caller checks {@link isSeeded} or whether the session is still current.
 	 */
 	readonly whenSeeded = new Promise<void>((resolve) => {
 		this.announceSeeded = resolve;
@@ -105,13 +159,33 @@ export class CollabSession {
 
 	constructor(private readonly options: SessionOptions) {
 		this.text = this.doc.getText('content');
+		this.authors = this.doc.getMap<AuthorEntry>('authors');
+		this.authorKey = options.deviceId ?? options.deviceName;
+		this.ownClients = [this.doc.clientID];
 		this.awareness = new Awareness(this.doc);
+		// The cursor in the same colour as the text this device wrote, and both
+		// from Obsidian's palette, so they follow the theme instead of fighting it.
+		const colour = colourSlot(this.authorKey);
 		this.awareness.setLocalStateField('user', {
 			name: options.deviceName,
-			// Derived from the name so the same device keeps its colour, and two
-			// devices are unlikely to collide.
-			color: colourFor(options.deviceName),
-			colorLight: `${colourFor(options.deviceName)}33`,
+			color: `var(--color-${colour})`,
+			colorLight: `rgba(var(--color-${colour}-rgb), 0.2)`,
+		});
+
+		// Signed on the first keystroke rather than on joining: a session that only
+		// read the note has written nothing to attribute, and every one that signed
+		// on arrival would leave an entry in the room's history forever.
+		this.text.observe((_event, transaction) => {
+			if (transaction.local && !this.registered) {
+				this.registered = true;
+				// Not inside the observer: this transaction is still being cleaned up.
+				void Promise.resolve().then(() => {
+					this.authors.set(String(this.doc.clientID), {
+						device: this.authorKey,
+						name: options.deviceName,
+					});
+				});
+			}
 		});
 
 		this.socket = new RoomSocket(
@@ -204,7 +278,7 @@ export class CollabSession {
 		this.seedTimer = window.setTimeout(() => {
 			this.seedTimer = undefined;
 			if (!this.seeded) {
-				void this.seed([], this.generation);
+				this.options.onWaiting?.();
 			}
 		}, SEED_TIMEOUT_MS);
 
@@ -217,11 +291,12 @@ export class CollabSession {
 	}
 
 	/**
-	 * Brings the document up to date with the room, once.
+	 * Brings the document up to date with the room.
 	 *
-	 * A room with history wins over the file: whatever is on disk here may be an
-	 * older copy, and replacing the room with it would throw away everyone else's
-	 * edits. Only an empty room is seeded from the file.
+	 * The first time, that is a join: an empty room is seeded from the note, a
+	 * room with history is merged with it (see {@link join}). Every time after,
+	 * it is a reconnection, and the room's history is simply applied — the
+	 * document already exists.
 	 */
 	private async seed(updates: Uint8Array[], generation: number): Promise<void> {
 		this.generation = generation;
@@ -234,57 +309,196 @@ export class CollabSession {
 			return;
 		}
 
-		if (this.seeded) {
-			// A reconnection. The updates are merged rather than seeded, since the
-			// document already exists.
-			for (const update of updates) {
-				Y.applyUpdate(this.doc, update, this);
-			}
-			// Anything typed while the socket was down never reached the room: a
-			// document announces each edit once, at the moment it happens, and the
-			// send was dropped. Offering the whole state closes that gap, and a CRDT
-			// ignores the part it already has.
-			void this.socket.sendUpdate(Y.encodeStateAsUpdate(this.doc));
-			this.announce();
+		if (this.joining) {
+			// The socket came back while a join was still reading the note. Applied
+			// once the join is done, as the reconnection it is.
+			this.pendingHistory = updates;
 			return;
 		}
-		this.seeded = true;
+
+		if (this.seeded) {
+			this.reconnected(updates);
+			return;
+		}
+
+		this.joining = true;
 		if (this.seedTimer !== undefined) {
 			window.clearTimeout(this.seedTimer);
 			this.seedTimer = undefined;
 		}
 
+		let aside: string | undefined;
 		try {
 			if (updates.length === 0) {
 				const contents = await this.options.readCurrent();
+				if (this.destroyed) {
+					return;
+				}
 				if (contents.length > 0) {
 					// Not marked as remote: this is genuinely new content for the room.
 					Y.applyUpdate(this.doc, seedUpdate(contents));
 				}
-				return;
+			} else {
+				aside = await this.join(updates);
 			}
-
-			for (const update of updates) {
-				Y.applyUpdate(this.doc, update, this);
-			}
-
-			this.covered = updates.length;
-
-			if (updates.length > COMPACT_AFTER) {
-				// The whole document as one update, offered in place of the log that
-				// produced it. The server keeps the old generation regardless.
-				void this.socket.sendCompacted(
-					Y.encodeStateAsUpdate(this.doc),
-					this.generation,
-					this.covered
-				);
-			}
+		} catch (error) {
+			this.options.onError(error);
 		} finally {
 			// Whatever happened above, the document is as close to the note as it is
 			// going to get. A reader that never hears this leaves the note unbound.
+			// A session ended meanwhile holds no note, and must not say it does.
+			this.seeded = !this.destroyed;
+			this.joining = false;
 			this.announceSeeded();
 			this.announce();
 		}
+
+		if (aside !== undefined && this.options.keepAside) {
+			// Only now, with the editor already told: writing the copy takes a moment,
+			// and keystrokes in that moment would land in a buffer about to be
+			// brought in line with the room.
+			this.options.keepAside(aside).catch((error: unknown) => {
+				this.options.onError(error);
+			});
+		}
+
+		const pending = this.pendingHistory;
+		this.pendingHistory = undefined;
+		if (pending) {
+			this.reconnected(pending);
+		}
+	}
+
+	/**
+	 * Joins a room that has history, without losing what this device has.
+	 *
+	 * Three texts meet here: the room's, the note as this device has it, and the
+	 * base — what the two last agreed on. The merge puts this device's changes
+	 * since the base into the room's text, and only a stretch both sides changed
+	 * differently is left to a person, by way of a copy beside the note.
+	 *
+	 * Everything that waits happens first. From reading the note onwards the
+	 * steps are synchronous, so nothing typed into the editor can fall between
+	 * reading the note and the merge that is computed from it.
+	 *
+	 * Returns this device's text when it has to be kept beside the note.
+	 */
+	private async join(updates: Uint8Array[]): Promise<string | undefined> {
+		const room = roomState(updates);
+		const base = await this.usableBase(room.vector);
+		const ours = await this.options.readCurrent();
+		if (this.destroyed) {
+			return undefined;
+		}
+
+		if (base) {
+			// The document as this device left it, including anything it typed that
+			// never reached the room — that is in `ours` and in the base text alike,
+			// and the merge would otherwise read it as the room having deleted it.
+			Y.applyUpdate(this.doc, base.update, this);
+			this.ownClients = [...base.clients, this.doc.clientID];
+		}
+		for (const update of updates) {
+			Y.applyUpdate(this.doc, update, this);
+		}
+		this.covered = updates.length;
+
+		if (base && this.text.toString() !== room.text) {
+			// What the base held that the room did not: this device's own edits from
+			// a session whose socket was down. Only the difference, so the room's
+			// log does not grow by a whole document on every open.
+			void this.socket.sendUpdate(Y.encodeStateAsUpdate(this.doc, room.vector));
+		}
+
+		const theirs = this.text.toString();
+		let aside: string | undefined;
+		if (base) {
+			const merged = mergeText(base.text, ours, theirs);
+			if (merged.changes.length > 0) {
+				// A local transaction, so it goes to the room like any typing does.
+				this.doc.transact(() => {
+					for (const change of [...merged.changes].reverse()) {
+						if (change.to > change.from) {
+							this.text.delete(change.from, change.to - change.from);
+						}
+						if (change.insert.length > 0) {
+							this.text.insert(change.from, change.insert);
+						}
+					}
+				});
+			}
+			if (merged.conflicted) {
+				aside = ours;
+			}
+		} else if (ours !== theirs && ours.trim() !== '') {
+			// Nothing to tell this device's changes from the room's by. Either text
+			// could be the newer one, so the room — which everybody else is already
+			// looking at — stays in the note, and this one is kept beside it.
+			aside = ours;
+		}
+
+		if (updates.length > COMPACT_AFTER) {
+			// The whole document as one update, offered in place of the log that
+			// produced it. The server keeps the old generation regardless.
+			void this.socket.sendCompacted(
+				Y.encodeStateAsUpdate(this.doc),
+				this.generation,
+				this.covered
+			);
+		}
+		return aside;
+	}
+
+	/**
+	 * The stored base, if it is about the room that is actually there.
+	 *
+	 * A room that was reset — a wiped server, a restored backup — has none of the
+	 * history the base was taken from. Applying the base to it would put the
+	 * whole note in twice. The test is whether the room holds everything the base
+	 * holds from other devices; what it may lack is only this device's own.
+	 */
+	private async usableBase(roomVector: Uint8Array): Promise<RoomBase | undefined> {
+		const base = await this.options.loadBase?.();
+		if (!base) {
+			return undefined;
+		}
+		const room = Y.decodeStateVector(roomVector);
+		const own = new Set(base.clients);
+		const held = Y.decodeStateVector(Y.encodeStateVectorFromUpdate(base.update));
+		for (const [client, clock] of held) {
+			if (!own.has(client) && (room.get(client) ?? 0) < clock) {
+				return undefined;
+			}
+		}
+		return base;
+	}
+
+	/**
+	 * Catches a document that already exists up with the room.
+	 *
+	 * Anything typed while the socket was down never reached the room: a document
+	 * announces each edit once, at the moment it happens, and the send was
+	 * dropped. Offering what the room is missing closes that gap.
+	 */
+	private reconnected(updates: Uint8Array[]): void {
+		const room = roomState(updates);
+		for (const update of updates) {
+			Y.applyUpdate(this.doc, update, this);
+		}
+		void this.socket.sendUpdate(Y.encodeStateAsUpdate(this.doc, room.vector));
+		this.announce();
+	}
+
+	/**
+	 * What to remember as the base, at a moment the caller has seen the file on
+	 * disk hold exactly {@link contents}. See `base-store.ts`.
+	 */
+	snapshotBase(): RoomBase {
+		return {
+			text: this.contents(),
+			update: Y.encodeStateAsUpdate(this.doc),
+			clients: [...this.ownClients],
+		};
 	}
 
 	/**
@@ -312,6 +526,7 @@ export class CollabSession {
 	}
 
 	destroy(): void {
+		this.destroyed = true;
 		if (this.seedTimer !== undefined) {
 			window.clearTimeout(this.seedTimer);
 			this.seedTimer = undefined;
@@ -326,41 +541,53 @@ export class CollabSession {
 }
 
 /**
- * The identity every device seeds under.
- *
- * Fixed rather than random on purpose — see `seedUpdate`. A real client picking
- * the same number would have its own edits merged with the seed, which is
- * harmless: the seed is only ever the text both sides already had.
- */
-const SEED_CLIENT_ID = 0;
-
-/**
- * Turns a file's contents into the same bytes on every device.
+ * The identity a seed is written under: a hash of the text being seeded.
  *
  * Two devices can open a note at the same moment and both find the room empty —
- * neither one's first update has reached the server yet. Inserting the text under
- * each device's own identity would leave the room holding the file twice, which
- * is exactly the kind of quiet damage this project exists to prevent. Built in a
- * throwaway document under one fixed identity, both devices produce byte-identical
- * updates, and a CRDT applies an item it already has exactly once.
+ * neither one's first update has reached the server yet. Each then seeds it.
  *
- * If the two files genuinely differ, the seeds differ too and both survive as a
- * merge. That is the right answer: nobody's text is thrown away.
+ * Yjs knows a character by the client that wrote it and a counter, and treats an
+ * id it already has as the same character whatever the text says. With one fixed
+ * id for every seed that was right for identical files and quietly destructive
+ * for different ones: the second seed was dropped as a duplicate, and every edit
+ * built on it pointed at characters the others did not have.
+ *
+ * Derived from the content, identical files still produce byte-identical seeds
+ * that a CRDT applies once, and different files get different ids, so both
+ * survive. Seeing a note twice is a visible problem with an obvious fix; losing
+ * one of them is neither.
  */
-function seedUpdate(contents: string): Uint8Array {
+export function seedClientId(contents: string): number {
+	// FNV-1a over UTF-16 units. Synchronous, so the seed is not an await away
+	// from the text it was computed from.
+	let hash = 0x811c9dc5;
+	for (let i = 0; i < contents.length; i += 1) {
+		hash ^= contents.charCodeAt(i);
+		hash = Math.imul(hash, 0x01000193);
+	}
+	return hash >>> 0;
+}
+
+/** Turns a file's contents into the same bytes on every device. */
+export function seedUpdate(contents: string): Uint8Array {
 	const doc = new Y.Doc();
-	doc.clientID = SEED_CLIENT_ID;
+	doc.clientID = seedClientId(contents);
 	doc.getText('content').insert(0, contents);
 	const update = Y.encodeStateAsUpdate(doc);
 	doc.destroy();
 	return update;
 }
 
-/** A stable colour per device name, so cursors stay recognisable. */
-function colourFor(name: string): string {
-	let hash = 0;
-	for (const character of name) {
-		hash = (hash * 31 + character.charCodeAt(0)) % 360;
+/** What a room's history adds up to, without touching the session's document. */
+function roomState(updates: readonly Uint8Array[]): { vector: Uint8Array; text: string } {
+	const doc = new Y.Doc();
+	for (const update of updates) {
+		Y.applyUpdate(doc, update);
 	}
-	return `hsl(${String(hash)}, 70%, 50%)`;
+	const result = {
+		vector: Y.encodeStateVector(doc),
+		text: doc.getText('content').toString(),
+	};
+	doc.destroy();
+	return result;
 }

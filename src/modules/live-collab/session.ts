@@ -403,14 +403,14 @@ export class CollabSession {
 		}
 		this.covered = updates.length;
 
-		if (base && this.text.toString() !== room.text) {
+		if (base && this.text.toJSON() !== room.text) {
 			// What the base held that the room did not: this device's own edits from
 			// a session whose socket was down. Only the difference, so the room's
 			// log does not grow by a whole document on every open.
 			void this.socket.sendUpdate(Y.encodeStateAsUpdate(this.doc, room.vector));
 		}
 
-		const theirs = this.text.toString();
+		const theirs = this.text.toJSON();
 		let aside: string | undefined;
 		if (base) {
 			const merged = mergeText(base.text, ours, theirs);
@@ -586,7 +586,7 @@ function roomState(updates: readonly Uint8Array[]): { vector: Uint8Array; text: 
 	}
 	const result = {
 		vector: Y.encodeStateVector(doc),
-		text: doc.getText('content').toString(),
+		text: doc.getText('content').toJSON(),
 	};
 	doc.destroy();
 	return result;

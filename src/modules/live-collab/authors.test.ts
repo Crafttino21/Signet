@@ -36,7 +36,7 @@ describe('authorRanges', () => {
 			mine.getMap<AuthorEntry>('authors'),
 			'laptop'
 		);
-		expect(mine.getText('content').toString()).toBe('mine theirs');
+		expect(mine.getText('content').toJSON()).toBe('mine theirs');
 		expect(ranges).toEqual([{ from: 5, to: 11, device: 'phone', slot: colourSlot('phone') }]);
 	});
 

@@ -391,7 +391,7 @@ describe('seeding', () => {
 		Y.applyUpdate(two, seedUpdate(right));
 		Y.applyUpdate(one, Y.encodeStateAsUpdate(two));
 		Y.applyUpdate(two, Y.encodeStateAsUpdate(one));
-		return [one.getText('content').toString(), two.getText('content').toString()];
+		return [one.getText('content').toJSON(), two.getText('content').toJSON()];
 	}
 
 	it('applies the same file once', () => {

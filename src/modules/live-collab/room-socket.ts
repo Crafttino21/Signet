@@ -159,7 +159,14 @@ export class RoomSocket {
 		socket.addEventListener('error', () => {
 			// The close handler does the work; an error on its own tells us nothing
 			// the browser will not repeat there.
-			socket.close();
+			//
+			// Only a socket that is actually open is closed from here. An error is
+			// always followed by a close event anyway, and closing one that is still
+			// connecting fails it again — which in Node fires this same handler
+			// synchronously, until the stack runs out.
+			if (socket.readyState === WebSocket.OPEN) {
+				socket.close();
+			}
 		});
 	}
 

@@ -1,0 +1,76 @@
+# Releases Signet from GitHub, so nobody needs Node on their own machine to do it.
+#
+# Started by hand with the version to release:
+#
+#   gh workflow run release.yml -f version=0.5.4
+#
+# The order matters. The version is set by `version-bump.mjs` and nothing else,
+# because the three files that carry it have drifted before; the bump refuses a
+# version with no CHANGELOG entry, and that refusal is the point. Everything is
+# then checked and built *before* anything leaves this runner: a check that fails
+# leaves no commit, no tag and no release behind, only a red run.
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. 0.5.4
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# Two releases at once would race for the same commit on main.
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          # What the server image runs on, and new enough for the global
+          # WebSocket the live-editing tests use.
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Set the version
+        run: npm run version-bump -- "$VERSION"
+
+      - name: Typecheck, lint and test
+        run: npm run check
+
+      - name: Build
+        run: node esbuild.config.mjs production
+
+      - name: Commit and tag
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+          git commit -am "$VERSION"
+          git tag "$VERSION"
+          git push origin HEAD:main "$VERSION"
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          previous=$(git describe --tags --abbrev=0 "$VERSION^" 2>/dev/null || true)
+          if [ -n "$previous" ]; then
+            git log "$previous..$VERSION^" --no-merges --format='- %s' > notes.md
+          else
+            : > notes.md
+          fi
+          gh release create "$VERSION" main.js manifest.json styles.css \
+            --title "$VERSION" --notes-file notes.md
